@@ -1,0 +1,319 @@
+<title>falsy.dev Directions</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Archivo:wdth,wght@62..125,300..900&family=Martian+Mono:wght@300;400;500&family=Big+Shoulders+Display:wght@600;800;900&family=Public+Sans:wght@400;500;600&family=Red+Hat+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: a review sheet. Each direction is a scaled 16:10 hero frame with a glass project card, plus a short spec column. Page chrome stays neutral so the directions carry the colour. */
+  :root {
+    color-scheme: dark;
+    --page: #0b0b0d;
+    --page-ink: #e9e6e1;
+    --page-muted: #9a958e;
+    --page-line: #26252a;
+    --chrome-sans: "Public Sans", system-ui, sans-serif;
+    --chrome-mono: "Red Hat Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--page);
+    color: var(--page-ink);
+    font-family: var(--chrome-sans);
+    font-size: 15px;
+    line-height: 1.55;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 40px 72px;
+  }
+  .sheet { max-width: 1180px; margin: 0 auto; display: grid; gap: 64px; }
+  header.intro { display: grid; gap: 10px; max-width: 68ch; }
+  header.intro .eyebrow { font: 500 12px/1 var(--chrome-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--page-muted); }
+  header.intro h1 { font: 600 30px/1.15 var(--chrome-sans); margin: 0; text-wrap: balance; }
+  header.intro p { margin: 0; color: var(--page-muted); }
+
+  .direction { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 28px; align-items: start; }
+  @media (max-width: 900px) { .direction { grid-template-columns: minmax(0, 1fr); } }
+  .spec { display: grid; gap: 14px; padding-top: 4px; min-width: 0; }
+  .spec .tag { font: 500 12px/1 var(--chrome-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--page-muted); }
+  .spec h2 { margin: 0; font: 600 22px/1.2 var(--chrome-sans); }
+  .spec p { margin: 0; color: var(--page-muted); }
+  .spec dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 13px; }
+  .spec dt { color: var(--page-muted); font-family: var(--chrome-mono); font-size: 12px; letter-spacing: 0.04em; }
+  .spec dd { margin: 0; }
+  .swatches { display: flex; gap: 6px; flex-wrap: wrap; }
+  .swatches span { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--page-line); }
+
+  /* The frame scales like a screenshot: every size inside it is in container units. */
+  .frame {
+    position: relative;
+    aspect-ratio: 16 / 10;
+    max-width: 100%;
+    overflow: hidden;
+    border-radius: 10px;
+    border: 1px solid var(--page-line);
+    background: #000 url("hero-olympus-dawn.jpg") center / cover no-repeat;
+    container-type: inline-size;
+    color: var(--ink);
+  }
+  .frame .hero { position: absolute; left: 6cqi; top: 7cqi; width: 48cqi; display: grid; }
+  .frame nav { position: absolute; right: 6cqi; top: 4cqi; display: flex; gap: 2.6cqi; }
+  .frame .telemetry { position: absolute; left: 6cqi; bottom: 3.6cqi; }
+  .frame .card { position: absolute; right: 5cqi; bottom: 6cqi; width: 30cqi; display: grid; gap: 1cqi; padding: 2.2cqi; }
+  .frame .card .meta { display: flex; gap: 1.2cqi; flex-wrap: wrap; }
+  .cta { justify-self: start; text-decoration: none; }
+
+  /* ---------- A · Blue Hour ---------- */
+  .a {
+    --ink: #eef1f4;
+    --muted: rgba(220, 228, 236, 0.72);
+    --accent: #9cc6ec;
+    --glass: rgba(12, 18, 28, 0.42);
+    --glass-line: rgba(156, 198, 236, 0.28);
+    --display: "Instrument Serif", Georgia, serif;
+    --body: "Instrument Sans", system-ui, sans-serif;
+    --data: "IBM Plex Mono", ui-monospace, monospace;
+  }
+  .a .hero { gap: 1.6cqi; }
+  .a .hero .kicker { font: 400 1.05cqi/1 var(--data); letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); }
+  .a .hero h3 { margin: 0; font: 400 7.4cqi/0.95 var(--display); letter-spacing: -0.01em; }
+  .a .hero h3 em { font-style: italic; color: var(--accent); }
+  .a .hero p { margin: 0; font: 400 1.5cqi/1.5 var(--body); color: var(--muted); max-width: 38cqi; }
+  .a .cta { font: 500 1.25cqi/1 var(--body); color: #0b1420; background: var(--accent); padding: 1.1cqi 1.8cqi; border-radius: 99px; margin-top: 0.8cqi; }
+  .a nav a { font: 400 1.1cqi/1 var(--body); color: var(--muted); text-decoration: none; }
+  .a .telemetry { font: 400 0.95cqi/1 var(--data); letter-spacing: 0.12em; color: var(--muted); }
+  .a .card { background: var(--glass); border: 1px solid var(--glass-line); border-radius: 1.4cqi; backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2); }
+  .a .card .label { font: 400 0.9cqi/1 var(--data); letter-spacing: 0.16em; text-transform: uppercase; color: var(--accent); }
+  .a .card h4 { margin: 0; font: 400 2.6cqi/1 var(--display); }
+  .a .card p { margin: 0; font: 400 1.15cqi/1.45 var(--body); color: var(--muted); }
+  .a .card .meta span { font: 400 0.9cqi/1 var(--data); color: var(--muted); }
+
+  /* ---------- B · Flight Dynamics ---------- */
+  .b {
+    --ink: #f3efe7;
+    --muted: rgba(243, 239, 231, 0.66);
+    --accent: #ffb43c;
+    --grid: rgba(243, 239, 231, 0.12);
+    --glass: rgba(10, 10, 10, 0.5);
+    --display: "Archivo", "Arial Narrow", sans-serif;
+    --body: "Archivo", system-ui, sans-serif;
+    --data: "Martian Mono", ui-monospace, monospace;
+  }
+  .b::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 12.5cqi 12.5cqi;
+    mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.5) 45%, transparent 62%);
+  }
+  .b .hero { gap: 1.4cqi; }
+  .b .hero .kicker { font: 400 0.95cqi/1 var(--data); letter-spacing: 0.08em; color: var(--accent); display: flex; gap: 1.4cqi; }
+  .b .hero h3 { margin: 0; font-family: var(--display); font-weight: 800; font-stretch: 125%; font-variation-settings: "wdth" 125; font-size: 5.6cqi; line-height: 0.92; letter-spacing: -0.02em; text-transform: uppercase; }
+  .b .hero p { margin: 0; font: 400 1.45cqi/1.5 var(--body); color: var(--muted); max-width: 36cqi; }
+  .b .cta { font: 500 1.05cqi/1 var(--data); color: #111; background: var(--accent); padding: 1.1cqi 1.6cqi; letter-spacing: 0.04em; margin-top: 0.6cqi; }
+  .b .cta::after { content: " →"; }
+  .b nav a { font: 400 0.95cqi/1 var(--data); color: var(--muted); text-decoration: none; letter-spacing: 0.06em; }
+  .b nav a::before { content: "/"; color: var(--accent); margin-right: 0.4cqi; }
+  .b .telemetry { font: 300 0.9cqi/1 var(--data); color: var(--accent); letter-spacing: 0.04em; border-top: 1px solid var(--grid); padding-top: 0.9cqi; }
+  .b .card { background: var(--glass); border: 1px solid var(--grid); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+  .b .card::before { content: ""; position: absolute; left: -1px; top: -1px; width: 1.6cqi; height: 1.6cqi; border-left: 2px solid var(--accent); border-top: 2px solid var(--accent); }
+  .b .card .label { font: 400 0.85cqi/1 var(--data); color: var(--accent); }
+  .b .card h4 { margin: 0; font-family: var(--display); font-weight: 700; font-variation-settings: "wdth" 112; font-size: 2.2cqi; line-height: 1; text-transform: uppercase; letter-spacing: 0.01em; }
+  .b .card p { margin: 0; font: 400 1.15cqi/1.45 var(--body); color: var(--muted); }
+  .b .card .meta span { font: 300 0.85cqi/1 var(--data); color: var(--muted); }
+
+  /* ---------- C · International Orange ---------- */
+  .c {
+    --ink: #ffffff;
+    --muted: rgba(255, 255, 255, 0.7);
+    --accent: #ff4f00;
+    --glass: rgba(16, 16, 18, 0.55);
+    --display: "Big Shoulders Display", "Arial Narrow", sans-serif;
+    --body: "Public Sans", system-ui, sans-serif;
+    --data: "Red Hat Mono", ui-monospace, monospace;
+  }
+  .c .hero { gap: 1.2cqi; }
+  .c .hero .kicker { justify-self: start; font: 500 0.95cqi/1 var(--data); letter-spacing: 0.16em; text-transform: uppercase; color: #fff; background: var(--accent); padding: 0.6cqi 0.9cqi; }
+  .c .hero h3 { margin: 0; font: 900 8.6cqi/0.84 var(--display); text-transform: uppercase; letter-spacing: 0.005em; }
+  .c .hero p { margin: 0; font: 400 1.45cqi/1.5 var(--body); color: var(--muted); max-width: 36cqi; }
+  .c .cta { font: 600 1.15cqi/1 var(--body); color: #fff; border: 2px solid var(--accent); padding: 1cqi 1.6cqi; margin-top: 0.6cqi; }
+  .c nav a { font: 800 1.35cqi/1 var(--display); text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink); text-decoration: none; }
+  .c .telemetry { font: 500 0.95cqi/1 var(--data); color: var(--muted); letter-spacing: 0.1em; }
+  .c .telemetry b { color: var(--accent); font-weight: 500; }
+  .c .card { background: var(--glass); border-left: 0.5cqi solid var(--accent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+  .c .card .label { font: 500 0.85cqi/1 var(--data); letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+  .c .card h4 { margin: 0; font: 900 3.2cqi/0.9 var(--display); text-transform: uppercase; }
+  .c .card p { margin: 0; font: 400 1.15cqi/1.45 var(--body); color: var(--muted); }
+  .c .card .meta span { font: 500 0.85cqi/1 var(--data); color: var(--ink); }
+
+  /* ---------- D · Blue Hour × Flight Dynamics ---------- */
+  .d {
+    --ink: #eef1f4;
+    --muted: rgba(220, 228, 236, 0.7);
+    --accent: #9cc6ec;
+    --grid: rgba(156, 198, 236, 0.12);
+    --glass: rgba(10, 16, 26, 0.46);
+    --glass-line: rgba(156, 198, 236, 0.24);
+    --display: "Instrument Serif", Georgia, serif;
+    --body: "Instrument Sans", system-ui, sans-serif;
+    --data: "Martian Mono", ui-monospace, monospace;
+  }
+  .d::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 12.5cqi 12.5cqi;
+    mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.45) 42%, transparent 55%);
+  }
+  .d .hero { gap: 1.5cqi; }
+  .d .hero .kicker { font: 400 0.95cqi/1 var(--data); letter-spacing: 0.08em; color: var(--accent); display: flex; gap: 1.4cqi; }
+  .d .hero h3 { margin: 0; font: 400 7.6cqi/0.95 var(--display); letter-spacing: -0.01em; }
+  .d .hero h3 em { font-style: italic; color: var(--accent); }
+  .d .hero p { margin: 0; font: 400 1.5cqi/1.5 var(--body); color: var(--muted); max-width: 38cqi; }
+  .d .cta { font: 500 1.05cqi/1 var(--data); color: #0b1420; background: var(--accent); padding: 1.1cqi 1.6cqi; letter-spacing: 0.04em; margin-top: 0.6cqi; }
+  .d .cta::after { content: " \2192"; }
+  .d nav a { font: 400 0.95cqi/1 var(--data); color: var(--muted); text-decoration: none; letter-spacing: 0.06em; }
+  .d nav a::before { content: "/"; color: var(--accent); margin-right: 0.4cqi; }
+  .d .telemetry { font: 300 0.9cqi/1 var(--data); color: var(--accent); letter-spacing: 0.04em; border-top: 1px solid var(--grid); padding-top: 0.9cqi; }
+  .d .card { background: var(--glass); border: 1px solid var(--glass-line); backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2); }
+  .d .card::before { content: ""; position: absolute; left: -1px; top: -1px; width: 1.6cqi; height: 1.6cqi; border-left: 2px solid var(--accent); border-top: 2px solid var(--accent); }
+  .d .card .label { font: 400 0.85cqi/1 var(--data); color: var(--accent); }
+  .d .card h4 { margin: 0; font: 400 2.8cqi/1 var(--display); }
+  .d .card p { margin: 0; font: 400 1.15cqi/1.45 var(--body); color: var(--muted); }
+  .d .card .meta span { font: 300 0.85cqi/1 var(--data); color: var(--muted); }
+
+  .direction.pick .spec .tag { color: var(--page-ink); }
+  .note { color: var(--page-muted); font-size: 13px; max-width: 76ch; border-top: 1px solid var(--page-line); padding-top: 20px; }
+  a:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+</style>
+
+<div class="sheet">
+  <header class="intro">
+    <div class="eyebrow">falsy.dev · Phase 0</div>
+    <h1>Type and colour directions</h1>
+    <p>Each one is set over a real render: Olympus Mons at its next sunrise, Mars, 3× relief. The card sits on glass where it crosses the planet. Copy is placeholder until the voice pass.</p>
+  </header>
+
+  <section class="direction pick" aria-labelledby="d-name">
+    <div class="frame d">
+      <nav><a href="#d-name">consulting</a><a href="#d-name">projects</a><a href="#d-name">about</a><a href="#d-name">contact</a></nav>
+      <div class="hero">
+        <div class="kicker"><span>falsy.dev</span><span>T+00:00:00</span></div>
+        <h3>Justin <em>Powell</em></h3>
+        <p>GTM engineering and RevOps consulting. Physics by training, systems by trade.</p>
+        <a class="cta" href="#d-name">Book a call</a>
+      </div>
+      <div class="telemetry">MARS  18.6°N  226.2°E  LST 06:20  r=1.60 AU  relief×3  t×60</div>
+      <div class="card">
+        <div class="label">PRJ-01 / GEOSPATIAL</div>
+        <h4>KarstScout</h4>
+        <p>Finds likely cave entrances in USGS 3DEP LiDAR across the US.</p>
+        <div class="meta"><span>python</span><span>whiteboxtools</span><span>sveltekit</span></div>
+      </div>
+    </div>
+    <div class="spec">
+      <div class="tag">Direction D · Chosen</div>
+      <h2 id="d-name">Blue Hour × Flight Dynamics</h2>
+      <p>A's serif for the human moments, B's grid and readouts for the instrument layer. One accent, the Martian-sunset blue, which stays readable over orange terrain.</p>
+      <dl>
+        <dt>Display</dt><dd>Instrument Serif: name, section titles, project names</dd>
+        <dt>Body</dt><dd>Instrument Sans</dd>
+        <dt>Data</dt><dd>Martian Mono: telemetry, nav, labels, tags</dd>
+        <dt>Grid</dt><dd>Sky only, fading out before the planet</dd>
+      </dl>
+      <div class="swatches" aria-label="Palette"><span style="background:#eef1f4"></span><span style="background:#9cc6ec"></span><span style="background:#0a101a"></span></div>
+    </div>
+  </section>
+
+  <section class="direction" aria-labelledby="a-name">
+    <div class="frame a">
+      <nav><a href="#a-name">Consulting</a><a href="#a-name">Projects</a><a href="#a-name">About</a><a href="#a-name">Contact</a></nav>
+      <div class="hero">
+        <div class="kicker">falsy.dev</div>
+        <h3>Justin <em>Powell</em></h3>
+        <p>GTM engineering and RevOps consulting. Physics by training, systems by trade.</p>
+        <a class="cta" href="#a-name">Book a call</a>
+      </div>
+      <div class="telemetry">MARS · 18.6°N 226.2°E · LOCAL SOLAR 06:20 · 1.60 AU · RELIEF ×3 · ×60</div>
+      <div class="card">
+        <div class="label">Project · Geospatial</div>
+        <h4>KarstScout</h4>
+        <p>Finds likely cave entrances in USGS 3DEP LiDAR across the US.</p>
+        <div class="meta"><span>Python</span><span>WhiteboxTools</span><span>SvelteKit</span></div>
+      </div>
+    </div>
+    <div class="spec">
+      <div class="tag">Direction A</div>
+      <h2 id="a-name">Blue Hour</h2>
+      <p>Cinematic and editorial. A thin serif headline reads like a film title over the planet. The accent is the blue of a Martian sunset, which comes from dust scattering blue light forward around the Sun.</p>
+      <dl>
+        <dt>Display</dt><dd>Instrument Serif</dd>
+        <dt>Body</dt><dd>Instrument Sans</dd>
+        <dt>Data</dt><dd>IBM Plex Mono</dd>
+        <dt>Feel</dt><dd>Calm, premium, a little literary</dd>
+      </dl>
+      <div class="swatches" aria-label="Palette"><span style="background:#eef1f4"></span><span style="background:#9cc6ec"></span><span style="background:#0c121c"></span></div>
+    </div>
+  </section>
+
+  <section class="direction" aria-labelledby="b-name">
+    <div class="frame b">
+      <nav><a href="#b-name">consulting</a><a href="#b-name">projects</a><a href="#b-name">about</a><a href="#b-name">contact</a></nav>
+      <div class="hero">
+        <div class="kicker"><span>falsy.dev</span><span>T+00:00:00</span></div>
+        <h3>Justin<br>Powell</h3>
+        <p>GTM engineering and RevOps consulting. Physics by training, systems by trade.</p>
+        <a class="cta" href="#b-name">BOOK A CALL</a>
+      </div>
+      <div class="telemetry">MARS  18.6°N  226.2°E  LST 06:20  r=1.60 AU  relief×3  t×60</div>
+      <div class="card">
+        <div class="label">PRJ-01 / GEOSPATIAL</div>
+        <h4>KarstScout</h4>
+        <p>Finds likely cave entrances in USGS 3DEP LiDAR across the US.</p>
+        <div class="meta"><span>python</span><span>whiteboxtools</span><span>sveltekit</span></div>
+      </div>
+    </div>
+    <div class="spec">
+      <div class="tag">Direction B</div>
+      <h2 id="b-name">Flight Dynamics</h2>
+      <p>Engineered and instrument-like. A wide grotesk headline, a fading coordinate grid in the empty sky, and Martian Mono for every readout. The amber is cockpit-display amber. It feels like a mission dashboard you are allowed to read.</p>
+      <dl>
+        <dt>Display</dt><dd>Archivo, expanded 125</dd>
+        <dt>Body</dt><dd>Archivo</dd>
+        <dt>Data</dt><dd>Martian Mono</dd>
+        <dt>Feel</dt><dd>Precise, technical, systems-minded</dd>
+      </dl>
+      <div class="swatches" aria-label="Palette"><span style="background:#f3efe7"></span><span style="background:#ffb43c"></span><span style="background:#0a0a0a"></span></div>
+    </div>
+  </section>
+
+  <section class="direction" aria-labelledby="c-name">
+    <div class="frame c">
+      <nav><a href="#c-name">Consulting</a><a href="#c-name">Projects</a><a href="#c-name">About</a><a href="#c-name">Contact</a></nav>
+      <div class="hero">
+        <div class="kicker">falsy.dev</div>
+        <h3>Justin<br>Powell</h3>
+        <p>GTM engineering and RevOps consulting. Physics by training, systems by trade.</p>
+        <a class="cta" href="#c-name">Book a call</a>
+      </div>
+      <div class="telemetry"><b>MARS</b> · 18.6°N 226.2°E · LOCAL SOLAR 06:20 · 1.60 AU · RELIEF ×3 · ×60</div>
+      <div class="card">
+        <div class="label">Project · Geospatial</div>
+        <h4>KarstScout</h4>
+        <p>Finds likely cave entrances in USGS 3DEP LiDAR across the US.</p>
+        <div class="meta"><span>Python</span><span>WhiteboxTools</span><span>SvelteKit</span></div>
+      </div>
+    </div>
+    <div class="spec">
+      <div class="tag">Direction C</div>
+      <h2 id="c-name">International Orange</h2>
+      <p>Bold and industrial. A condensed display face like launch-pad signage, set in white, with International Orange, the safety colour of pressure suits and launch towers. Public Sans was designed for US government sites, so it carries a quiet agency tone.</p>
+      <dl>
+        <dt>Display</dt><dd>Big Shoulders Display</dd>
+        <dt>Body</dt><dd>Public Sans</dd>
+        <dt>Data</dt><dd>Red Hat Mono</dd>
+        <dt>Feel</dt><dd>Confident, loud, memorable</dd>
+      </dl>
+      <div class="swatches" aria-label="Palette"><span style="background:#ffffff"></span><span style="background:#ff4f00"></span><span style="background:#101012"></span></div>
+    </div>
+  </section>
+
+  <p class="note">The glass here is a CSS blur over a still image. On the live site, the renderer draws the glass, and the CSS blur only shows on the poster fallback. Mixing is fine: for example, B's grid and readouts with A's serif headline.</p>
+</div>

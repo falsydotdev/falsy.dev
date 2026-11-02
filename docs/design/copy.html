@@ -1,0 +1,249 @@
+<title>falsy.dev Copy Draft</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wght@400;500;600&family=Martian+Mono:wght@300;400&display=swap">
+<style>
+  /* Layout: a single reading column in Direction D. Each site section shows its copy set in the type it will use, with open questions flagged inline and listed up top. */
+  :root {
+    color-scheme: dark;
+    --bg: #07090d;
+    --panel: #0e131b;
+    --ink: #eef1f4;
+    --muted: #a9b3bf;
+    --faint: #6f7a87;
+    --accent: #9cc6ec;
+    --line: rgba(156, 198, 236, 0.16);
+    --display: "Instrument Serif", Georgia, serif;
+    --body: "Instrument Sans", system-ui, sans-serif;
+    --data: "Martian Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 400 17px/1.6 var(--body);
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 40px 88px;
+  }
+  .col { max-width: 760px; margin: 0 auto; display: grid; gap: 56px; }
+  .label { font: 300 12px/1 var(--data); letter-spacing: 0.06em; color: var(--accent); }
+  .label::before { content: "/ "; }
+  h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+  h1 { font-size: clamp(40px, 7vw, 64px); line-height: 1; }
+  h2 { font-size: clamp(32px, 5vw, 44px); line-height: 1.05; }
+  h3 { font-size: 28px; line-height: 1.1; }
+  em { font-style: italic; color: var(--accent); }
+  p { margin: 0; max-width: 64ch; }
+  .muted { color: var(--muted); }
+  section { display: grid; gap: 18px; }
+  .stack { display: grid; gap: 14px; }
+
+  .intro { display: grid; gap: 14px; }
+  .intro p { color: var(--muted); }
+
+  .questions { background: var(--panel); border: 1px solid var(--line); padding: 24px; display: grid; gap: 14px; position: relative; }
+  .questions::before { content: ""; position: absolute; left: -1px; top: -1px; width: 16px; height: 16px; border-left: 2px solid var(--accent); border-top: 2px solid var(--accent); }
+  .questions ol { margin: 0; padding-left: 22px; display: grid; gap: 10px; }
+  .questions li { padding-left: 4px; }
+  .questions li::marker { font-family: var(--data); font-size: 13px; color: var(--accent); }
+  .questions strong { font-weight: 600; }
+
+  .confirm { display: inline-block; font: 300 11px/1 var(--data); letter-spacing: 0.06em; color: var(--accent); border: 1px solid var(--accent); padding: 4px 6px; margin-right: 6px; vertical-align: 2px; white-space: nowrap; }
+  .pending { color: var(--muted); }
+
+  .hero {
+    position: relative; overflow: hidden; border: 1px solid var(--line);
+    background: #000 url("hero-olympus-dawn.jpg") center 70% / cover no-repeat;
+    padding: 40px 32px 140px; display: grid; gap: 16px;
+  }
+  .hero::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 64px 64px;
+    mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.4) 40%, transparent 55%);
+  }
+  .hero > * { position: relative; }
+  .hero p { color: var(--muted); max-width: 44ch; }
+  .actions { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+  .btn { font: 400 13px/1 var(--data); letter-spacing: 0.04em; color: #0b1420; background: var(--accent); padding: 13px 18px; text-decoration: none; }
+  .link { font: 400 13px/1 var(--data); letter-spacing: 0.04em; color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  ul.offer, ol.steps { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 12px; }
+  ul.offer li { border-top: 1px solid var(--line); padding-top: 12px; display: grid; gap: 4px; }
+  ul.offer b { font-weight: 600; }
+  ol.steps { counter-reset: step; }
+  ol.steps li { counter-increment: step; display: grid; grid-template-columns: 36px 1fr; gap: 10px; align-items: baseline; }
+  ol.steps li::before { content: counter(step, decimal-leading-zero); font: 300 12px/1 var(--data); color: var(--accent); }
+
+  .project { border: 1px solid var(--line); background: var(--panel); padding: 24px; display: grid; gap: 14px; position: relative; min-width: 0; }
+  .project::before { content: ""; position: absolute; left: -1px; top: -1px; width: 14px; height: 14px; border-left: 2px solid var(--accent); border-top: 2px solid var(--accent); }
+  .project .card-line { font-size: 19px; }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px 14px; font: 300 12px/1.4 var(--data); color: var(--muted); }
+  .meta { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; font-size: 15px; }
+  .meta dt { font: 300 12px/1.9 var(--data); color: var(--faint); }
+  .meta dd { margin: 0; color: var(--muted); min-width: 0; }
+  .pipeline { margin: 0; padding-left: 22px; display: grid; gap: 4px; color: var(--muted); }
+  .divider { border-top: 1px solid var(--line); }
+
+  .form { display: grid; gap: 10px; max-width: 420px; }
+  .field { border: 1px solid var(--line); padding: 12px 14px; font: 300 12px/1 var(--data); color: var(--faint); }
+
+  table.small { width: 100%; border-collapse: collapse; font-size: 15px; }
+  .table-wrap { overflow-x: auto; }
+  table.small th { text-align: left; font: 300 12px/1.4 var(--data); color: var(--faint); padding: 10px 16px 10px 0; vertical-align: top; white-space: nowrap; border-top: 1px solid var(--line); }
+  table.small td { padding: 10px 0; border-top: 1px solid var(--line); color: var(--ink); }
+  .mono { font: 300 13px/1.5 var(--data); color: var(--accent); }
+</style>
+
+<div class="col">
+  <header class="intro">
+    <div class="label">falsy.dev · phase 0 · copy v2</div>
+    <h1>Copy <em>draft</em></h1>
+    <p>Written in your voice from the RevOpsRocks, RevOpsRoles, stipendium and KarstScout repos, plus your answers. Each section shows the copy in the site's own type. Lines that changed from your answers are marked UPDATED.</p>
+  </header>
+
+  <aside class="questions" aria-labelledby="q-title">
+    <div class="label" id="q-title">answered</div>
+    <ol>
+      <li><strong>Education.</strong> Four years of physics (Arizona, then Utah), graduating in economics with a physics minor. The hero now says "physics and economics".</li>
+      <li><strong>Magnific.</strong> Named, since it's on your LinkedIn.</li>
+      <li><strong>RevOps Roles.</strong> "More than 50,000 sources", no user count.</li>
+      <li><strong>KarstScout.</strong> The line about your dad stays.</li>
+      <li><strong>Reply time.</strong> "Within one business day" stays.</li>
+    </ol>
+  </aside>
+
+  <section aria-labelledby="hero-label">
+    <div class="label" id="hero-label">hero</div>
+    <div class="hero">
+      <div class="label">falsy.dev</div>
+      <h1>Justin <em>Powell</em></h1>
+      <p>I build AI revenue systems for B2B SaaS teams, mostly in HubSpot. I studied physics and economics, and I've worked in RevOps since 2012.</p>
+      <div class="actions"><a class="btn" href="#contact">Book a call →</a><a class="link" href="#projects">See my projects</a></div>
+    </div>
+    <p class="muted" style="font-size:15px">Page title: Justin Powell · GTM engineering and RevOps. Meta description: I build AI revenue systems for B2B SaaS companies through RevOps Rocks. Here are my projects, my consulting work, and a live view of Mars.</p>
+  </section>
+
+  <section aria-labelledby="consulting">
+    <div class="label">consulting</div>
+    <h2 id="consulting">Consulting</h2>
+    <p>I run RevOps Rocks, a small consultancy for founders and COOs at B2B SaaS companies. I build one revenue system at a time, for a fixed price, in the stack you already use. Most builds are live in about 30 days.</p>
+    <div class="stack">
+      <h3>Example builds</h3>
+      <ul class="offer">
+        <li><b>Inbound engine</b><span class="muted">New leads get enriched, routed and followed up, without anyone copying data between tools.</span></li>
+        <li><b>Renewal pipeline</b><span class="muted">Renewals show up in HubSpot months ahead, each with an owner and a next step.</span></li>
+        <li><b>Forecasting and internal tools</b><span class="muted">A forecast you can check line by line, plus the small tools your team keeps asking for.</span></li>
+      </ul>
+    </div>
+    <div class="stack">
+      <h3>How it works</h3>
+      <ol class="steps">
+        <li>A free 30-minute scoping call.</li>
+        <li>A fixed-price proposal.</li>
+        <li>About four weeks of building, in HubSpot most of the time.</li>
+        <li>Handover and training, so your team runs it from there.</li>
+      </ol>
+    </div>
+    <p>I don't bill by the hour, write strategy decks without building anything, or do Salesforce admin.</p>
+    <p class="muted">I've been the first RevOps hire through one IPO and two acquisitions. Clients include UpGuard, Sherlok and Elita. RevOps Rocks is a HubSpot Gold Solutions Partner.</p>
+    <p class="pending"><span class="confirm">UPDATED</span>At Magnific (formerly Freepik), I led the AI rebuild of a legacy product. It went from zero to hundreds of thousands of weekly users and drove a third of all new subscriptions.</p>
+    <div class="actions"><a class="btn" href="#contact">Book a scoping call →</a><a class="link" href="https://revops.rocks">More at revops.rocks</a></div>
+  </section>
+
+  <section aria-labelledby="projects">
+    <div class="label">projects</div>
+    <h2 id="projects">Projects</h2>
+
+    <article class="project" aria-labelledby="p1">
+      <div class="label">PRJ-01 / GEOSPATIAL</div>
+      <h3 id="p1">KarstScout</h3>
+      <p class="card-line">Finds likely cave entrances in US LiDAR data.</p>
+      <div class="tags"><span>python</span><span>pdal</span><span>sveltekit</span><span>maplibre</span></div>
+      <div class="divider"></div>
+      <div class="label">detail page</div>
+      <p>KarstScout scans USGS 3DEP LiDAR for places where a cave entrance is likely. It runs these checks in order:</p>
+      <ol class="pipeline">
+        <li>Masks for rock types where caves form.</li>
+        <li>Finds depressions in the ground.</li>
+        <li>Measures how open the terrain is.</li>
+        <li>Checks how deep each opening might go.</li>
+        <li>Scores a shortlist.</li>
+      </ol>
+      <p>It favours precision over recall, so it only flags places it's fairly sure about.</p>
+      <p class="pending">I built it for my dad, who's a serious caver. It's invite-only for now, for a small group of cavers and geologists.</p>
+      <dl class="meta"><dt>status</dt><dd>Live, invite-only</dd><dt>stack</dt><dd>FastAPI, PDAL and rasterio on Railway, and SvelteKit with MapLibre and deck.gl on Cloudflare</dd></dl>
+    </article>
+
+    <article class="project" aria-labelledby="p2">
+      <div class="label">PRJ-02 / RESEARCH FUNDING</div>
+      <h3 id="p2">Stipendium</h3>
+      <p class="card-line">Matches individual researchers to the funding they're actually eligible for.</p>
+      <div class="tags"><span>nextjs</span><span>supabase</span><span>cloudflare r2</span></div>
+      <div class="divider"></div>
+      <div class="label">detail page</div>
+      <p>Most grant databases are sold to universities, and they're hard to use if you're one researcher trying to work out what you can apply for. Stipendium reads the eligibility rules from each funder's own documents and quotes them word for word, so you can check every match yourself.</p>
+      <p>It starts with Australia, and it handles the tricky cross-border cases, like a German citizen doing a PhD in Australia. When a rule is unclear, it doesn't count you as eligible.</p>
+      <dl class="meta"><dt>status</dt><dd>Early, with a waitlist open at stipendium.fyi</dd><dt>stack</dt><dd>Next.js on Vercel, Supabase, Cloudflare R2 for the source archive, and PostHog without cookies</dd></dl>
+    </article>
+
+    <article class="project" aria-labelledby="p3">
+      <div class="label">PRJ-03 / JOB BOARD</div>
+      <h3 id="p3">RevOps Roles</h3>
+      <p class="card-line">A job board for RevOps roles, sorted by what the job actually is.</p>
+      <div class="tags"><span>nextjs</span><span>supabase</span><span>meilisearch</span><span>claude</span></div>
+      <div class="divider"></div>
+      <div class="label">detail page</div>
+      <p>Job titles in RevOps don't tell you much. A "Revenue Operations Manager" could be a HubSpot admin, a forecasting analyst or a team lead. RevOps Roles reads each listing and sorts it by the actual work. It adds salary data and job description templates too.</p>
+      <p>It's for people in RevOps, sales ops, marketing ops, CS ops, enablement and GTM engineering.</p>
+      <p><span class="confirm">UPDATED</span>It checks more than 50,000 sources for new roles.</p>
+      <dl class="meta"><dt>status</dt><dd>Live at revopsroles.com</dd><dt>stack</dt><dd>Next.js on Vercel, BullMQ workers on Railway, Supabase, Meilisearch, Stripe, and the Claude API for classification</dd></dl>
+    </article>
+  </section>
+
+  <section aria-labelledby="about">
+    <div class="label">about</div>
+    <h2 id="about">About</h2>
+    <p>I'm Justin. I'm American, I live in Adelaide, and I've worked in RevOps since 2012, in the US, the UK, Germany and Australia.</p>
+    <p><span class="confirm">UPDATED</span>I studied physics for four years, first at the University of Arizona and then at the University of Utah, and graduated with a degree in economics and a minor in physics. Physics taught me to measure something before I try to change it. I still work that way: I look at what's actually in your CRM before I suggest a fix.</p>
+    <p><span class="confirm">UPDATED</span>The planet behind this page uses real NASA and USGS data, lit by where the Sun is right now. You're watching from a real low orbit, moving as fast as a spacecraft would. I built it because I like space and wanted my site to show the kind of work I do.</p>
+    <p class="muted" style="font-size:15px">Footer credits: Terrain from USGS Astrogeology: MOLA elevation and the Viking MDIM 2.1 colour mosaic. Moon data from NASA's Scientific Visualization Studio.</p>
+  </section>
+
+  <section aria-labelledby="contact">
+    <div class="label">contact</div>
+    <h2 id="contact">Contact</h2>
+    <p>The quickest way to start is a 30-minute call. I work Adelaide hours, and the booking page shows times in your time zone.</p>
+    <div class="actions"><a class="btn" href="https://meetings-eu1.hubspot.com/justin-powell/book-a-meeting-australia-time-zone">Book a call →</a><span class="mono">justin@revops.rocks</span></div>
+    <p>Or tell me what you're working on, and I'll reply within one business day.</p>
+    <div class="form" aria-label="Form preview">
+      <div class="field">Name</div>
+      <div class="field">Work email</div>
+      <div class="field">Company</div>
+      <div class="field">What are you trying to fix?</div>
+      <div class="actions"><span class="btn">Send</span></div>
+    </div>
+    <dl class="meta"><dt>success</dt><dd>Thanks! I'll be in touch soon.</dd><dt>error</dt><dd>That didn't send. Try again, or email me at justin@revops.rocks.</dd></dl>
+  </section>
+
+  <section aria-labelledby="small">
+    <div class="label">small text</div>
+    <h2 id="small">Small text</h2>
+    <div class="table-wrap">
+      <table class="small">
+        <tbody>
+          <tr><th>404 heading</th><td>This page is falsy</td></tr>
+          <tr><th>404 body</th><td>There's nothing here but empty space.</td></tr>
+          <tr><th>404 link</th><td>Back to the home page</td></tr>
+          <tr><th>Loading</th><td>Loading Mars terrain… / Loading lunar terrain…</td></tr>
+          <tr><th>Telemetry</th><td class="mono">MARS  18.6°N  226.2°E  LST 06:20  ALT 380 km  v 3.41 km/s  relief×2.5</td></tr>
+          <tr><th>Explorer edge (v2)</th><td>You've reached the edge of the observable universe. Past here, everything is undefined.</td></tr>
+          <tr><th>Reduced motion</th><td>Orbit paused because your device prefers reduced motion.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

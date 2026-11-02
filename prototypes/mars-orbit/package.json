@@ -1,0 +1,26 @@
+{
+  "name": "mars-orbit-prototype",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "vite",
+    "build": "vite build",
+    "data": "node scripts/build-data.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "private": "true",
+  "dependencies": {
+    "astronomy-engine": "^2.1.19",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "geotiff": "^3.0.5",
+    "sharp": "^0.35.5",
+    "vite": "^8.3.5"
+  }
+}
