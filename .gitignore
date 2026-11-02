@@ -156,3 +156,4 @@ prototypes/*/artifact/
 
 # Site
 .wrangler/
+.lighthouseci/
