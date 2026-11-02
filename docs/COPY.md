@@ -29,7 +29,7 @@ This is a first draft in Justin's voice for him to edit. It follows the `sound-l
 
 I run RevOps Rocks, a small consultancy for founders and COOs at B2B SaaS companies. I build one revenue system at a time, for a fixed price, in the stack you already use. Most builds are live in about 30 days.
 
-**What I build**
+**Example builds**
 
 - **Inbound engine:** new leads get enriched, routed and followed up, without anyone copying data between tools.
 - **Renewal pipeline:** renewals show up in HubSpot months ahead, each with an owner and a next step.
