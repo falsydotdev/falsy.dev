@@ -18,6 +18,17 @@ The site's physics credibility rests on the scene being real right now. Real tim
 - **Telemetry:** shows altitude and orbital speed in place of a time rate.
 - **Reduced motion:** visitors with reduced motion turned on get a still camera.
 
+## Implementation notes (2026-11-03)
+
+The math lives in `src/scene/` (`orbit.ts`, `shots.ts`, `ephemeris.ts`), tested in `tests/scene/`.
+
+- **Frames:** the orbit propagates in J2000 equatorial coordinates. Each sample converts to body-fixed coordinates with the IAU 2015 Mars frame, so the planet turns under the camera, about 29° of longitude per orbit.
+- **Constants:** GM is 42,828.37 km³/s² (JPL DE440). The radius is the 3,396.19 km MOLA reference sphere. At 380 km that gives 3.37 km/s and a period of 1.96 h.
+- **Dawn-dusk orbit:** the plane is perpendicular to the Sun line at load time. It isn't a J2 sun-synchronous orbit, so the readout says "dawn-dusk", never "sun-synchronous".
+- **Orbital sunrise:** the Sun line lies in the orbit plane. With a cylindrical shadow, the camera leaves the shadow at θ = π + asin(R / a). The shot starts 60 s before that.
+- **Feature flyover:** the plane contains the feature (at pass time, accounting for rotation) and the local along-terminator direction. The pass happens 180 s after load. Features qualify when the Sun is 5° to 25° above their horizon. If none qualify, the shot falls back to dawn-dusk.
+- **Weights:** dawn-dusk 0.4, orbital sunrise 0.3, and feature flyover 0.3.
+
 ## Consequences
 
 - **Honest copy:** the copy can truthfully say the lighting is where the Sun is right now, and that the viewer is in a real orbit.

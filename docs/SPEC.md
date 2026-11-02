@@ -100,9 +100,9 @@ Each load picks a body, with weights favoring the most striking ones. The site n
 
 ### Shots
 
-The camera rides a real low orbit at real orbital speed. For Mars at about 380 km, that's around 3.4 km/s, with one orbit taking about two hours. Each load picks one of three orbits:
+The camera rides a real low orbit at real orbital speed. For Mars at 380 km, that's 3.37 km/s, with one orbit taking 1.96 hours. Mars turns underneath, so each orbit's ground track lands about 29° of longitude west of the last. Each load picks one of three orbits:
 
-- **Dawn-dusk orbit:** a sun-synchronous dawn-dusk orbit that rides the terminator permanently. It gives long shadows on the day-night line.
+- **Dawn-dusk orbit:** an orbit whose plane is perpendicular to the Sun line, so it rides the terminator. It gives long shadows on the day-night line. It isn't a true sun-synchronous orbit, which at this altitude needs an inclination of about 93° and relies on Mars' J2 oblateness. Over a visit of minutes the two look the same, and the readout never claims sun-synchronous.
 - **Orbital sunrise:** an orbit that crosses the terminator. The camera starts about a minute before orbital sunrise, on the night side, with the Sun behind the planet. The atmosphere's rim glows, and light shafts fan through the dust before the Sun breaks the limb. Bodies without an atmosphere, like the Moon, get a hard-edged sunrise with no glow.
 - **Feature flyover:** an orbit whose ground track passes over a named feature from the body's list (for example, Olympus Mons, Valles Marineris, Gale Crater, or Tycho) that currently has a low Sun. If no listed feature is well lit, it falls back to a dawn-dusk orbit.
 
@@ -131,7 +131,7 @@ Composition rules:
 
 ### Telemetry readout
 
-The readout sits in a corner, for example `MARS  18.4°N  226.0°E  LST 06:12  ALT 380 km  v 3.41 km/s  relief×2.5`. It shows real values for the current shot. Clicking it starts the explorer. A keyboard sequence also starts the explorer.
+The readout sits in a corner, for example `MARS  18.4°N  226.0°E  LST 06:12  ALT 380 km  v 3.37 km/s  relief×2.5`. It shows real values for the current shot. Clicking it starts the explorer. A keyboard sequence also starts the explorer.
 
 ### Fallback poster
 
