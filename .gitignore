@@ -147,3 +147,9 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# Prototype build outputs
+prototypes/*/public/data/
+prototypes/*/artifact/
+.playwright-mcp/
+.impeccable/

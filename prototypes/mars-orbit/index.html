@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mars orbit prototype</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --ink: #f4efe9;
+        --muted: rgba(244, 239, 233, 0.62);
+        --line: rgba(244, 239, 233, 0.16);
+        --panel: rgba(8, 8, 10, 0.62);
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; background: #000; color: var(--ink); font-family: Inter, system-ui, sans-serif; overflow: hidden; }
+      #stage, #stage canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+      #stage canvas { cursor: grab; }
+      #stage canvas:active { cursor: grabbing; }
+      body:not(.ready) #stage { opacity: 0; }
+      #stage { transition: opacity 1.2s ease; }
+
+      #hero { position: fixed; left: clamp(16px, 6vw, 96px); top: clamp(24px, 9vh, 120px); max-width: 560px; pointer-events: none; }
+      #hero .eyebrow { font: 400 12px/1 'JetBrains Mono', monospace; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+      #hero h1 { font-weight: 600; font-size: clamp(36px, 5vw, 64px); line-height: 1.02; letter-spacing: -0.02em; margin: 18px 0 16px; }
+      #hero p { font-size: 18px; line-height: 1.5; color: var(--muted); margin: 0 0 28px; }
+      #hero nav { display: flex; gap: 24px; font: 400 13px/1 'JetBrains Mono', monospace; letter-spacing: 0.08em; text-transform: uppercase; }
+      #hero nav span { border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+
+      #telemetry { position: fixed; left: clamp(16px, 6vw, 96px); bottom: 28px; font: 400 11px/1 'JetBrains Mono', monospace; letter-spacing: 0.12em; color: var(--muted); }
+
+      #hud { position: fixed; right: 16px; top: 16px; width: 330px; background: var(--panel); backdrop-filter: blur(10px); border: 1px solid var(--line); border-radius: 10px; padding: 14px; font: 400 12px/1.5 'JetBrains Mono', monospace; }
+      #hud h2 { font: 600 12px/1 Inter, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; margin: 0 0 10px; color: var(--muted); }
+      #hud pre { margin: 0 0 12px; white-space: pre; font: inherit; }
+      .modes { display: flex; gap: 6px; margin-bottom: 12px; }
+      .modes button, #reshoot { flex: 1; background: transparent; color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 8px 6px; font: inherit; cursor: pointer; }
+      .modes button.on { background: var(--ink); color: #000; }
+      label { display: grid; grid-template-columns: 110px 1fr 44px; align-items: center; gap: 8px; margin: 6px 0; }
+      label.check { grid-template-columns: auto 1fr; }
+      input[type='range'] { width: 100%; accent-color: #e9a46a; }
+      select { background: #111; color: var(--ink); border: 1px solid var(--line); border-radius: 4px; font: inherit; }
+      .note { color: var(--muted); font-size: 11px; margin-top: 10px; line-height: 1.45; }
+      #status { position: fixed; inset: auto 0 50% 0; text-align: center; font: 400 12px/1 'JetBrains Mono', monospace; letter-spacing: 0.12em; color: var(--muted); }
+      @media (max-width: 720px) { #hud { left: 16px; right: 16px; width: auto; top: auto; bottom: 56px; max-height: 45vh; overflow: auto; } }
+    </style>
+  </head>
+  <body>
+    <div id="stage"></div>
+
+    <div id="hero">
+      <div class="eyebrow">falsy.dev</div>
+      <h1>Justin Powell</h1>
+      <p>GTM engineering and RevOps consulting. Physics by training, systems by trade.</p>
+      <nav><span>Consulting</span><span>Projects</span><span>About</span><span>Contact</span></nav>
+    </div>
+
+    <div id="telemetry"></div>
+    <div id="status">Initialising renderer…</div>
+
+    <aside id="hud">
+      <h2>Prototype controls <span style="float:right;text-transform:none">h hides</span></h2>
+      <div class="modes">
+        <button id="mode-orbit">A · High orbit</button>
+        <button id="mode-olympus">B · Olympus Mons</button>
+      </div>
+      <pre id="hud-body"></pre>
+      <label>Exaggeration <input id="exag" type="range" min="1" max="10" step="1" /> <span id="exag-val"></span></label>
+      <label>Atmosphere <input id="atmo" type="range" min="1" max="4" step="0.25" /> <span id="atmo-val"></span></label>
+      <label>Sunlight <input id="sun" type="range" min="1" max="8" step="0.2" value="3.4" /> <span id="sun-val">3.4</span></label>
+      <label>Limb glow <input id="glow" type="range" min="4" max="40" step="1" value="16" /> <span id="glow-val">16</span></label>
+      <label>Dust haze <input id="haze" type="range" min="0" max="1.5" step="0.05" /> <span id="haze-val"></span></label>
+      <label>Time offset <input id="time" type="range" min="-12" max="12" step="0.25" value="0" /> <span id="time-val">+0h</span></label>
+      <label>Time speed
+        <select id="speed"><option value="1">real time</option><option value="60">60×</option><option value="600">600×</option><option value="3600">3600×</option></select>
+        <span></span>
+      </label>
+      <label class="check"><input id="hero-toggle" type="checkbox" /> Show sample hero text</label>
+      <button id="reshoot">New random shot</button>
+      <p class="note">Drag to look around. Lighting is the real Sun position for the sim time. Mode B jumps to the next real sunrise over Olympus Mons. Height data: MOLA 463 m/px. Colour: Viking MDIM 2.1.</p>
+    </aside>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
