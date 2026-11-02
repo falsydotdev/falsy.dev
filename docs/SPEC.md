@@ -65,7 +65,27 @@ Claude drafts all copy in Justin's voice with the `sound-like-justin` skill, and
 - Clean editorial typography with plenty of space, plus a thin layer of sci-fi detail: the telemetry readout, monospace labels, and fine grid lines.
 - Text stays readable through composition first. Each shot keeps the planet clear of the text column.
 - Where text crosses the planet, such as project cards scrolling over it, a glass panel sits behind the text. The renderer draws that glass itself, because it already knows where the text boxes are. Fallback visitors get a CSS blur over the poster.
-- The type and color direction is chosen from two or three mockups before the build. The prototype's Inter is a placeholder.
+- **Design system: Direction D (Blue Hour × Flight Dynamics)**, chosen 2026-11-02. See [`design/directions.html`](design/directions.html).
+
+### Direction D
+
+| Role | Face | Used for |
+|---|---|---|
+| Display | Instrument Serif | Name, section titles, and project names. Italics for emphasis. |
+| Body | Instrument Sans | Running text and descriptions |
+| Data | Martian Mono | Telemetry, nav, labels, tags, and buttons |
+
+| Token | Value | Notes |
+|---|---|---|
+| Ink | `#eef1f4` | |
+| Muted ink | `rgba(220, 228, 236, 0.7)` | |
+| Accent | `#9cc6ec` | The Martian-sunset blue. It's the only accent, because it stays readable over orange terrain and grey regolith. |
+| Glass | `rgba(10, 16, 26, 0.46)`, with a 1px border at 24% accent | Card corners get an accent bracket. |
+
+- **Screen grid:** a coordinate grid in the empty sky, at 12% accent, fading out before the planet.
+- **No grid on the planet:** a latitude and longitude graticule was prototyped and rejected.
+- **Buttons:** rectangular and monospace, with an arrow.
+- **Nav:** each item is prefixed with an accent `/`.
 
 ## Hero scene
 
