@@ -117,7 +117,7 @@ I'm Justin. I'm American, I live in Adelaide, and I've worked in RevOps since 20
 
 I studied physics for four years, first at the University of Arizona and then at the University of Utah, and graduated with a degree in economics and a minor in physics. Physics taught me to measure something before I try to change it. I still work that way: I look at what's actually in your CRM before I suggest a fix.
 
-The planet behind this page uses real NASA and USGS data, lit by where the Sun is right now. I built it because I like space and wanted my site to show the kind of work I do.
+The planet behind this page uses real NASA and USGS data, lit by where the Sun is right now. You're watching from a real low orbit, moving as fast as a spacecraft would. I built it because I like space and wanted my site to show the kind of work I do.
 
 **Credits (footer):** Terrain from USGS Astrogeology: MOLA elevation and the Viking MDIM 2.1 colour mosaic. Moon data from NASA's Scientific Visualization Studio.
 
@@ -151,6 +151,6 @@ The quickest way to start is a 30-minute call. I work Adelaide hours, and the bo
 | 404 body | There's nothing here but empty space. |
 | 404 link | Back to the home page |
 | Loading (live scene) | Loading Mars terrain… / Loading lunar terrain… |
-| Telemetry example | MARS  18.6°N  226.2°E  LST 06:20  r=1.60 AU  relief×2.5  t×60 |
+| Telemetry example | MARS  18.6°N  226.2°E  LST 06:20  ALT 380 km  v 3.41 km/s  relief×2.5 |
 | Explorer edge (v2) | You've reached the edge of the observable universe. Past here, everything is undefined. |
-| Reduced-motion note (title text on the readout) | Time-lapse paused because your device prefers reduced motion. |
+| Reduced-motion note (title text on the readout) | Orbit paused because your device prefers reduced motion. |

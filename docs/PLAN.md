@@ -33,14 +33,15 @@ Each phase ships to production on its own. Phase 1 gets a real site in front of 
    - Normal maps precomputed at 2.5× relief.
    - Upload to R2.
 2. **Terrain renderer:** quadtree LOD on a cube-sphere, with tile streaming, height-texture shadows, and a floating origin with reversed depth.
-3. **Atmosphere:** port the prototype's scattering to a precomputed-LUT version. Add temporal accumulation for the heavy passes.
+3. **Atmosphere:** port the prototype's scattering to a precomputed-LUT version. Add light shafts for the orbital sunrise shot, and temporal accumulation for the heavy passes.
 4. **Shot director:**
-   - Terminator and feature shots, about 50/50.
+   - Orbit selection, with the starting point chosen per shot type.
    - A Mars feature list of about 10 entries.
    - A low-Sun filter.
    - Composition rules that keep the text column clear.
-   - The 60× clock.
-5. **Telemetry readout:** live coordinates, local solar time, AU, relief, and rate. The click handler is stubbed for v2.
+   - The real-time clock, and orbit propagation at real orbital speed.
+   - Three orbit types: dawn-dusk, orbital sunrise, and feature flyover.
+5. **Telemetry readout:** live coordinates, local solar time, altitude, orbital speed, and relief. The click handler is stubbed for v2.
 6. **Quality tiers:**
    - Measure frame rate in the first second and pick a tier.
    - Pause when hidden or scrolled away.

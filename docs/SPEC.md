@@ -16,8 +16,8 @@ falsy.dev is Justin Powell's personal hub. Its main job is to win GTM engineerin
 - Text and links are readable and usable in under one second, with no dependence on the 3D scene.
 - The 3D scene loads after the content and never blocks it. Heavy assets never block anything.
 - Rendering pauses when the tab is hidden or the hero is scrolled out of view.
-- Visitors with reduced motion turned on get a still or real-time scene, never the time-lapse.
-- Everything the scene presents as real is real: Sun position, rotation, terrain data, and (for Earth) clouds. Any departure is labelled in the telemetry readout, such as relief exaggeration or time-lapse speed.
+- Visitors with reduced motion turned on get a still camera.
+- Everything the scene presents as real is real: Sun position, rotation, orbital motion, terrain data, and (for Earth) clouds. Any departure, such as relief exaggeration, is labelled in the telemetry readout.
 
 ## Brand
 
@@ -100,33 +100,38 @@ Each load picks a body, with weights favoring the most striking ones. The site n
 
 ### Shots
 
-Each load picks one of two shot types, about 50/50:
+The camera rides a real low orbit at real orbital speed. For Mars at about 380 km, that's around 3.4 km/s, with one orbit taking about two hours. Each load picks one of three orbits:
 
-- **Terminator shot:** the camera drifts along the body's real dawn or dusk line, looking toward the horizon.
-- **Feature shot:** the camera frames a named feature from that body's list (for example, Olympus Mons, Valles Marineris, Gale Crater, or Tycho) that currently has a low Sun. If no listed feature is well lit, it falls back to a terminator shot.
+- **Dawn-dusk orbit:** a sun-synchronous dawn-dusk orbit that rides the terminator permanently. It gives long shadows on the day-night line.
+- **Orbital sunrise:** an orbit that crosses the terminator. The camera starts about a minute before orbital sunrise, on the night side, with the Sun behind the planet. The atmosphere's rim glows, and light shafts fan through the dust before the Sun breaks the limb. Bodies without an atmosphere, like the Moon, get a hard-edged sunrise with no glow.
+- **Feature flyover:** an orbit whose ground track passes over a named feature from the body's list (for example, Olympus Mons, Valles Marineris, Gale Crater, or Tycho) that currently has a low Sun. If no listed feature is well lit, it falls back to a dawn-dusk orbit.
+
+Choosing the orbit and where the camera starts on it is a camera choice. The clock is never shifted.
 
 Composition rules:
 
 - The horizon sits in the upper part of the frame.
 - Dark space stays behind the text column.
-- The Sun stays out of frame by default. Strong forward scattering from Martian dust washes out the terrain when the camera looks into the Sun.
+- The Sun stays out of frame by default. Strong forward scattering from Martian dust washes out the terrain when the camera looks into the Sun. The orbital sunrise shot is the exception: the Sun sits behind the planet's limb.
 
-### Time
+### Time and motion
 
-The simulation starts at the real present and runs at 60× as a time-lapse. The telemetry shows the rate. Reduced-motion visitors get real time.
+- The clock is always real time, so the lighting is where the Sun is right now.
+- Motion comes from the camera's real orbital velocity, propagated as a circular two-body orbit.
+- Reduced-motion visitors get a still camera at the chosen starting point.
 
 ### Fidelity
 
 - **Terrain:** streaming terrain tiles give close-up quality everywhere. The tiles are a pyramid cut from the USGS and NASA source data, compressed to KTX2, and served from R2. Level of detail (LOD) is a quadtree on a cube-sphere.
 - **Relief:** height is exaggerated 2.5× by default on rocky bodies. The telemetry says so, for example `RELIEF ×2.5`.
 - **Shadows:** terrain shadows are raymarched through the height data.
-- **Atmosphere:** Hillaire-style physically based scattering, with dust-dominated Mie scattering for Mars and no atmosphere for the Moon.
+- **Atmosphere:** Hillaire-style physically based scattering, with dust-dominated Mie scattering for Mars and no atmosphere for the Moon. It includes light shafts (volumetric shadowing) for the orbital sunrise shot.
 - **Heavy effects:** these use temporal accumulation, because the scene changes slowly.
 - **Scale:** the renderer uses a floating origin and reversed depth from day one, so the v2 zoom across 17 orders of magnitude works without a rewrite.
 
 ### Telemetry readout
 
-The readout sits in a corner, for example `MARS · 18.4°N 226.0°E · LOCAL SOLAR 06:12 · 1.52 AU · RELIEF ×2.5 · ×60`. It shows real values for the current shot. Clicking it starts the explorer. A keyboard sequence also starts the explorer.
+The readout sits in a corner, for example `MARS  18.4°N  226.0°E  LST 06:12  ALT 380 km  v 3.41 km/s  relief×2.5`. It shows real values for the current shot. Clicking it starts the explorer. A keyboard sequence also starts the explorer.
 
 ### Fallback poster
 
@@ -137,7 +142,7 @@ The readout sits in a corner, for example `MARS · 18.4°N 226.0°E · LOCAL SOL
 ### Later bodies
 
 - **Earth:** shows that day's real clouds from NASA's daily imagery, fetched by the daily job. It falls back to the previous day, then to a static cloud map. Night-side city lights come from NASA Black Marble.
-- **Jupiter and Saturn:** cloud bands drift at their real, latitude-dependent rotation rates, using Cassini and Juno maps with flow distortion. Saturn's rings and the planet shadow each other.
+- **Jupiter and Saturn:** cloud bands drift at their real, latitude-dependent rotation rates, using Cassini and Juno maps with flow distortion. At real time that drift is slow, so the camera's orbit carries the motion. Saturn's rings and the planet shadow each other.
 
 ## Easter egg: the explorer (v2)
 
@@ -154,7 +159,7 @@ The readout sits in a corner, for example `MARS · 18.4°N 226.0°E · LOCAL SOL
 | Framework | Astro, with the canvas persisted across navigation | [0002](adr/0002-astro-persisted-canvas.md) |
 | Hosting | Cloudflare Workers static assets, with R2 for tiles and textures | [0003](adr/0003-cloudflare-hosting.md) |
 | Terrain | Streaming tile pyramid with quadtree LOD | [0004](adr/0004-streaming-terrain.md) |
-| Ephemeris | `astronomy-engine`, using the IAU 2015 rotation models | [0005](adr/0005-real-sky-time-lapse.md) |
+| Ephemeris and camera | `astronomy-engine` (IAU 2015 rotation models), with real-time lighting and a real orbit | [0005](adr/0005-real-time-real-orbit.md) |
 | Analytics | PostHog in cookieless mode | — |
 | Booking | HubSpot meetings link, plus the HubSpot Forms API | — |
 
