@@ -1,0 +1,66 @@
+---
+const links = [
+  { href: '/#consulting', text: 'consulting' },
+  { href: '/#projects', text: 'projects' },
+  { href: '/#about', text: 'about' },
+  { href: '/#contact', text: 'contact' },
+];
+---
+
+<header class="site-header">
+  <a class="home" href="/" aria-label="falsy.dev home">falsy<span>.dev</span></a>
+  <nav aria-label="Main">
+    <ul>
+      {links.map((l) => <li><a href={l.href}>{l.text}</a></li>)}
+    </ul>
+  </nav>
+</header>
+
+<style>
+  .site-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px 32px;
+    padding: max(20px, env(safe-area-inset-top, 0px)) var(--gutter) 0;
+    padding-left: max(var(--gutter), env(safe-area-inset-left, 0px));
+    padding-right: max(var(--gutter), env(safe-area-inset-right, 0px));
+    font: 400 var(--step--1) / 1 var(--data);
+    letter-spacing: 0.06em;
+  }
+
+  .home {
+    color: var(--ink);
+    text-decoration: none;
+  }
+
+  .home span {
+    color: var(--accent);
+  }
+
+  ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 26px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  nav a {
+    color: var(--muted);
+    text-decoration: none;
+    padding-block: 6px;
+  }
+
+  nav a::before {
+    content: '/';
+    color: var(--accent);
+    margin-right: 0.35em;
+  }
+
+  nav a:hover {
+    color: var(--ink);
+  }
+</style>

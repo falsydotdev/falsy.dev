@@ -1,32 +1,75 @@
 ---
 import { ClientRouter } from 'astro:transitions';
+import serifUrl from '@fontsource/instrument-serif/files/instrument-serif-latin-400-normal.woff2?url';
+import sansUrl from '@fontsource-variable/instrument-sans/files/instrument-sans-latin-wght-normal.woff2?url';
+import monoUrl from '@fontsource-variable/martian-mono/files/martian-mono-latin-wght-normal.woff2?url';
+import Stage from '../components/Stage.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import { site } from '../config/brand';
+import '../styles/global.css';
 
 interface Props {
-  title: string;
+  title?: string;
+  description?: string;
 }
-const { title } = Astro.props;
+const { title = site.title, description = site.description } = Astro.props;
+const canonical = new URL(Astro.url.pathname, site.url).href;
+const ogImage = new URL('/og.jpg', site.url).href;
 ---
 
-<html lang="en">
+<html lang="en-AU">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>{title}</title>
-    <ClientRouter />
-    <style is:global>
-      html, body { margin: 0; background: #000; color: #eee; font-family: system-ui; }
-      #stage { position: fixed; inset: 0; z-index: -1; }
-      main { position: relative; padding: 48px; }
-    </style>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <meta name="theme-color" content="#05070b" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preload" href={serifUrl} as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href={sansUrl} as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href={monoUrl} as="font" type="font/woff2" crossorigin />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={site.name} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <ClientRouter fallback="swap" />
   </head>
   <body>
-    <div id="stage" transition:persist="stage"></div>
-    <slot />
-    <script>
-      import { startSpike } from '../scene/boot';
-      const params = new URLSearchParams(location.search);
-      const host = document.getElementById('stage');
-      if (host) startSpike(host, params.has('webgl'));
-    </script>
+    <a class="skip" href="#main">Skip to content</a>
+    <Stage />
+    <Header />
+    <main id="main">
+      <slot />
+    </main>
+    <Footer />
   </body>
 </html>
+
+<style>
+  .skip {
+    position: absolute;
+    left: var(--gutter);
+    top: -100px;
+    z-index: 10;
+    padding: 0.6em 1em;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font: 500 var(--step--1) / 1 var(--data);
+  }
+
+  .skip:focus {
+    top: 12px;
+  }
+
+  main {
+    display: block;
+    padding-bottom: 72px;
+  }
+</style>

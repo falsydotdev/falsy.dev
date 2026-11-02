@@ -1,0 +1,53 @@
+---
+import { consultancy, person } from '../config/brand';
+const year = new Date().getFullYear();
+---
+
+<footer class="site-footer">
+  <div class="inner glass">
+    <p class="credits">
+      Terrain from USGS Astrogeology: MOLA elevation and the Viking MDIM 2.1 colour mosaic.
+    </p>
+    <p class="meta">
+      <span>© {year} {person.name}</span>
+      <a href={consultancy.url}>{new URL(consultancy.url).hostname}</a>
+    </p>
+  </div>
+</footer>
+
+<style>
+  .site-footer {
+    padding: 0 var(--gutter) 96px;
+  }
+
+  .inner {
+    display: grid;
+    gap: 14px;
+    max-width: 62rem;
+    padding: 22px 24px;
+  }
+
+  .credits {
+    color: var(--muted);
+    font-size: var(--step--1);
+    max-width: 65ch;
+  }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 24px;
+    font: 400 var(--step--2) / 1.4 var(--data);
+    letter-spacing: 0.06em;
+    color: var(--faint);
+  }
+
+  .meta a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+
+  .meta a:hover {
+    text-decoration: underline;
+  }
+</style>

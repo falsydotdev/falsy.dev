@@ -1,0 +1,92 @@
+[
+  {
+    "id": "mars-olympus",
+    "body": "Mars",
+    "lat": 5.8,
+    "lon": 226.2,
+    "lst": "06:20",
+    "altKm": 380,
+    "relief": 2.5,
+    "at": "2026-11-02T19:18:00Z",
+    "focus": "62% 60%",
+    "horizon": 0.55,
+    "label": "Olympus Mons at sunrise",
+    "sources": [
+      {
+        "src": "/posters/mars-olympus-960.avif",
+        "width": 960,
+        "bytes": 8839
+      },
+      {
+        "src": "/posters/mars-olympus-1600.avif",
+        "width": 1600,
+        "bytes": 19398
+      },
+      {
+        "src": "/posters/mars-olympus-2560.avif",
+        "width": 2560,
+        "bytes": 36128
+      }
+    ]
+  },
+  {
+    "id": "mars-craters",
+    "body": "Mars",
+    "lat": -66.8,
+    "lon": 109.8,
+    "lst": "15:59",
+    "altKm": 380,
+    "relief": 2.5,
+    "at": "2026-11-02T12:32:00Z",
+    "focus": "58% 70%",
+    "horizon": 0.27,
+    "label": "Southern highlands craters",
+    "sources": [
+      {
+        "src": "/posters/mars-craters-960.avif",
+        "width": 960,
+        "bytes": 10937
+      },
+      {
+        "src": "/posters/mars-craters-1600.avif",
+        "width": 1600,
+        "bytes": 19930
+      },
+      {
+        "src": "/posters/mars-craters-2560.avif",
+        "width": 2560,
+        "bytes": 33044
+      }
+    ]
+  },
+  {
+    "id": "mars-north-cap",
+    "body": "Mars",
+    "lat": 70,
+    "lon": 315.7,
+    "lst": "05:43",
+    "altKm": 380,
+    "relief": 2.5,
+    "at": "2026-11-02T12:32:00Z",
+    "focus": "70% 65%",
+    "horizon": 0.27,
+    "label": "North polar cap at dawn",
+    "sources": [
+      {
+        "src": "/posters/mars-north-cap-960.avif",
+        "width": 960,
+        "bytes": 10733
+      },
+      {
+        "src": "/posters/mars-north-cap-1600.avif",
+        "width": 1600,
+        "bytes": 20547
+      },
+      {
+        "src": "/posters/mars-north-cap-2560.avif",
+        "width": 2560,
+        "bytes": 35867
+      }
+    ]
+  }
+]
