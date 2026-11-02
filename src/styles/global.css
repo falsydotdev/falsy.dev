@@ -46,6 +46,8 @@ html {
 body {
   margin: 0;
   min-height: 100svh;
+  display: flex;
+  flex-direction: column;
   color: var(--ink);
   font: 400 var(--step-0) / 1.6 var(--body);
   -webkit-font-smoothing: antialiased;

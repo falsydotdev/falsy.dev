@@ -1,91 +1,91 @@
 [
   {
     "id": "mars-olympus",
-    "body": "Mars",
-    "lat": 5.8,
-    "lon": 226.2,
-    "lst": "06:20",
+    "label": "Olympus Mons at sunrise",
     "altKm": 380,
     "relief": 2.5,
-    "at": "2026-11-02T19:18:00Z",
     "focus": "62% 60%",
     "horizon": 0.55,
-    "label": "Olympus Mons at sunrise",
+    "body": "Mars",
+    "lat": 5.8,
+    "lon": 226.1,
+    "lst": "06:20",
+    "at": "2026-11-01T18:39:00.000Z",
     "sources": [
       {
         "src": "/posters/mars-olympus-960.avif",
         "width": 960,
-        "bytes": 8839
+        "bytes": 8805
       },
       {
         "src": "/posters/mars-olympus-1600.avif",
         "width": 1600,
-        "bytes": 19398
+        "bytes": 19201
       },
       {
         "src": "/posters/mars-olympus-2560.avif",
         "width": 2560,
-        "bytes": 36128
+        "bytes": 36085
       }
     ]
   },
   {
-    "id": "mars-craters",
-    "body": "Mars",
-    "lat": -66.8,
-    "lon": 109.8,
-    "lst": "15:59",
+    "id": "mars-orbit-1",
+    "label": "Mars from low orbit, along the terminator",
     "altKm": 380,
     "relief": 2.5,
-    "at": "2026-11-02T12:32:00Z",
     "focus": "58% 70%",
     "horizon": 0.27,
-    "label": "Southern highlands craters",
+    "body": "Mars",
+    "lat": -66.8,
+    "lon": 103.4,
+    "lst": "15:59",
+    "at": "2026-11-02T12:58:00.000Z",
     "sources": [
       {
-        "src": "/posters/mars-craters-960.avif",
+        "src": "/posters/mars-orbit-1-960.avif",
         "width": 960,
-        "bytes": 10937
+        "bytes": 11292
       },
       {
-        "src": "/posters/mars-craters-1600.avif",
+        "src": "/posters/mars-orbit-1-1600.avif",
         "width": 1600,
-        "bytes": 19930
+        "bytes": 20614
       },
       {
-        "src": "/posters/mars-craters-2560.avif",
+        "src": "/posters/mars-orbit-1-2560.avif",
         "width": 2560,
-        "bytes": 33044
+        "bytes": 34132
       }
     ]
   },
   {
-    "id": "mars-north-cap",
-    "body": "Mars",
-    "lat": 70,
-    "lon": 315.7,
-    "lst": "05:43",
+    "id": "mars-orbit-2",
+    "label": "Mars from low orbit, along the terminator",
     "altKm": 380,
     "relief": 2.5,
-    "at": "2026-11-02T12:32:00Z",
     "focus": "70% 65%",
     "horizon": 0.27,
-    "label": "North polar cap at dawn",
+    "body": "Mars",
+    "lat": 70,
+    "lon": 309.4,
+    "lst": "05:43",
+    "at": "2026-11-02T12:58:00.000Z",
     "sources": [
       {
-        "src": "/posters/mars-north-cap-960.avif",
+        "src": "/posters/mars-orbit-2-960.avif",
         "width": 960,
-        "bytes": 10733
+        "bytes": 10178
       },
       {
-        "src": "/posters/mars-north-cap-1600.avif",
+        "src": "/posters/mars-orbit-2-1600.avif",
         "width": 1600,
-        "bytes": 20547
+        "bytes": 19571
       },
       {
-        "src": "/posters/mars-north-cap-2560.avif",
+        "src": "/posters/mars-orbit-2-2560.avif",
         "width": 2560,
-        "bytes": 35867
+        "bytes": 34376
       }
     ]
   }

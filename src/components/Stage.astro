@@ -44,7 +44,7 @@ const choices = posters.map((p) => ({
   src: p.sources[1]?.src ?? p.sources[0].src,
   srcset: p.sources.map((s) => `${s.src} ${s.width}w`).join(', '),
   telemetry: telemetry(p),
-  title: `${p.label}. A still frame rendered from MOLA elevation and Viking colour data, lit by the real Sun position at ${p.at.replace('T', ' ').replace(':00Z', ' UTC')}. Relief is exaggerated ${p.relief}×.`,
+  title: `${p.label}. A still frame rendered from MOLA elevation and Viking colour data, lit by the real Sun position at ${p.at.slice(0, 10)} ${p.at.slice(11, 16)} UTC. Relief is exaggerated ${p.relief}×.`,
 }));
 const fallback = choices[0];
 ---

@@ -157,3 +157,4 @@ prototypes/*/artifact/
 # Site
 .wrangler/
 .lighthouseci/
+posters-out*/

@@ -136,6 +136,7 @@ The readout sits in a corner, for example `MARS  18.4°N  226.0°E  LST 06:12  A
 ### Fallback poster
 
 - A still frame of our own scene, re-rendered daily by an automated job. It loads instantly and fades into the live scene on capable devices.
+- While a poster shows, the telemetry readout describes that frame and ends with `still DD MON HH:MM UTC`, the moment its lighting was computed for. That keeps the readout true when the frame isn't live.
 - Phones, low-power devices, devices without WebGPU or WebGL2, and reduced-motion visitors keep the poster.
 - The live scene picks a quality tier from the measured frame rate.
 
@@ -192,5 +193,5 @@ Credits appear in the about page or the footer:
 ## Known issues to solve
 
 - **Baked shading:** the Viking color mosaic has shading from the original photos baked in, so some slopes look lit twice. Evaluate de-shading the mosaic, or using another color source, during Phase 2.
-- **Persisted canvas:** whether Astro's `transition:persist` keeps a WebGPU canvas alive is unverified. Spike it first in Phase 1.
+- **Persisted canvas:** resolved. The Phase 1 spike showed a WebGPU canvas surviving navigation under `transition:persist` (ADR 0002).
 - **Payload:** the prototype downloads about 20 MB for mode A and 31 MB with the close-up, as unoptimized PNG and JPEG. Its GPU textures take about 220 MB uncompressed. KTX2 compression and tiling must bring a typical view under the Phase 2 budget.

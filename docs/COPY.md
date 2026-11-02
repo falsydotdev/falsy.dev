@@ -10,6 +10,15 @@ This is a first draft in Justin's voice for him to edit. It follows the `sound-l
 4. **KarstScout:** mentioning that it was built for Justin's dad is fine.
 5. **Reply promise:** "within one business day" stays.
 
+## Phase 1 changes waiting for Justin's approval
+
+Phase 1 ships with poster stills, not the live scene, so two lines that claim "live" or "right now" would be false until Phase 2. The site uses the "after" text for now. Phase 2 switches back to the approved text.
+
+| Spot | Before (approved) | After (Phase 1) | Why |
+|---|---|---|---|
+| About, paragraph 3 | The planet behind this page uses real NASA and USGS data, lit by where the Sun is right now. You're watching from a real low orbit, moving as fast as a spacecraft would. | The planet behind this page is rendered from real NASA and USGS data. It's a still frame, lit by where the Sun really was at the time shown in the bottom corner. | A poster is a still, so "right now" and "moving" aren't true yet. |
+| Meta description | …and a live view of Mars. | …and a view of Mars rendered from real data. | Same reason |
+
 ## Meta
 
 - **Title:** Justin Powell · GTM engineering and RevOps

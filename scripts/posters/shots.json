@@ -1,0 +1,32 @@
+[
+  {
+    "id": "mars-olympus",
+    "label": "Olympus Mons at sunrise",
+    "query": "mode=olympus&exag=2.5",
+    "time": "last-olympus-sunrise",
+    "altKm": 380,
+    "relief": 2.5,
+    "focus": "62% 60%",
+    "horizon": 0.55
+  },
+  {
+    "id": "mars-orbit-1",
+    "label": "Mars from low orbit, along the terminator",
+    "query": "orbitAlt=380&exag=2.5&phi=110&heading=100",
+    "time": "now",
+    "altKm": 380,
+    "relief": 2.5,
+    "focus": "58% 70%",
+    "horizon": 0.27
+  },
+  {
+    "id": "mars-orbit-2",
+    "label": "Mars from low orbit, along the terminator",
+    "query": "orbitAlt=380&exag=2.5&phi=290&heading=95",
+    "time": "now",
+    "altKm": 380,
+    "relief": 2.5,
+    "focus": "70% 65%",
+    "horizon": 0.27
+  }
+]

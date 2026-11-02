@@ -1,7 +1,7 @@
 // Encodes rendered poster frames to AVIF and writes src/data/posters.json.
 // Usage: node scripts/posters/encode.mjs <frames.json>
 // frames.json is written by render.mjs: [{ id, png, body, lat, lon, lst, altKm, relief, at, focus }]
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rm } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import sharp from 'sharp';
 
@@ -10,6 +10,7 @@ const root = resolve(import.meta.dirname, '../..');
 const framesPath = resolve(process.argv[2] ?? 'posters-out/frames.json');
 const frames = JSON.parse(await readFile(framesPath, 'utf8'));
 const outDir = resolve(root, 'public/posters');
+await rm(outDir, { recursive: true, force: true });
 await mkdir(outDir, { recursive: true });
 
 const posters = [];
