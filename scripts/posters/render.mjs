@@ -70,9 +70,13 @@ try {
       return el.textContent;
     });
     await page.waitForFunction((f) => window.proto.renderer.info.frame > f + 2, await page.evaluate(() => window.proto.renderer.info.frame), { timeout: 600e3 });
-    const backend = await page.evaluate(() => (window.proto.renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL2'));
+    // Software rendering on CI takes tens of seconds per frame, and a screenshot waits for the next one.
+    const backend = await page.evaluate(() => {
+      window.proto.renderer.setAnimationLoop(null);
+      return window.proto.renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL2';
+    });
     const png = `${shot.id}.png`;
-    await page.screenshot({ path: resolve(outDir, png) });
+    await page.screenshot({ path: resolve(outDir, png), timeout: 300e3 });
     const { query, time, ...meta } = shot;
     frames.push({ ...meta, png, body: 'Mars', ...parseTelemetry(text), at: new Date(Math.floor(at.getTime() / 60e3) * 60e3).toISOString() });
     console.log(`${shot.id}: ${backend}, ${((performance.now() - started) / 1000).toFixed(1)} s, ${text}`);
