@@ -1,19 +1,14 @@
 # falsy.dev copy draft (v1)
 
-This is a first draft in Justin's voice for him to edit. It follows the `sound-like-justin` rules: first person, sentence case, no em dashes, and Australian spelling. Facts come from the RevOpsRocks, RevOpsRoles, stipendium, and KarstScout repos. Anything I couldn't confirm is marked **[CONFIRM]**.
+This is a first draft in Justin's voice for him to edit. It follows the `sound-like-justin` rules: first person, sentence case, no em dashes, and Australian spelling. Facts come from the RevOpsRocks, RevOpsRoles, stipendium, and KarstScout repos, plus Justin's answers below.
 
-## Open questions for Justin
+## Answered questions (2026-11-02)
 
-1. **Physics degree:** I couldn't find the school or year anywhere. The About section needs them.
-2. **Magnific:** revops.rocks hides the name behind a toggle, "pending written reference". Should I name it, or use "a top European AI platform (name on request)"?
-3. **RevOps Roles numbers:** the sources disagree:
-   - 50,000+ sources checked daily vs 22,000+ sources crawled.
-   - 2,200+ monthly active users.
-   - 356 open roles as of July.
-
-   What are the current figures, or should I leave numbers out?
-4. **KarstScout:** may I mention that it was built for your dad, a serious caver? It's a good human detail, but it's personal.
-5. **Reply promise:** is "I'll reply within one business day" true for the contact form?
+1. **Education:** four years of physics, one at the University of Arizona and three at the University of Utah. Graduated with a degree in economics and a minor in physics.
+2. **Magnific:** name it. It's already public on LinkedIn.
+3. **RevOps Roles:** checks more than 50,000 sources. No user count.
+4. **KarstScout:** mentioning that it was built for Justin's dad is fine.
+5. **Reply promise:** "within one business day" stays.
 
 ## Meta
 
@@ -24,7 +19,7 @@ This is a first draft in Justin's voice for him to edit. It follows the `sound-l
 
 - **Eyebrow:** falsy.dev
 - **Headline:** Justin *Powell*
-- **Line:** I build AI revenue systems for B2B SaaS teams, mostly in HubSpot. I studied physics, and I've worked in RevOps since 2012.
+- **Line:** I build AI revenue systems for B2B SaaS teams, mostly in HubSpot. I studied physics and economics, and I've worked in RevOps since 2012.
 - **Primary button:** Book a call →
 - **Secondary link:** See my projects
 
@@ -51,7 +46,7 @@ I don't bill by the hour, write strategy decks without building anything, or do 
 
 **Proof line:** I've been the first RevOps hire through one IPO and two acquisitions. Clients include UpGuard, Sherlok and Elita. RevOps Rocks is a HubSpot Gold Solutions Partner.
 
-**[CONFIRM]** Optional case study, if Magnific can be named: "At Magnific (formerly Freepik), I led the AI rebuild of a legacy product. It went from zero to hundreds of thousands of weekly users and drove a third of all new subscriptions."
+At Magnific (formerly Freepik), I led the AI rebuild of a legacy product. It went from zero to hundreds of thousands of weekly users and drove a third of all new subscriptions.
 
 **Buttons:** Book a scoping call → · More at revops.rocks
 
@@ -77,7 +72,7 @@ KarstScout scans USGS 3DEP LiDAR for places where a cave entrance is likely. It 
 
 It favours precision over recall, so it only flags places it's fairly sure about.
 
-**[CONFIRM]** "I built it for my dad, who's a serious caver." It's invite-only for now, for a small group of cavers and geologists.
+I built it for my dad, who's a serious caver. It's invite-only for now, for a small group of cavers and geologists.
 
 - **Status:** live, invite-only
 - **Stack:** FastAPI, PDAL and rasterio on Railway, and SvelteKit with MapLibre and deck.gl on Cloudflare
@@ -109,7 +104,7 @@ Job titles in RevOps don't tell you much. A "Revenue Operations Manager" could b
 
 It's for people in RevOps, sales ops, marketing ops, CS ops, enablement and GTM engineering.
 
-**[CONFIRM]** Numbers line: "It checks [N] sources every day and has [N] monthly active users."
+It checks more than 50,000 sources for new roles.
 
 - **Status:** live at revopsroles.com
 - **Stack:** Next.js on Vercel, BullMQ workers on Railway, Supabase, Meilisearch, Stripe, and the Claude API for classification
@@ -120,7 +115,7 @@ It's for people in RevOps, sales ops, marketing ops, CS ops, enablement and GTM 
 
 I'm Justin. I'm American, I live in Adelaide, and I've worked in RevOps since 2012, in the US, the UK, Germany and Australia.
 
-**[CONFIRM]** I studied physics at [school]. It taught me to measure something before I try to change it. I still work that way: I look at what's actually in your CRM before I suggest a fix.
+I studied physics for four years, first at the University of Arizona and then at the University of Utah, and graduated with a degree in economics and a minor in physics. Physics taught me to measure something before I try to change it. I still work that way: I look at what's actually in your CRM before I suggest a fix.
 
 The planet behind this page uses real NASA and USGS data, lit by where the Sun is right now. I built it because I like space and wanted my site to show the kind of work I do.
 
@@ -135,7 +130,7 @@ The quickest way to start is a 30-minute call. I work Adelaide hours, and the bo
 - **Button:** Book a call → (links to https://meetings-eu1.hubspot.com/justin-powell/book-a-meeting-australia-time-zone)
 - **Email, shown as plain text:** justin@revops.rocks
 
-**Form intro:** Or tell me what you're working on, and I'll reply within one business day. **[CONFIRM]**
+**Form intro:** Or tell me what you're working on, and I'll reply within one business day.
 
 **Form fields:**
 
