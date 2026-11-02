@@ -153,3 +153,6 @@ prototypes/*/public/data/
 prototypes/*/artifact/
 .playwright-mcp/
 .impeccable/
+
+# Site
+.wrangler/
