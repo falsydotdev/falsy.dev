@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { texture, vec2, vec3, vec4, Fn, If, Loop, Discard, positionWorld, normalize, asin, atan, sin, cos, sqrt, length, dot, max, min, clamp, exp, smoothstep, float, uniform } from 'three/tsl';
+import { texture, vec2, vec3, vec4, Fn, If, Loop, Discard, positionWorld, normalize, asin, atan, sin, cos, sqrt, length, dot, max, min, clamp, exp, smoothstep, float, uniform, fwidth, abs, round } from 'three/tsl';
 
 const DEG = Math.PI / 180;
 export const RADIUS_KM = 3396.19;
@@ -140,7 +140,19 @@ export const lighting = {
   exaggeration: uniform(1),
   shadows: uniform(1),
   opticalDepth: uniform(0.35),
+  graticule: uniform(0),
+  graticuleColor: uniform(new THREE.Color(0.2, 0.36, 0.6)),
 };
+
+// Anti-aliased lines every `step` degrees, computed before any discard so derivatives stay valid.
+function graticuleLines(latDeg, lonDeg, step) {
+  const line = (v) => {
+    const cells = v.div(step);
+    const d = abs(cells.sub(round(cells)));
+    return float(1).sub(smoothstep(0, fwidth(cells).mul(1.5), d));
+  };
+  return max(line(latDeg), line(lonDeg));
+}
 
 function buildHeightTexture(h, wrap) {
   const { width: w, height: hh, km } = h;
@@ -191,6 +203,7 @@ export class TerrainPatch {
       const n = normalize(positionWorld);
       const lat = asin(n.y);
       const lon = atan(n.z.negate(), n.x);
+      const grid = graticuleLines(lat.mul(1 / DEG), lon.mul(1 / DEG), 10).mul(lighting.graticule);
       if (hole) {
         const latD = lat.mul(1 / DEG);
         const lonD = lon.mul(1 / DEG).add(360).mod(360);
@@ -235,7 +248,7 @@ export class TerrainPatch {
       const trans = exp(vec3(0.85, 1.0, 1.25).mul(lighting.opticalDepth).mul(airmass).negate());
       const direct = albedo.mul(lighting.sunColor).mul(lighting.sunIntensity).mul(ndl).mul(shadow).mul(trans);
       const sky = albedo.mul(vec3(1, 0.72, 0.5)).mul(lighting.ambient).mul(smoothstep(-0.2, 0.25, su));
-      return vec4(direct.add(sky), 1);
+      return vec4(direct.add(sky).add(lighting.graticuleColor.mul(grid).mul(0.22)), 1);
     })();
 
     this.mesh = new THREE.Mesh(new THREE.BufferGeometry(), mat);

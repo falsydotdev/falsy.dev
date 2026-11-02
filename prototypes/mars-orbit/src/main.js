@@ -285,6 +285,7 @@ function gpuTextureMB() {
   return mb;
 }
 
+lighting.graticule.value = params.get('grat') === '1' ? 1 : 0;
 window.proto = { atmosphere, lighting, renderer, state, global, applyMode, get region() { return region; } };
 
 await applyMode();

@@ -144,6 +144,43 @@
   .c .card p { margin: 0; font: 400 1.15cqi/1.45 var(--body); color: var(--muted); }
   .c .card .meta span { font: 500 0.85cqi/1 var(--data); color: var(--ink); }
 
+  /* ---------- D · Blue Hour × Flight Dynamics ---------- */
+  .frame.d { background-image: url("hero-olympus-dawn-grid.jpg"); }
+  .d {
+    --ink: #eef1f4;
+    --muted: rgba(220, 228, 236, 0.7);
+    --accent: #9cc6ec;
+    --grid: rgba(156, 198, 236, 0.12);
+    --glass: rgba(10, 16, 26, 0.46);
+    --glass-line: rgba(156, 198, 236, 0.24);
+    --display: "Instrument Serif", Georgia, serif;
+    --body: "Instrument Sans", system-ui, sans-serif;
+    --data: "Martian Mono", ui-monospace, monospace;
+  }
+  .d::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 12.5cqi 12.5cqi;
+    mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.45) 42%, transparent 55%);
+  }
+  .d .hero { gap: 1.5cqi; }
+  .d .hero .kicker { font: 400 0.95cqi/1 var(--data); letter-spacing: 0.08em; color: var(--accent); display: flex; gap: 1.4cqi; }
+  .d .hero h3 { margin: 0; font: 400 7.6cqi/0.95 var(--display); letter-spacing: -0.01em; }
+  .d .hero h3 em { font-style: italic; color: var(--accent); }
+  .d .hero p { margin: 0; font: 400 1.5cqi/1.5 var(--body); color: var(--muted); max-width: 38cqi; }
+  .d .cta { font: 500 1.05cqi/1 var(--data); color: #0b1420; background: var(--accent); padding: 1.1cqi 1.6cqi; letter-spacing: 0.04em; margin-top: 0.6cqi; }
+  .d .cta::after { content: " \2192"; }
+  .d nav a { font: 400 0.95cqi/1 var(--data); color: var(--muted); text-decoration: none; letter-spacing: 0.06em; }
+  .d nav a::before { content: "/"; color: var(--accent); margin-right: 0.4cqi; }
+  .d .telemetry { font: 300 0.9cqi/1 var(--data); color: var(--accent); letter-spacing: 0.04em; border-top: 1px solid var(--grid); padding-top: 0.9cqi; }
+  .d .card { background: var(--glass); border: 1px solid var(--glass-line); backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2); }
+  .d .card::before { content: ""; position: absolute; left: -1px; top: -1px; width: 1.6cqi; height: 1.6cqi; border-left: 2px solid var(--accent); border-top: 2px solid var(--accent); }
+  .d .card .label { font: 400 0.85cqi/1 var(--data); color: var(--accent); }
+  .d .card h4 { margin: 0; font: 400 2.8cqi/1 var(--display); }
+  .d .card p { margin: 0; font: 400 1.15cqi/1.45 var(--body); color: var(--muted); }
+  .d .card .meta span { font: 300 0.85cqi/1 var(--data); color: var(--muted); }
+
+  .direction.pick .spec .tag { color: var(--page-ink); }
   .note { color: var(--page-muted); font-size: 13px; max-width: 76ch; border-top: 1px solid var(--page-line); padding-top: 20px; }
   a:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 </style>
@@ -151,9 +188,40 @@
 <div class="sheet">
   <header class="intro">
     <div class="eyebrow">falsy.dev · Phase 0</div>
-    <h1>Three type and colour directions</h1>
+    <h1>Type and colour directions</h1>
     <p>Each one is set over a real render: Olympus Mons at its next sunrise, Mars, 3× relief. The card sits on glass where it crosses the planet. Copy is placeholder until the voice pass.</p>
   </header>
+
+  <section class="direction pick" aria-labelledby="d-name">
+    <div class="frame d">
+      <nav><a href="#d-name">consulting</a><a href="#d-name">projects</a><a href="#d-name">about</a><a href="#d-name">contact</a></nav>
+      <div class="hero">
+        <div class="kicker"><span>falsy.dev</span><span>T+00:00:00</span></div>
+        <h3>Justin <em>Powell</em></h3>
+        <p>GTM engineering and RevOps consulting. Physics by training, systems by trade.</p>
+        <a class="cta" href="#d-name">Book a call</a>
+      </div>
+      <div class="telemetry">MARS  18.6°N  226.2°E  LST 06:20  r=1.60 AU  relief×3  t×60</div>
+      <div class="card">
+        <div class="label">PRJ-01 / GEOSPATIAL</div>
+        <h4>KarstScout</h4>
+        <p>Finds likely cave entrances in USGS 3DEP LiDAR across the US.</p>
+        <div class="meta"><span>python</span><span>whiteboxtools</span><span>sveltekit</span></div>
+      </div>
+    </div>
+    <div class="spec">
+      <div class="tag">Direction D · Your pick</div>
+      <h2 id="d-name">Blue Hour × Flight Dynamics</h2>
+      <p>A's serif for the human moments, B's grid and readouts for the instrument layer. One accent, the Martian-sunset blue, which stays readable over orange terrain. The grid lines on the planet are drawn by the renderer at every 10° of real latitude and longitude, the same frame the telemetry reports.</p>
+      <dl>
+        <dt>Display</dt><dd>Instrument Serif: name, section titles, project names</dd>
+        <dt>Body</dt><dd>Instrument Sans</dd>
+        <dt>Data</dt><dd>Martian Mono: telemetry, nav, labels, tags</dd>
+        <dt>Grid</dt><dd>Sky only, fades out before the planet; graticule on the planet</dd>
+      </dl>
+      <div class="swatches" aria-label="Palette"><span style="background:#eef1f4"></span><span style="background:#9cc6ec"></span><span style="background:#0a101a"></span></div>
+    </div>
+  </section>
 
   <section class="direction" aria-labelledby="a-name">
     <div class="frame a">
