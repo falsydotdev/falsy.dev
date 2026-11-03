@@ -1,6 +1,6 @@
 # falsy.dev v1 build plan
 
-Each phase ships to production on its own. Phase 1 gets a real site in front of buyers while the planet work continues behind it. See [`SPEC.md`](SPEC.md) for the what and why.
+Phases build on each other on stacked branches. Nothing launches until Phase 2 is done; then everything merges to `main` together and goes live with live Mars (decided 2026-11-03). See [`SPEC.md`](SPEC.md) for the what and why.
 
 ## Phase 0: Direction
 
@@ -26,7 +26,7 @@ Each phase ships to production on its own. Phase 1 gets a real site in front of 
 
 **Done when:** falsy.dev is live with real content, a poster background, and working booking.
 
-**Status (2026-11-03):** built on branch `phase-1/site-shell`, waiting on the Cloudflare credentials to go live.
+**Status (2026-11-03):** built on branch `phase-1/site-shell` (draft PR #2). It won't launch on its own: it merges with Phase 2.
 
 | Step | State |
 |---|---|
