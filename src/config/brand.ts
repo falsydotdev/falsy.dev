@@ -11,6 +11,7 @@ export const person = {
   firstName: 'Justin',
   email: 'justin@revops.rocks',
   bookingUrl: 'https://meetings-eu1.hubspot.com/justin-powell/book-a-meeting-australia-time-zone',
+  linkedin: 'https://www.linkedin.com/in/powelljustin',
 };
 
 export const site = {

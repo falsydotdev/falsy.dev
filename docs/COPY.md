@@ -26,11 +26,10 @@ Phase 1 ships with poster stills, not the live scene, so two lines that claim "l
 
 ## Hero
 
-- **Eyebrow:** falsy.dev
+- **Eyebrow:** Adelaide · 34.9°S 138.6°E
 - **Headline:** Justin *Powell*
 - **Line:** I'm not a trained developer, but I spend most days building software, mostly with AI. (Approved 2026-11-03.)
-- **Primary button:** Book a call →
-- **Secondary link:** See my projects
+- **Buttons:** none. A quiet "Projects ↓" scroll cue instead.
 
 Projects now come before Consulting on the page (2026-11-03).
 
@@ -46,14 +45,14 @@ I run RevOps Rocks, a small consultancy for founders and COOs at B2B SaaS compan
 - **Renewal pipeline:** renewals show up in HubSpot months ahead, each with an owner and a next step.
 - **Forecasting and internal tools:** a forecast you can check line by line, plus the small tools your team keeps asking for.
 
-**How it works**
+**How it works** (cut from the site 2026-11-03; it belongs on revops.rocks)
 
 1. A free 30-minute scoping call.
 2. A fixed-price proposal.
 3. About four weeks of building, in HubSpot most of the time.
 4. Handover and training, so your team runs it from there.
 
-I don't bill by the hour, write strategy decks without building anything, or do Salesforce admin.
+(Cut from the site 2026-11-03.) I don't bill by the hour, write strategy decks without building anything, or do Salesforce admin.
 
 **Proof line:** I've been the first RevOps hire through one IPO and two acquisitions. Clients include UpGuard, Sherlok and Elita. RevOps Rocks is a HubSpot Gold Solutions Partner.
 
@@ -124,9 +123,9 @@ It checks more than 50,000 sources for new roles.
 
 **Heading:** About
 
-I'm Justin. I'm American, I live in Adelaide, and I've worked in RevOps since 2012, in the US, the UK, Germany and Australia.
+I'm Justin. I'm American, I live in Adelaide, and I've worked in RevOps since 2012, in the US, the UK, Germany and Australia. I've also managed product and tech teams at EyeEm and at Slidesgo, which is part of Magnific.
 
-I studied physics for four years, first at the University of Arizona and then at the University of Utah, and graduated with a degree in economics and a minor in physics. Physics taught me to measure something before I try to change it. I still work that way: I look at what's actually in your CRM before I suggest a fix.
+I studied physics for four years, first at the University of Arizona and then at the University of Utah, and graduated with a degree in economics and a minor in physics. Physics taught me to measure something before I try to change it. I still work that way, whether it's a CRM or a LiDAR survey.
 
 In JavaScript, a `falsy` value acts false without actually being false. That's about where I sit with the developer title. (Approved 2026-11-03.)
 
@@ -138,7 +137,9 @@ The planet behind this page uses real NASA and USGS data, lit by where the Sun i
 
 **Heading:** Contact
 
-The quickest way to start is a 30-minute call. I work Adelaide hours, and the booking page shows times in your time zone.
+If you want to talk about one of my projects, email is best.
+
+For consulting, the quickest way to start is a 30-minute call. I work Adelaide hours, and the booking page shows times in your time zone.
 
 - **Button:** Book a call → (links to https://meetings-eu1.hubspot.com/justin-powell/book-a-meeting-australia-time-zone)
 - **Email, shown as plain text:** justin@revops.rocks

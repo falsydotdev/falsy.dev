@@ -32,7 +32,7 @@ falsy.dev is Justin Powell's personal portfolio. He's a solo builder who isn't a
 
 One short scroll:
 
-1. Hero: name, one-line positioning, and the booking call to action.
+1. Hero: location, name, and one-line positioning. No buttons, only a quiet scroll cue (2026-11-03). Booking lives in Consulting and Contact.
 2. Selected projects.
 3. Consulting: the offer, outcomes, and the booking link.
 4. About: from physics to RevOps.
