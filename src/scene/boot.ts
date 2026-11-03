@@ -8,7 +8,8 @@ declare global {
   }
 }
 
-const DATA_URL = '/data';
+// Tiles are served from public/data in development (`npm run data`) and from R2 in production.
+const DATA_URL = import.meta.env.PUBLIC_TILES_URL ?? '/data/mars';
 
 // Preview-only camera overrides, clamped to sensible real-orbit ranges.
 function numberParam(params: URLSearchParams, key: string, min: number, max: number) {
@@ -24,7 +25,6 @@ export async function boot() {
   if (!sky || sky.dataset.scene !== 'pending') return;
   const fallBack = () => window.__falsyShowPoster?.();
 
-  // Until the tile pipeline lands, the live scene needs locally linked data (`npm run data`).
   const probe = await fetch(`${DATA_URL}/meta.json`, { method: 'HEAD' }).catch(() => null);
   if (!probe?.ok) return fallBack();
 

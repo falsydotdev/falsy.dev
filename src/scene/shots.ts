@@ -1,6 +1,6 @@
-import { type Vec3, vec, marsFrame, fromBody, sunJ2000, bodyVector, sunElevationAt } from './ephemeris';
-import { type Body, type CircularOrbit, MARS, circularOrbit } from './orbit';
-import { type Feature, MARS_FEATURES } from './features';
+import { type Vec3, vec, marsFrame, fromBody, sunJ2000, bodyVector, sunElevationAt } from './ephemeris.ts';
+import { type Body, type CircularOrbit, MARS, circularOrbit } from './orbit.ts';
+import { type Feature, MARS_FEATURES } from './features.ts';
 
 export type ShotKind = 'dawn-dusk' | 'orbital-sunrise' | 'feature-flyover';
 

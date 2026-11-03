@@ -1,25 +1,29 @@
-// Interim until the tile pipeline: links the prototype's Mars textures into public/data
-// so the live scene can run locally. Builds them first if they're missing (about 31 MB).
-import { execFileSync } from 'node:child_process';
-import { existsSync, lstatSync, symlinkSync } from 'node:fs';
-import { resolve } from 'node:path';
+// Links the locally baked tile set into public/data so the dev server serves it at /data/mars.
+// Bake it first with `npm run tiles` (downloads about 15 GB of USGS mosaics the first time).
+import { existsSync, lstatSync, readlinkSync, symlinkSync, unlinkSync } from 'node:fs';
+import { resolve, join } from 'node:path';
+import { TILE_DIR } from './tiles/paths.mjs';
 
 const root = resolve(import.meta.dirname, '..');
-const proto = resolve(root, 'prototypes/mars-orbit');
-const source = resolve(proto, 'public/data');
 const link = resolve(root, 'public/data');
 
-if (!existsSync(resolve(source, 'meta.json'))) {
-  if (!existsSync(resolve(proto, 'node_modules'))) execFileSync('npm', ['install'], { cwd: proto, stdio: 'inherit' });
-  execFileSync('npm', ['run', 'data'], { cwd: proto, stdio: 'inherit' });
+if (!existsSync(join(TILE_DIR, 'mars', 'meta.json'))) {
+  console.error(`No tiles in ${TILE_DIR}. Run \`npm run tiles\` first.`);
+  process.exit(1);
 }
-
-const linked = (() => {
+const current = (() => {
   try {
-    return lstatSync(link).isSymbolicLink();
+    return lstatSync(link).isSymbolicLink() ? readlinkSync(link) : 'not-a-link';
   } catch {
-    return false;
+    return null;
   }
 })();
-if (!linked) symlinkSync('../prototypes/mars-orbit/public/data', link, 'dir');
-console.log(`public/data -> ${source}`);
+if (current === 'not-a-link') {
+  console.error(`${link} exists and isn't a symlink; move it aside first.`);
+  process.exit(1);
+}
+if (current !== TILE_DIR) {
+  if (current) unlinkSync(link);
+  symlinkSync(TILE_DIR, link, 'dir');
+}
+console.log(`public/data -> ${TILE_DIR}`);

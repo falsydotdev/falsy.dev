@@ -1,7 +1,9 @@
 import * as THREE from 'three/webgpu';
 import { pass } from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
-import { TerrainPatch, loadHeightPng, loadColor, toWorld, RADIUS_KM, lighting } from './terrain.js';
+import { toWorld, RADIUS_KM, lighting } from './terrain.js';
+import { TiledPlanet } from './planet.js';
+import { orbitCameraPose } from '../camera.ts';
 import { createAtmosphere } from './atmosphere.js';
 import { createStars } from './stars.js';
 import { marsFrame, vec } from '../ephemeris';
@@ -30,10 +32,28 @@ function buildShot(kind, now, altKm) {
  * @param {HTMLElement} host
  * @param {{ dataUrl: string, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void, altKm?: number, tiltDeg?: number, fovDeg?: number }} opts
  */
+// One tile per array layer; 512 layers hold a 4K view with headroom and cost about 180 MB of GPU memory.
+const WANTED_LAYERS = 512;
+// Show the scene once every visible tile has its own texels, or after this long regardless.
+const SETTLE_TIMEOUT_MS = 6000;
+
+async function adapterLayerLimit(forceWebGL) {
+  if (forceWebGL || !navigator.gpu) return undefined;
+  const adapter = await navigator.gpu.requestAdapter().catch(() => null);
+  return adapter ? Math.min(adapter.limits.maxTextureArrayLayers, WANTED_LAYERS) : undefined;
+}
+
 export async function startLiveScene(host, opts) {
   const timeScale = opts.timeScale ?? 1;
   const cam = { altKm: opts.altKm ?? CAMERA_DEFAULTS.altKm, tiltDeg: opts.tiltDeg ?? CAMERA_DEFAULTS.tiltDeg, fovDeg: opts.fovDeg ?? CAMERA_DEFAULTS.fovDeg };
-  const renderer = new THREE.WebGPURenderer({ antialias: true, logarithmicDepthBuffer: true, forceWebGL: opts.forceWebGL ?? false });
+  const forceWebGL = opts.forceWebGL ?? false;
+  const gpuLayers = await adapterLayerLimit(forceWebGL);
+  const renderer = new THREE.WebGPURenderer({
+    antialias: true,
+    logarithmicDepthBuffer: true,
+    forceWebGL,
+    requiredLimits: gpuLayers ? { maxTextureArrayLayers: gpuLayers } : undefined,
+  });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.setSize(innerWidth, innerHeight);
   renderer.toneMapping = THREE.AgXToneMapping;
@@ -53,15 +73,9 @@ export async function startLiveScene(host, opts) {
   scene.add(sunDisc, stars, atmosphere.mesh);
 
   const meta = await (await fetch(`${opts.dataUrl}/meta.json`)).json();
-  const [height, color] = await Promise.all([loadHeightPng(`${opts.dataUrl}/mars_height_4k.png`, meta.heightOffset), loadColor(`${opts.dataUrl}/mars_color_8k.jpg`)]);
-  const planet = new TerrainPatch({
-    height,
-    color,
-    bounds: { latMin: -90, latMax: 90, lonMin: -180, lonMax: 180, wrap: true },
-    segX: 1024,
-    segY: 512,
-  });
-  planet.setExaggeration(RELIEF);
+  const layers = renderer.backend.isWebGPUBackend ? gpuLayers ?? 256 : Math.min(WANTED_LAYERS, renderer.backend.gl.getParameter(renderer.backend.gl.MAX_ARRAY_TEXTURE_LAYERS));
+  const planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: RELIEF, layers });
+  await planet.init();
   scene.add(planet.mesh);
 
   const pipeline = new THREE.RenderPipeline(renderer);
@@ -77,15 +91,13 @@ export async function startLiveScene(host, opts) {
     const date = simNow();
     const s = sample(shot.orbit, date);
     const f = marsFrame(date);
-    const up = vec.norm(s.rBody);
-    const vBody = vec.norm([vec.dot(s.v, f.x), vec.dot(s.v, f.y), vec.dot(s.v, f.z)]);
-    const horiz = vec.norm(vec.sub(vBody, vec.scale(up, vec.dot(vBody, up))));
-    const down = Math.acos(RADIUS_KM / vec.len(s.rBody)) + cam.tiltDeg * DEG;
-    const forward = vec.add(vec.scale(horiz, Math.cos(down)), vec.scale(up, -Math.sin(down)));
+    const vBody = [vec.dot(s.v, f.x), vec.dot(s.v, f.y), vec.dot(s.v, f.z)];
+    const pose = orbitCameraPose(s.rBody, vBody, RADIUS_KM, cam.tiltDeg);
 
     camera.position.copy(toWorld(s.rBody));
-    camera.up.copy(toWorld(up));
-    camera.lookAt(toWorld(vec.add(s.rBody, forward)));
+    camera.up.copy(toWorld(pose.up));
+    camera.lookAt(toWorld(vec.add(s.rBody, pose.forward)));
+    planet.update(pose, { fovYRad: cam.fovDeg * DEG, aspect: camera.aspect, viewportHeightPx: renderer.domElement.height });
 
     const sunW = toWorld(s.sunBody);
     sunDisc.position.copy(sunW).multiplyScalar(1e5);
@@ -121,7 +133,8 @@ export async function startLiveScene(host, opts) {
   let throttled = false;
   let lastRender = 0;
   let first = true;
-  const state = { frames: 0, shot: shot.kind, backend: renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL2', canvas: renderer.domElement };
+  const state = { frames: 0, shot: shot.kind, backend: renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL2', canvas: renderer.domElement, layers, tiles: planet.stats, firstFrameMs: 0 };
+  const started = performance.now();
 
   renderer.setAnimationLoop((t) => {
     if (!running) return;
@@ -131,8 +144,9 @@ export async function startLiveScene(host, opts) {
     pipeline.render();
     state.frames++;
     updateTelemetry(s, t);
-    if (first) {
+    if (first && (planet.settled() || performance.now() - started > SETTLE_TIMEOUT_MS)) {
       first = false;
+      state.firstFrameMs = Math.round(performance.now() - started);
       opts.onFirstFrame?.();
     }
   });
