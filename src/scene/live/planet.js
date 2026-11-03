@@ -12,6 +12,9 @@ import { lighting, toWorld } from './terrain.js';
 const GRID = 32;
 const MAX_INSTANCES = 4096;
 const MAX_IN_FLIGHT = 12;
+// Records for tiles without GPU data are dropped after this many unused frames, so a long
+// session that keeps flying over new ground doesn't accumulate them.
+const RECORD_TTL_FRAMES = 600;
 const WORKERS = 4;
 const SHADOW_STEPS = 44;
 
@@ -79,7 +82,7 @@ export class TiledPlanet {
     this.frame = 0;
     this.inFlight = 0;
     this.texelBias = 1;
-    this.stats = { requests: 0, bytes: 0, colorBytes: 0, heightBytes: 0, selected: 0, drawn: 0, pending: 0, texelBias: 1 };
+    this.stats = { records: 0, requests: 0, bytes: 0, colorBytes: 0, heightBytes: 0, selected: 0, drawn: 0, pending: 0, texelBias: 1 };
     this.workers = Array.from({ length: WORKERS }, () => {
       const w = new Worker(new URL('./tile-worker.js', import.meta.url), { type: 'module' });
       w.onmessage = (e) => this.onLoaded(e.data);
@@ -347,6 +350,17 @@ export class TiledPlanet {
     this.stats.selected = selected.length;
     this.stats.drawn = n;
     this.selected = selected;
+    if (this.frame % 120 === 0) this.prune();
+  }
+
+  prune() {
+    for (const [id, r] of this.records) {
+      if (r.key.level <= 1 || this.frame - r.lastUsed < RECORD_TTL_FRAMES) continue;
+      const busy = (slot) => slot.state === 'loading' || slot.state === 'ready';
+      if (busy(r.color) || busy(r.height)) continue;
+      this.records.delete(id);
+    }
+    this.stats.records = this.records.size;
   }
 
   /** True once every selected tile draws from its own texels. */

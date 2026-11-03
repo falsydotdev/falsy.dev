@@ -40,6 +40,10 @@ export async function boot() {
       timeScale,
       forceWebGL: params.has('webgl'),
       telemetry: document.getElementById('telemetry'),
+      onLost: () => {
+        sky.classList.remove('is-live');
+        fallBack();
+      },
       onFirstFrame: () => {
         sky.dataset.scene = 'live';
         sky.classList.add('is-live');

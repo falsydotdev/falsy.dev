@@ -30,12 +30,17 @@ function buildShot(kind, now, altKm) {
 /**
  * Starts the live Mars scene inside `host`.
  * @param {HTMLElement} host
- * @param {{ dataUrl: string, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void, altKm?: number, tiltDeg?: number, fovDeg?: number }} opts
+ * @param {{ dataUrl: string, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void, onLost?: () => void, altKm?: number, tiltDeg?: number, fovDeg?: number }} opts
  */
 // One tile per array layer; 512 layers hold a 4K view with headroom and cost about 180 MB of GPU memory.
 const WANTED_LAYERS = 512;
 // Show the scene once every visible tile has its own texels, or after this long regardless.
 const SETTLE_TIMEOUT_MS = 6000;
+// After a background tab returns, the orbit and Sun have moved on. Past this gap, the last frame
+// stays up while the new view loads underneath, then crossfades away.
+const RESUME_SNAPSHOT_AFTER_MS = 2000;
+const RESUME_SETTLE_TIMEOUT_MS = 5000;
+const RESUME_FADE_MS = 1200;
 
 async function adapterLayerLimit(forceWebGL) {
   if (forceWebGL || !navigator.gpu) return undefined;
@@ -63,6 +68,15 @@ export async function startLiveScene(host, opts) {
     gpuLayers = undefined;
     return makeRenderer(undefined);
   });
+  // A lost GPU device (driver reset, tab backgrounded under memory pressure) can't be resumed:
+  // stop, release what's left, and let the page fall back to the poster.
+  renderer.onDeviceLost = () => {
+    renderer.setAnimationLoop(null);
+    planet?.dispose();
+    renderer.domElement.remove();
+    opts.onLost?.();
+  };
+  let planet;
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.setSize(innerWidth, innerHeight);
   renderer.toneMapping = THREE.AgXToneMapping;
@@ -82,7 +96,7 @@ export async function startLiveScene(host, opts) {
 
   const meta = await (await fetch(`${opts.dataUrl}/meta.json`)).json();
   const layers = renderer.backend.isWebGPUBackend ? gpuLayers ?? 256 : Math.min(WANTED_LAYERS, renderer.backend.gl.getParameter(renderer.backend.gl.MAX_ARRAY_TEXTURE_LAYERS));
-  const planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: RELIEF, layers });
+  planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: RELIEF, layers });
   await planet.init();
   scene.add(planet.mesh);
 
@@ -144,6 +158,41 @@ export async function startLiveScene(host, opts) {
   const state = { frames: 0, shot: shot.kind, backend: renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL2', canvas: renderer.domElement, layers, tiles: planet.stats, firstFrameMs: 0 };
   const started = performance.now();
 
+  let hiddenAt = 0;
+  let snapshot = null;
+  let resumeStarted = 0;
+
+  const dropSnapshot = () => {
+    if (!snapshot) return;
+    snapshot.remove();
+    snapshot.width = snapshot.height = 0;
+    snapshot = null;
+    resumeStarted = 0;
+  };
+
+  // Copies the frame just rendered; the canvas contents are only readable within the same task.
+  const takeSnapshot = () => {
+    dropSnapshot();
+    frame();
+    pipeline.render();
+    const c = document.createElement('canvas');
+    c.width = renderer.domElement.width;
+    c.height = renderer.domElement.height;
+    c.className = 'live-canvas';
+    c.setAttribute('aria-hidden', 'true');
+    c.getContext('2d')?.drawImage(renderer.domElement, 0, 0);
+    renderer.domElement.after(c);
+    snapshot = c;
+  };
+
+  const fadeSnapshot = () => {
+    const c = snapshot;
+    if (!c || c.style.opacity === '0') return;
+    c.style.transition = `opacity ${RESUME_FADE_MS}ms ease`;
+    c.style.opacity = '0';
+    setTimeout(() => c === snapshot && dropSnapshot(), RESUME_FADE_MS + 100);
+  };
+
   renderer.setAnimationLoop((t) => {
     if (!running) return;
     if (throttled && t - lastRender < 66) return;
@@ -152,6 +201,10 @@ export async function startLiveScene(host, opts) {
     pipeline.render();
     state.frames++;
     updateTelemetry(s, t);
+    if (resumeStarted && (planet.settled() || performance.now() - resumeStarted > RESUME_SETTLE_TIMEOUT_MS)) {
+      resumeStarted = 0;
+      fadeSnapshot();
+    }
     if (first && (planet.settled() || performance.now() - started > SETTLE_TIMEOUT_MS)) {
       first = false;
       state.firstFrameMs = Math.round(performance.now() - started);
@@ -168,6 +221,14 @@ export async function startLiveScene(host, opts) {
   return {
     state,
     setRunning(on) {
+      if (on === running) return;
+      if (!on) {
+        hiddenAt = performance.now();
+        if (!first) takeSnapshot();
+      } else if (snapshot) {
+        if (performance.now() - hiddenAt > RESUME_SNAPSHOT_AFTER_MS) resumeStarted = performance.now();
+        else dropSnapshot();
+      }
       running = on;
     },
     setThrottled(on) {
