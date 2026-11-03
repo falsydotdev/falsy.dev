@@ -142,7 +142,7 @@ If you want to talk about one of my projects, email is best.
 For consulting, the quickest way to start is a 30-minute call. I work Adelaide hours, and the booking page shows times in your time zone.
 
 - **Button:** Book a call → (links to https://meetings-eu1.hubspot.com/justin-powell/book-a-meeting-australia-time-zone)
-- **Email, shown as plain text:** justin@revops.rocks
+- **Email, shown as plain text:** hello@falsy.dev
 
 **Form intro:** Or tell me what you're working on, and I'll reply within one business day.
 
@@ -155,7 +155,7 @@ For consulting, the quickest way to start is a 30-minute call. I work Adelaide h
 
 - **Submit button:** Send
 - **Success message:** Thanks! I'll be in touch soon.
-- **Error message:** That didn't send. Try again, or email me at justin@revops.rocks.
+- **Error message:** That didn't send. Try again, or email me at hello@falsy.dev.
 
 ## Small text
 
