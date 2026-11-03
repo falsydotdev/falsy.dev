@@ -22,13 +22,13 @@ Phase 1 ships with poster stills, not the live scene, so two lines that claim "l
 ## Meta
 
 - **Title:** Justin Powell · falsy.dev
-- **Description:** I'm not a trained developer, but I spend most days building software, mostly with AI. Here are my projects, my consulting work through RevOps Rocks, and a view of Mars rendered from real data.
+- **Description:** I'm not a trained developer, but I spend most days building software with AI. Here are my projects, my consulting work through RevOps Rocks, and a view of Mars rendered from real data.
 
 ## Hero
 
 - **Eyebrow:** Adelaide · 34.9°S 138.6°E
 - **Headline:** Justin *Powell*
-- **Line:** I'm not a trained developer, but I spend most days building software, mostly with AI. (Approved 2026-11-03.)
+- **Line:** I'm not a trained developer, but I spend most days building software with AI. (Approved 2026-11-03.)
 - **Buttons:** none. A quiet "Projects ↓" scroll cue instead.
 
 Projects now come before Consulting on the page (2026-11-03).

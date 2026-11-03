@@ -4,7 +4,7 @@ Status: agreed 2026-11-02. Architecture decisions are in [`adr/`](adr/), and the
 
 ## Purpose
 
-falsy.dev is Justin Powell's personal portfolio. He's a solo builder who isn't a trained developer but builds software most days, mostly with AI. The page shows his projects first and his GTM engineering and RevOps consulting second (reframed 2026-11-03; it was consulting-first). The live planetary background is the signature. It shows the engineering standard of the work without getting in the way of the content.
+falsy.dev is Justin Powell's personal portfolio. He's a solo builder who isn't a trained developer but builds software most days with AI. The page shows his projects first and his GTM engineering and RevOps consulting second (reframed 2026-11-03; it was consulting-first). The live planetary background is the signature. It shows the engineering standard of the work without getting in the way of the content.
 
 ## Audience
 
