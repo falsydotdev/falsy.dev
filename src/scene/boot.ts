@@ -8,6 +8,8 @@ declare global {
   }
 }
 
+import { isTierName } from './quality.ts';
+
 // In development the dev server serves locally baked tiles at /data; production builds use R2.
 const DATA_URL = import.meta.env.PUBLIC_TILES_URL ?? '/data/mars';
 
@@ -29,6 +31,7 @@ export async function boot() {
   if (!probe?.ok) return fallBack();
 
   const timeScale = Math.max(1, Number(params.get('t') ?? 1) || 1);
+  const tierParam = params.get('tier');
   try {
     const { startLiveScene } = await import('./live/scene.js');
     const live = await startLiveScene(sky, {
@@ -38,6 +41,7 @@ export async function boot() {
       tiltDeg: numberParam(params, 'tilt', -10, 60),
       fovDeg: numberParam(params, 'fov', 15, 80),
       farKm: numberParam(params, 'far', 0, 5000),
+      tier: isTierName(tierParam) ? tierParam : undefined,
       timeScale,
       forceWebGL: params.has('webgl'),
       telemetry: document.getElementById('telemetry'),
@@ -50,6 +54,7 @@ export async function boot() {
         sky.classList.add('is-live');
       },
     });
+    if (!live) return fallBack();
     window.__falsyLive = live;
     document.addEventListener('visibilitychange', () => live.setRunning(document.visibilityState === 'visible'));
     // The background stays visible beside the content, so past the first screen it slows down instead of stopping.

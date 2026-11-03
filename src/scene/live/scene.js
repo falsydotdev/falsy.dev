@@ -10,6 +10,7 @@ import { marsFrame, vec } from '../ephemeris';
 import { sample } from '../orbit';
 import { chooseShot, dawnDusk, orbitalSunrise, featureFlyover } from '../shots';
 import { telemetryParts } from '../telemetry';
+import { Governor, initialTier, renderPixelRatio, tier as tierByName } from '../quality.ts';
 
 const DEG = Math.PI / 180;
 const RELIEF = 2.5;
@@ -30,7 +31,8 @@ function buildShot(kind, now, altKm) {
 /**
  * Starts the live Mars scene inside `host`.
  * @param {HTMLElement} host
- * @param {{ dataUrl: string, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void, onLost?: () => void, farKm?: number, altKm?: number, tiltDeg?: number, fovDeg?: number }} opts
+ * Resolves to null when this machine should get the poster instead.
+ * @param {{ dataUrl: string, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void, onLost?: () => void, farKm?: number, altKm?: number, tiltDeg?: number, fovDeg?: number, tier?: import('../quality.ts').TierName }} opts
  */
 // One tile per array layer; 512 layers hold a 4K view with headroom and cost about 180 MB of GPU memory.
 const WANTED_LAYERS = 512;
@@ -41,22 +43,33 @@ const SETTLE_TIMEOUT_MS = 6000;
 const RESUME_SNAPSHOT_AFTER_MS = 2000;
 const RESUME_SETTLE_TIMEOUT_MS = 5000;
 const RESUME_FADE_MS = 1200;
-// The camera moves slowly, so 30 fps looks the same as 60 or 120 and spares laptops a hot GPU.
-// Past the first screen, the background only peeks out beside content, so it drops to 15.
-const FRAME_MS = 1000 / 30;
+// Past the first screen, the background only peeks out beside content, so it drops to 15 fps.
 const THROTTLED_FRAME_MS = 1000 / 15;
+// Load is GPU time over the tier's frame interval. 60% leaves the page and the rest of the
+// machine room and keeps a laptop from running hot; Low gets more before the scene stops.
+// On WebGL2, load is the rendered frame interval over the target: only clearly missed frames count.
+const GPU_LIMITS = { limit: 0.6, giveUpLimit: 0.75 };
+const CADENCE_LIMITS = { limit: 1.4, giveUpLimit: 1.4 };
 
-async function adapterLayerLimit(forceWebGL) {
-  if (forceWebGL || !navigator.gpu) return undefined;
+async function probeAdapter(forceWebGL) {
+  if (forceWebGL || !navigator.gpu) return {};
   const adapter = await navigator.gpu.requestAdapter().catch(() => null);
-  return adapter ? Math.min(adapter.limits.maxTextureArrayLayers, WANTED_LAYERS) : undefined;
+  if (!adapter) return {};
+  const { vendor, architecture, description } = adapter.info ?? {};
+  return { layers: Math.min(adapter.limits.maxTextureArrayLayers, WANTED_LAYERS), info: { vendor, architecture, description } };
+}
+
+function webglRenderer(gl) {
+  const ext = gl.getExtension('WEBGL_debug_renderer_info');
+  return String(gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER) ?? '');
 }
 
 export async function startLiveScene(host, opts) {
   const timeScale = opts.timeScale ?? 1;
   const cam = { altKm: opts.altKm ?? CAMERA_DEFAULTS.altKm, tiltDeg: opts.tiltDeg ?? CAMERA_DEFAULTS.tiltDeg, fovDeg: opts.fovDeg ?? CAMERA_DEFAULTS.fovDeg };
   const forceWebGL = opts.forceWebGL ?? false;
-  let gpuLayers = await adapterLayerLimit(forceWebGL);
+  const probe = await probeAdapter(forceWebGL);
+  let gpuLayers = probe.layers;
   const makeRenderer = async (layers) => {
     const r = new THREE.WebGPURenderer({
       antialias: true,
@@ -72,16 +85,51 @@ export async function startLiveScene(host, opts) {
     gpuLayers = undefined;
     return makeRenderer(undefined);
   });
+  const isWebGPU = renderer.backend.isWebGPUBackend;
+  const hints = isWebGPU ? { backend: 'WebGPU', ...probe.info } : { backend: 'WebGL2', description: webglRenderer(renderer.backend.gl) };
+  const startTier = opts.tier ?? initialTier(hints);
+  if (startTier === 'poster') {
+    renderer.dispose();
+    return null;
+  }
+  let tier = tierByName(startTier);
+
+  let planet;
+  let pipeline;
+  let stopped = false;
+  let snapshot = null;
+  let resumeStarted = 0;
+  const dropSnapshot = () => {
+    if (!snapshot) return;
+    snapshot.remove();
+    snapshot.width = snapshot.height = 0;
+    snapshot = null;
+    resumeStarted = 0;
+  };
+  const onResize = () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setPixelRatio(renderPixelRatio(tier, devicePixelRatio, innerWidth, innerHeight));
+    renderer.setSize(innerWidth, innerHeight);
+  };
+  const teardown = () => {
+    stopped = true;
+    renderer.setAnimationLoop(null);
+    removeEventListener('resize', onResize);
+    planet?.dispose();
+    pipeline?.dispose();
+    renderer.dispose();
+    renderer.domElement.remove();
+  };
   // A lost GPU device (driver reset, tab backgrounded under memory pressure) can't be resumed:
   // stop, release what's left, and let the page fall back to the poster.
   renderer.onDeviceLost = () => {
-    renderer.setAnimationLoop(null);
-    planet?.dispose();
-    renderer.domElement.remove();
+    if (stopped) return;
+    teardown();
+    dropSnapshot();
     opts.onLost?.();
   };
-  let planet;
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setPixelRatio(renderPixelRatio(tier, devicePixelRatio, innerWidth, innerHeight));
   renderer.setSize(innerWidth, innerHeight);
   renderer.toneMapping = THREE.AgXToneMapping;
   renderer.domElement.className = 'live-canvas';
@@ -99,14 +147,27 @@ export async function startLiveScene(host, opts) {
   scene.add(sunDisc, stars, atmosphere.mesh);
 
   const meta = await (await fetch(`${opts.dataUrl}/meta.json`)).json();
-  const layers = renderer.backend.isWebGPUBackend ? gpuLayers ?? 256 : Math.min(WANTED_LAYERS, renderer.backend.gl.getParameter(renderer.backend.gl.MAX_ARRAY_TEXTURE_LAYERS));
-  planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: RELIEF, layers, relaxBeyondKm: opts.farKm });
+  const layers = isWebGPU ? gpuLayers ?? 256 : Math.min(WANTED_LAYERS, renderer.backend.gl.getParameter(renderer.backend.gl.MAX_ARRAY_TEXTURE_LAYERS));
+  planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: RELIEF, layers, relaxBeyondKm: opts.farKm, shadowSteps: tier.shadowSteps });
   await planet.init();
   scene.add(planet.mesh);
 
-  const pipeline = new THREE.RenderPipeline(renderer);
+  pipeline = new THREE.RenderPipeline(renderer);
   const sceneColor = pass(scene, camera).getTextureNode('output');
-  pipeline.outputNode = sceneColor.add(bloom(sceneColor, 0.35, 0.5, 0.9));
+  const bloomed = sceneColor.add(bloom(sceneColor, 0.35, 0.5, 0.9));
+  pipeline.outputNode = tier.bloom ? bloomed : sceneColor;
+
+  const applyTier = (next) => {
+    if (next.bloom !== tier.bloom) {
+      pipeline.outputNode = next.bloom ? bloomed : sceneColor;
+      pipeline.needsUpdate = true;
+    }
+    tier = next;
+    planet.setShadowSteps(next.shadowSteps);
+    renderer.setPixelRatio(renderPixelRatio(next, devicePixelRatio, innerWidth, innerHeight));
+    renderer.setSize(innerWidth, innerHeight);
+    state.tier = next.name;
+  };
 
   const wallStart = Date.now();
   const simNow = () => new Date(wallStart + (Date.now() - wallStart) * timeScale);
@@ -159,20 +220,17 @@ export async function startLiveScene(host, opts) {
   let throttled = false;
   let lastRender = 0;
   let first = true;
-  const state = { frames: 0, shot: shot.kind, backend: renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL2', canvas: renderer.domElement, layers, tiles: planet.stats, firstFrameMs: 0 };
+  // three.js timestamp queries add up per-pass spans, which overlap on Apple GPUs and read several times high.
+  // Submit-to-done time is the frame's real GPU cost whenever the GPU starts the frame idle.
+  const gpuTiming = isWebGPU;
+  const governor = opts.tier ? null : new Governor(tier.name, gpuTiming ? GPU_LIMITS : CADENCE_LIMITS);
+  const state = {
+    frames: 0, shot: shot.kind, backend: hints.backend, gpu: hints.vendor ?? hints.description, canvas: renderer.domElement, layers, tiles: planet.stats, firstFrameMs: 0,
+    tier: tier.name, timing: governor ? (gpuTiming ? 'gpu' : 'cadence') : 'forced', gpuMs: 0, gpuLog: [], load: 0, tierChanges: [],
+  };
   const started = performance.now();
 
   let hiddenAt = 0;
-  let snapshot = null;
-  let resumeStarted = 0;
-
-  const dropSnapshot = () => {
-    if (!snapshot) return;
-    snapshot.remove();
-    snapshot.width = snapshot.height = 0;
-    snapshot = null;
-    resumeStarted = 0;
-  };
 
   // Copies the frame just rendered; the canvas contents are only readable within the same task.
   const takeSnapshot = () => {
@@ -197,15 +255,70 @@ export async function startLiveScene(host, opts) {
     setTimeout(() => c === snapshot && dropSnapshot(), RESUME_FADE_MS + 100);
   };
 
+  // Stops for good on a machine that can't hold even Low. Once the scene is showing, its last
+  // frame stays up instead of switching to a poster of a different place and time.
+  const giveUp = () => {
+    if (first) {
+      teardown();
+      dropSnapshot();
+      opts.onLost?.();
+      return;
+    }
+    takeSnapshot();
+    teardown();
+    state.tier = 'frozen';
+  };
+
+  let timingBusy = false;
+  let lastWrites = 0;
+  const measure = (interval) => {
+    const judge = (load) => {
+      if (stopped || !governor) return;
+      const verdict = governor.sample(load, !first);
+      state.load = governor.lastMedian;
+      if (verdict === 'give-up') return giveUp();
+      if (verdict !== 'down') return;
+      state.tierChanges.push({ to: governor.tier, atMs: Math.round(performance.now() - started), load: governor.lastMedian });
+      // Before the first frame shows, nobody sees the change; after, it crossfades like a tab return.
+      if (!first) {
+        takeSnapshot();
+        resumeStarted = performance.now();
+      }
+      applyTier(tierByName(governor.tier));
+    };
+    if (!gpuTiming) {
+      if (interval > 0) judge(interval / (throttled ? THROTTLED_FRAME_MS : 1000 / tier.fps));
+      return;
+    }
+    // Tile uploads are queued GPU work too, so frames that include them aren't judged.
+    if (timingBusy || planet.writes !== lastWrites) {
+      lastWrites = planet.writes;
+      return;
+    }
+    timingBusy = true;
+    const t0 = performance.now();
+    renderer.backend.device.queue.onSubmittedWorkDone().then(() => {
+      timingBusy = false;
+      const ms = performance.now() - t0;
+      state.gpuMs = ms;
+      state.gpuLog.push(Math.round(ms * 10) / 10);
+      if (state.gpuLog.length > 120) state.gpuLog.shift();
+      judge(ms / (1000 / tier.fps));
+    });
+  };
+
   renderer.setAnimationLoop((t) => {
     if (!running) return;
     // 0.9 absorbs rAF jitter so a 120 Hz display renders every 4th vsync, and a 60 Hz one every 2nd.
-    if (t - lastRender < (throttled ? THROTTLED_FRAME_MS : FRAME_MS) * 0.9) return;
+    if (t - lastRender < (throttled ? THROTTLED_FRAME_MS : 1000 / tier.fps) * 0.9) return;
+    const interval = lastRender ? t - lastRender : 0;
     lastRender = t;
     const s = frame();
     pipeline.render();
     state.frames++;
     updateTelemetry(s, t);
+    measure(interval);
+    if (stopped) return;
     if (resumeStarted && (planet.settled() || performance.now() - resumeStarted > RESUME_SETTLE_TIMEOUT_MS)) {
       resumeStarted = 0;
       fadeSnapshot();
@@ -217,16 +330,14 @@ export async function startLiveScene(host, opts) {
     }
   });
 
-  addEventListener('resize', () => {
-    camera.aspect = innerWidth / innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(innerWidth, innerHeight);
-  });
+  addEventListener('resize', onResize);
 
   return {
     state,
     setRunning(on) {
-      if (on === running) return;
+      if (on === running || stopped) return;
+      governor?.reset();
+      lastRender = 0;
       if (!on) {
         hiddenAt = performance.now();
         if (!first) takeSnapshot();
@@ -237,7 +348,10 @@ export async function startLiveScene(host, opts) {
       running = on;
     },
     setThrottled(on) {
+      if (on === throttled) return;
       throttled = on;
+      governor?.reset();
+      lastRender = 0;
     },
   };
 }

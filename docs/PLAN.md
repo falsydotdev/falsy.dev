@@ -66,14 +66,15 @@ Phases build on each other on stacked branches. Nothing launches until Phase 2 i
 
 | Step | State |
 |---|---|
-| 1. Tile pipeline | Done locally: 131,070 colour (AVIF) and height tiles, levels 0 to 7, plus a coarse shadow map, about 1.6 GB in `~/.cache/falsy-dev`. Not uploaded: needs an R2 bucket and credentials. |
+| 1. Tile pipeline | Done: 131,070 colour (AVIF) and height tiles, levels 0 to 7, plus a coarse shadow map, about 1.6 GB. Built in `~/.cache/falsy-dev` and uploaded to R2. |
 | 2. Terrain renderer | Quadtree LOD on an equi-angular cube-sphere, one instanced draw, array-texture atlases with LRU eviction, ancestor fallback while streaming, coarse-map shadows. Works on WebGPU and WebGL2. Floating origin and reversed depth aren't needed at 200 km: tile positions are precise to about 0.5 m. |
 | Budget | `scripts/tiles/budget.mjs`, 12 shots × 90 s at 3200×1800: 6.4 MB first view and 8.9 MB after 90 s with the default 500 km far relaxation (9.1 and 12.1 MB without it). Tilt changes nothing while the horizon is in frame. |
+| 6. Quality tiers | Done. High, Medium, and Low change render resolution (up to 2×, 1.25×, 1×, each with a pixel cap), shadow steps (44, 24, 12), bloom, and frame rate (30, 30, 20). The start tier comes from the GPU vendor, then the scene measures GPU time per frame and steps down when it passes 60% of the frame interval, crossfading like a tab return. It never steps back up. Past Low, it freezes on its last frame. Data Saver gets the poster. On an M5 Max, High costs about 8 ms per frame at 1× and 16 ms at 2×. |
 | Robustness | Bounded tile records and GPU memory (soak-tested over 35 orbit-minutes), poster fallback on GPU device loss, and a crossfade from the last frame when a background tab returns. |
 
 **Done when:**
 - A typical view loads 20 MB or less of tiles.
-- It holds 60 fps on an M-series laptop, and 30 fps or better on a mid-range Windows laptop.
+- It holds High at 30 fps on an M-series laptop, and Medium or better on a mid-range Windows laptop. (Frame rate is capped at 30, since the camera moves too slowly for more to show.)
 - The poster fallback works on phones.
 
 ## Phase 3: The Moon

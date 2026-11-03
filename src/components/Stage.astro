@@ -66,6 +66,7 @@ const fallback = choices[0];
         if (force === '0') return false;
         if (force === '1') return true;
         if (matchMedia('(prefers-reduced-motion: reduce)').matches || innerWidth < 768) return false;
+        if (navigator.connection?.saveData) return false;
         if ('gpu' in navigator) return true;
         try { return !!document.createElement('canvas').getContext('webgl2'); } catch { return false; }
       })();

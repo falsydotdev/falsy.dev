@@ -8,6 +8,7 @@ import { selectTiles, tilesToFetch } from '../tiles/select.ts';
 import { TILES, HEIGHT_SIZE, SHADOW_MAP, colorPath, heightPath } from '../tiles/layout.ts';
 import { LayerArray } from './tile-atlas.js';
 import { lighting, toWorld } from './terrain.js';
+import { shadowGrowth } from '../quality.ts';
 
 const GRID = 32;
 const MAX_INSTANCES = 4096;
@@ -20,7 +21,6 @@ const SETTLED_FRACTION = 0.95;
 // session that keeps flying over new ground doesn't accumulate them.
 const RECORD_TTL_FRAMES = 600;
 const WORKERS = 4;
-const SHADOW_STEPS = 44;
 
 /** A GRID×GRID patch in tile fractions, with a skirt hanging from each edge to hide LOD cracks. */
 function tileGeometry() {
@@ -73,7 +73,7 @@ class Record {
  */
 export class TiledPlanet {
   /** @param {THREE.WebGPURenderer} renderer */
-  constructor(renderer, { baseUrl, meta, relief, layers, relaxBeyondKm = 500 }) {
+  constructor(renderer, { baseUrl, meta, relief, layers, relaxBeyondKm = 500, shadowSteps = 44 }) {
     this.relaxBeyondKm = relaxBeyondKm > 0 ? relaxBeyondKm : Infinity;
     this.renderer = renderer;
     this.baseUrl = baseUrl;
@@ -86,6 +86,8 @@ export class TiledPlanet {
     this.records = new Map();
     this.frame = 0;
     this.inFlight = 0;
+    // Counts GPU uploads, so frame timing can skip frames that include them.
+    this.writes = 0;
     this.texelBias = 1;
     this.stats = { records: 0, requests: 0, bytes: 0, colorBytes: 0, heightBytes: 0, selected: 0, drawn: 0, pending: 0, texelBias: 1 };
     this.workers = Array.from({ length: WORKERS }, () => {
@@ -104,6 +106,8 @@ export class TiledPlanet {
     geo.instanceCount = 0;
     this.geometry = geo;
     this.exaggeration = uniform(relief);
+    this.shadowSteps = uniform(shadowSteps, 'int');
+    this.shadowGrowth = uniform(shadowGrowth(shadowSteps));
     this.shadowSlot = texture(new THREE.DataTexture(new Uint16Array(1), 1, 1, THREE.RedFormat, THREE.HalfFloatType));
     this.mesh = new THREE.Mesh(geo, this.buildMaterial());
     this.mesh.frustumCulled = false;
@@ -187,14 +191,14 @@ export class TiledPlanet {
         const h0 = shadowHeight(lat, lon).add(0.05);
         const cosLat = max(cos(lat), 0.02);
         const d = float(2).toVar();
-        Loop({ start: 0, end: SHADOW_STEPS, name: 'k' }, () => {
+        Loop({ start: int(0), end: this.shadowSteps, type: 'int', condition: '<', name: 'k' }, () => {
           const latK = lat.add(sn.div(hl).mul(d).div(R));
           const lonK = lon.add(se.div(hl).mul(d).div(cosLat.mul(R)));
           const terrain = shadowHeight(latK, lonK);
           const ray = h0.add(tanE.mul(d)).sub(d.mul(d).div(2 * R));
           const penumbra = d.mul(0.0061).add(0.15);
           shadow.assign(min(shadow, clamp(ray.sub(terrain).div(penumbra).mul(0.5).add(0.5), 0, 1)));
-          d.mulAssign(1.14);
+          d.mulAssign(this.shadowGrowth);
         });
       });
 
@@ -255,6 +259,7 @@ export class TiledPlanet {
         return;
       }
       array.write(layer, out.levels ?? [out.data]);
+      this.writes++;
       slot.layer = layer;
       slot.state = 'ready';
       if (kind === 'height') rec.heightRange = [out.minKm, out.maxKm];
@@ -378,6 +383,11 @@ export class TiledPlanet {
       if (r && done(r.color) && done(r.height)) ready++;
     }
     return ready >= this.selected.length * SETTLED_FRACTION;
+  }
+
+  setShadowSteps(steps) {
+    this.shadowSteps.value = steps;
+    this.shadowGrowth.value = shadowGrowth(steps);
   }
 
   setRelief(relief) {
