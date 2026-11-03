@@ -5,7 +5,6 @@ import { open, mkdir, writeFile } from 'node:fs/promises';
 import { gzipSync } from 'node:zlib';
 import { dirname, join } from 'node:path';
 import { availableParallelism } from 'node:os';
-import { fromFile } from 'geotiff';
 import { SOURCES, TILE_DIR } from './paths.mjs';
 import { tileDir, tileEdgeKm } from '../../src/scene/tiles/cube.ts';
 import { TILES, HEIGHT_SIZE, SHADOW_MAP, heightPath, heightSampleFraction, encodeHeights } from '../../src/scene/tiles/layout.ts';
@@ -16,6 +15,8 @@ const SOURCE_M = 463.0935;
 const OUT = join(TILE_DIR, 'mars');
 
 async function loadMola() {
+  // Main thread only: geotiff's web-worker dependency hijacks worker threads that import it.
+  const { fromFile } = await import('geotiff');
   const tiff = await fromFile(SOURCES.mola.file);
   const img = await tiff.getImage(0);
   const [w, h] = [img.getWidth(), img.getHeight()];

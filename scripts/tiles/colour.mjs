@@ -9,7 +9,6 @@ import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { availableParallelism } from 'node:os';
 import { createRequire } from 'node:module';
-import { fromFile } from 'geotiff';
 import { SOURCES, TILE_DIR } from './paths.mjs';
 import { children, dirOf, tileDir, tileLatLonBounds, tileId } from '../../src/scene/tiles/cube.ts';
 import { TILES, colorPath } from '../../src/scene/tiles/layout.ts';
@@ -46,7 +45,10 @@ function downsample(kids) {
   return out;
 }
 
+// geotiff loads the web-worker package, which hijacks any worker thread that imports it,
+// so only the main thread reads the TIFF header.
 async function openViking() {
+  const { fromFile } = await import('geotiff');
   const tiff = await fromFile(SOURCES.viking.file);
   const img = await tiff.getImage(0);
   const offsets = await img.fileDirectory.loadValue('StripOffsets');
@@ -117,7 +119,7 @@ async function build(win, src, k) {
 
 async function work() {
   sharp.concurrency(1);
-  const src = await openViking();
+  const src = workerData.src;
   const fh = await open(SOURCES.viking.file, 'r');
   parentPort.on('message', async (k) => {
     const win = await readWindow(fh, src, k);
@@ -147,10 +149,11 @@ async function main() {
   for (const k of jobs) if (!queue.includes(k)) results.set(tileId(k), await sharp(join(OUT, colorPath(k))).removeAlpha().raw().toBuffer());
   console.log(`${queue.length} of ${jobs.length} level-${JOB_LEVEL} jobs to cut`);
 
+  const src = await openViking();
   const workers = Math.min(queue.length, Math.max(1, availableParallelism() - 2));
   await Promise.all(
     Array.from({ length: workers }, () => new Promise((resolve, reject) => {
-      const worker = new Worker(new URL(import.meta.url));
+      const worker = new Worker(new URL(import.meta.url), { workerData: { src } });
       const next = () => {
         const k = queue.shift();
         if (k) worker.postMessage(k);
