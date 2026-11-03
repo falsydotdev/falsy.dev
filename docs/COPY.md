@@ -127,7 +127,7 @@ I'm Justin. I'm American, I live in Adelaide, and I've worked in RevOps since 20
 
 I studied physics for four years, first at the University of Arizona and then at the University of Utah, and graduated with a degree in economics and a minor in physics. Physics taught me to measure something before I try to change it. I still work that way, whether it's a CRM or a LiDAR survey.
 
-In JavaScript, a `falsy` value acts false without actually being false. That's about where I sit with the developer title. (Approved 2026-11-03.)
+In JavaScript, a `falsy` value acts false without actually being false. That's kind of how I feel when I talk about being a “developer”. (Approved 2026-11-03.)
 
 The planet behind this page uses real NASA and USGS data, lit by where the Sun is right now. You're watching from a real low orbit, moving as fast as a spacecraft would. I built it because I like space and wanted my site to show the kind of work I do.
 

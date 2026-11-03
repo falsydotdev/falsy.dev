@@ -1,6 +1,7 @@
 // Uploads the baked tile set to R2 with rclone (`brew install rclone`). Credentials come from
-// ~/.config/falsy-dev/r2.env and reach rclone as environment variables, so no config file
-// holds them. Re-running only sends files that changed in size.
+// the environment (`doppler run -p falsy-dev -c prd -- npm run tiles:upload`) or, failing that,
+// ~/.config/falsy-dev/r2.env, and reach rclone as environment variables so no config file holds
+// them. Re-running only sends files that changed in size.
 //   node scripts/tiles/upload.mjs [version]          default v1, uploaded to mars/<version>/
 //   node scripts/tiles/upload.mjs [version] --size   count what's already in the bucket
 import { readFileSync } from 'node:fs';
@@ -13,13 +14,16 @@ const ENV_FILE = process.env.R2_ENV_FILE ?? join(homedir(), '.config', 'falsy-de
 const BUCKET = process.env.R2_BUCKET ?? 'falsy-tiles';
 const version = process.argv.slice(2).find((a) => !a.startsWith('--')) ?? 'v1';
 
-const creds = Object.fromEntries(
-  readFileSync(ENV_FILE, 'utf8')
-    .split('\n')
-    .filter((l) => l.includes('='))
-    .map((l) => [l.slice(0, l.indexOf('=')).trim(), l.slice(l.indexOf('=') + 1).trim()]),
-);
-for (const k of ['R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_ENDPOINT']) {
+const KEYS = ['R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_ENDPOINT'];
+const creds = KEYS.every((k) => process.env[k])
+  ? Object.fromEntries(KEYS.map((k) => [k, process.env[k]]))
+  : Object.fromEntries(
+      readFileSync(ENV_FILE, 'utf8')
+        .split('\n')
+        .filter((l) => l.includes('='))
+        .map((l) => [l.slice(0, l.indexOf('=')).trim(), l.slice(l.indexOf('=') + 1).trim()]),
+    );
+for (const k of KEYS) {
   if (!creds[k]) throw new Error(`${k} missing from ${ENV_FILE}`);
 }
 
