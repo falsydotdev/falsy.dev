@@ -15,11 +15,14 @@ npm run preview
 
 ```bash
 npm install
-npm run data      # once: builds the prototype's Mars textures (about 31 MB from USGS) and links them into public/data
+npm run tiles     # once: downloads the USGS mosaics (about 15 GB) and bakes the tile set (about 2 GB)
+npm run data      # links the tiles into public/data
 npm run dev
 ```
 
-Then open http://localhost:4321. The live scene starts on desktop-width windows with WebGPU or WebGL2, and the poster shows until the first frame. `public/data` is an interim stand-in for the Phase 2 tile pipeline. It's gitignored and kept out of deploys by `public/.assetsignore`.
+Then open http://localhost:4321. The live scene starts on desktop-width windows with WebGPU or WebGL2, and the poster shows until the first frame. Source mosaics and tiles live in `~/.cache/falsy-dev` (override with `FALSY_DATA_DIR`), outside the repo, and `public/data` is gitignored. The steps run separately as `tiles:fetch`, `tiles:heights`, and `tiles:colour`; `tiles:colour -- --near 18.65,226.2,800` cuts only the level-3 tiles within 800 km of a point. `node scripts/tiles/budget.mjs` estimates download size per view by replaying real orbits through the renderer's tile selection.
+
+In production the tile base URL comes from `PUBLIC_TILES_URL` (default `/data/mars`).
 
 | Parameter | Effect |
 |---|---|
@@ -40,6 +43,8 @@ Then open http://localhost:4321. The live scene starts on desktop-width windows 
 | `src/components/Stage.astro` | The persisted background: poster, sky grid, and telemetry readout. |
 | `src/data/posters.json` | Poster metadata, written by the poster pipeline |
 | `scripts/posters/` | Poster pipeline: `render.mjs` drives the prototype renderer, and `encode.mjs` writes AVIF files |
+| `src/scene/tiles/` | Cube-sphere tile addressing, LOD selection, and the tile file formats |
+| `scripts/tiles/` | Tile pipeline: source download, height and colour cutters, budget estimate |
 | `prototypes/mars-orbit/` | The Mars rendering prototype, which also renders the posters for now |
 | `docs/` | Spec, plan, ADRs, research, copy, and design references |
 

@@ -20,6 +20,11 @@ export interface SelectOptions {
   maxLevel: number;
   /** Largest allowed size of one texel on screen, in pixels, before a tile splits. */
   maxTexelPx?: number;
+  /**
+   * Beyond this distance the texel limit grows in proportion, since far terrain sits behind
+   * more haze and is foreshortened anyway. Infinite by default.
+   */
+  relaxBeyondKm?: number;
 }
 
 export interface Selected {
@@ -66,6 +71,7 @@ export function selectTiles(cam: CameraPose, opts: SelectOptions): Selected[] {
   const rLow = R + opts.heightRangeKm[0];
   const rHigh = R + opts.heightRangeKm[1];
   const maxTexelPx = opts.maxTexelPx ?? 1;
+  const relaxBeyondKm = opts.relaxBeyondKm ?? Infinity;
   const camDist = Math.hypot(...cam.position);
   const camDir = scale(cam.position, 1 / camDist);
   // Anything farther round the planet than this central angle is below the horizon.
@@ -84,7 +90,8 @@ export function selectTiles(cam: CameraPose, opts: SelectOptions): Selected[] {
 
     const distanceKm = Math.max(Math.hypot(...sub(centre, cam.position)) - radius, 1e-3);
     const texelPx = tileEdgeKm(key.level, R) / opts.tilePx / (distanceKm * pxAngle);
-    if (texelPx > maxTexelPx && key.level < opts.maxLevel) {
+    const limit = maxTexelPx * Math.max(1, distanceKm / relaxBeyondKm);
+    if (texelPx > limit && key.level < opts.maxLevel) {
       for (const child of children(key)) visit(child);
       return;
     }

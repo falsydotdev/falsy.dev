@@ -38,7 +38,7 @@ const size = (path) => {
   return sizeCache.get(path);
 };
 
-function run(shot, { tiltDeg, maxTexelPx }) {
+function run(shot, { tiltDeg, maxTexelPx, relaxBeyondKm }) {
   const fetched = new Set();
   let color = 0;
   let height = size(SHADOW_MAP.path);
@@ -53,7 +53,7 @@ function run(shot, { tiltDeg, maxTexelPx }) {
     const pose = orbitCameraPose(s.rBody, vBody, meta.radiusKm, tiltDeg);
     const selected = selectTiles(
       { ...pose, fovYRad: (FOV * Math.PI) / 180, aspect: ASPECT, viewportHeightPx: HEIGHT_PX },
-      { radiusKm: meta.radiusKm, heightRangeKm, tilePx: TILES.colorPx, maxLevel: TILES.maxLevel, maxTexelPx },
+      { radiusKm: meta.radiusKm, heightRangeKm, tilePx: TILES.colorPx, maxLevel: TILES.maxLevel, maxTexelPx, relaxBeyondKm },
     );
     peakTiles = Math.max(peakTiles, selected.length);
     for (const k of tilesToFetch(selected)) {
@@ -81,14 +81,23 @@ for (let i = 0; i < SHOTS; i++) {
 
 const MB = (b) => (b / 1e6).toFixed(1);
 console.log(`viewport ${Math.round(HEIGHT_PX * ASPECT)}×${HEIGHT_PX}, ${SHOTS} shots, ${SECONDS} s of orbit each\n`);
-console.log('tilt  texel≤  first view MB  after 90 s MB (colour/height)  tiles fetched  peak drawn  missing');
+const rows = [];
 for (const tiltDeg of [12, 15, 18, 25, 35]) {
-  for (const maxTexelPx of [1, 1.5, 2]) {
-    const runs = shots.map((s) => run(s, { tiltDeg, maxTexelPx }));
+  for (const [maxTexelPx, relaxBeyondKm] of [[1, Infinity], [1.5, Infinity], [2, Infinity], [1, 500], [1, 300]]) {
+    const runs = shots.map((s) => run(s, { tiltDeg, maxTexelPx, relaxBeyondKm }));
     const avg = (k) => runs.reduce((a, r) => a + r[k], 0) / runs.length;
-    const worst = Math.max(...runs.map((r) => r.total));
-    console.log(
-      `${String(tiltDeg).padStart(4)}°  ${String(maxTexelPx).padStart(5)}   ${MB(avg('firstView')).padStart(12)}   ${MB(avg('total')).padStart(6)} (${MB(avg('color'))}/${MB(avg('height'))}) worst ${MB(worst)}  ${String(Math.round(avg('tiles'))).padStart(8)}  ${String(Math.round(avg('peakTiles'))).padStart(9)}  ${Math.round(avg('missing'))}`,
-    );
+    rows.push({
+      tilt: `${tiltDeg}°`,
+      'texel ≤ px': maxTexelPx,
+      'relax beyond km': relaxBeyondKm === Infinity ? '-' : relaxBeyondKm,
+      'first view MB': MB(avg('firstView')),
+      [`${SECONDS} s MB`]: MB(avg('total')),
+      'colour MB': MB(avg('color')),
+      'height MB': MB(avg('height')),
+      [`worst ${SECONDS} s MB`]: MB(Math.max(...runs.map((r) => r.total))),
+      'peak tiles drawn': Math.round(avg('peakTiles')),
+      missing: Math.round(avg('missing')),
+    });
   }
 }
+console.table(rows);
