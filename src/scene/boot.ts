@@ -47,6 +47,7 @@ export async function boot() {
       at: at && !Number.isNaN(at.getTime()) ? at : undefined,
       seed: numberParam(params, 'seed', 0, 2 ** 32 - 1),
       feature: params.get('feature'),
+      scale: numberParam(params, 'scale', 0.5, 3),
       timeScale,
       forceWebGL: params.has('webgl'),
       telemetry: document.getElementById('telemetry'),

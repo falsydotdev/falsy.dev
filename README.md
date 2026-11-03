@@ -36,6 +36,7 @@ Production builds read the tile base URL from `PUBLIC_TILES_URL` in `.env.produc
 | `fov=N` | Vertical field of view in degrees (default 50). Narrower magnifies the motion. |
 | `far=N` | Distance in km beyond which terrain detail relaxes in proportion (default 500, `far=0` for full detail everywhere). The main lever on download size. |
 | `tier=high`, `tier=medium`, `tier=low` | Force a quality tier and stop the automatic step-down, to compare them. `window.__falsyLive.state` shows the tier, `gpuMs`, and any tier changes. |
+| `scale=N` | Render at N device pixels per CSS pixel (0.5 to 3, never above the screen's own), overriding the tier's resolution. For comparing sharpness. |
 | `webgl` | Force the WebGL2 backend |
 
 ## Where things live

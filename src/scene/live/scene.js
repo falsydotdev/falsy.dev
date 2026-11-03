@@ -35,7 +35,7 @@ function buildShot(kind, now, altKm, rand, featureId) {
  * Starts the live Mars scene inside `host`.
  * @param {HTMLElement} host
  * Resolves to null when this machine should get the poster instead.
- * @param {{ dataUrl: string, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void, onLost?: () => void, farKm?: number, altKm?: number, tiltDeg?: number, fovDeg?: number, tier?: import('../quality.ts').TierName, at?: Date, seed?: number, feature?: string | null }} opts
+ * @param {{ dataUrl: string, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void, onLost?: () => void, farKm?: number, altKm?: number, tiltDeg?: number, fovDeg?: number, tier?: import('../quality.ts').TierName, at?: Date, seed?: number, feature?: string | null, scale?: number }} opts
  */
 // One tile per array layer; 512 layers hold a 4K view with headroom and cost about 180 MB of GPU memory.
 const WANTED_LAYERS = 512;
@@ -95,6 +95,8 @@ export async function startLiveScene(host, opts) {
     return null;
   }
   let tier = tierByName(startTier);
+  // `scale` is a preview override for comparing render resolutions on one screen.
+  const pixelRatio = (t) => (opts.scale ? Math.min(devicePixelRatio, opts.scale) : renderPixelRatio(t, devicePixelRatio, innerWidth, innerHeight));
 
   let planet;
   let pipeline;
@@ -111,7 +113,7 @@ export async function startLiveScene(host, opts) {
   const onResize = () => {
     camera.aspect = innerWidth / innerHeight;
     camera.updateProjectionMatrix();
-    renderer.setPixelRatio(renderPixelRatio(tier, devicePixelRatio, innerWidth, innerHeight));
+    renderer.setPixelRatio(pixelRatio(tier));
     renderer.setSize(innerWidth, innerHeight);
   };
   const teardown = () => {
@@ -131,7 +133,7 @@ export async function startLiveScene(host, opts) {
     dropSnapshot();
     opts.onLost?.();
   };
-  renderer.setPixelRatio(renderPixelRatio(tier, devicePixelRatio, innerWidth, innerHeight));
+  renderer.setPixelRatio(pixelRatio(tier));
   renderer.setSize(innerWidth, innerHeight);
   renderer.toneMapping = THREE.AgXToneMapping;
   renderer.domElement.className = 'live-canvas';
@@ -165,7 +167,7 @@ export async function startLiveScene(host, opts) {
       pipeline.needsUpdate = true;
     }
     tier = next;
-    renderer.setPixelRatio(renderPixelRatio(next, devicePixelRatio, innerWidth, innerHeight));
+    renderer.setPixelRatio(pixelRatio(next));
     renderer.setSize(innerWidth, innerHeight);
     state.tier = next.name;
   };
