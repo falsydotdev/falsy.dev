@@ -45,9 +45,8 @@ const RESUME_SETTLE_TIMEOUT_MS = 5000;
 const RESUME_FADE_MS = 1200;
 // Past the first screen, the background only peeks out beside content, so it drops to 15 fps.
 const THROTTLED_FRAME_MS = 1000 / 15;
-// Load is GPU time over the tier's frame interval. 60% leaves the page and the rest of the
-// machine room and keeps a laptop from running hot; Low gets more before the scene stops.
-// On WebGL2, load is the rendered frame interval over the target: only clearly missed frames count.
+// Load is GPU time over the tier's frame interval; 60% keeps a laptop cool. On WebGL2 it's
+// the rendered frame interval over the target, so only clearly missed frames count.
 const GPU_LIMITS = { limit: 0.6, giveUpLimit: 0.75 };
 const CADENCE_LIMITS = { limit: 1.4, giveUpLimit: 1.4 };
 
@@ -251,6 +250,8 @@ export async function startLiveScene(host, opts) {
     const c = snapshot;
     if (!c || c.style.opacity === '0') return;
     c.style.transition = `opacity ${RESUME_FADE_MS}ms ease`;
+    // A snapshot taken this same frame has no computed style yet, and would vanish without fading.
+    getComputedStyle(c).opacity;
     c.style.opacity = '0';
     setTimeout(() => c === snapshot && dropSnapshot(), RESUME_FADE_MS + 100);
   };
@@ -267,6 +268,7 @@ export async function startLiveScene(host, opts) {
     takeSnapshot();
     teardown();
     state.tier = 'frozen';
+    if (opts.telemetry) opts.telemetry.title = 'Paused: the live view was too heavy for this device, so its last frame stays up.';
   };
 
   let timingBusy = false;
@@ -304,6 +306,8 @@ export async function startLiveScene(host, opts) {
       state.gpuLog.push(Math.round(ms * 10) / 10);
       if (state.gpuLog.length > 120) state.gpuLog.shift();
       judge(ms / (1000 / tier.fps));
+    }, () => {
+      timingBusy = false;
     });
   };
 
