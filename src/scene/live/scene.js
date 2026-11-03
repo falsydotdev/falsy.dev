@@ -12,25 +12,27 @@ import { telemetryParts } from '../telemetry';
 const DEG = Math.PI / 180;
 const RELIEF = 2.5;
 const HAZE = 0.2;
-// Degrees below the horizon the camera looks, beyond the geometric dip. Puts the horizon in the upper frame.
-const LOOK_DOWN = 12;
+// Camera defaults. Tilt is degrees below the horizon beyond the geometric dip; it puts the horizon in the upper frame.
+export const CAMERA_DEFAULTS = { altKm: 380, tiltDeg: 12, fovDeg: 50 };
 // Telemetry items hidden on narrow screens, matching the poster readout.
 const WIDE_FROM = 4;
 
-function buildShot(kind, now) {
-  if (kind === 'dawn-dusk') return dawnDusk(now);
-  if (kind === 'orbital-sunrise') return orbitalSunrise(now);
-  if (kind === 'feature-flyover') return featureFlyover(now) ?? dawnDusk(now);
-  return chooseShot(now);
+function buildShot(kind, now, altKm) {
+  const o = { altKm };
+  if (kind === 'dawn-dusk') return dawnDusk(now, o);
+  if (kind === 'orbital-sunrise') return orbitalSunrise(now, o);
+  if (kind === 'feature-flyover') return featureFlyover(now, o) ?? dawnDusk(now, o);
+  return chooseShot(now, o);
 }
 
 /**
  * Starts the live Mars scene inside `host`.
  * @param {HTMLElement} host
- * @param {{ dataUrl: string, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void }} opts
+ * @param {{ dataUrl: string, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void, altKm?: number, tiltDeg?: number, fovDeg?: number }} opts
  */
 export async function startLiveScene(host, opts) {
   const timeScale = opts.timeScale ?? 1;
+  const cam = { altKm: opts.altKm ?? CAMERA_DEFAULTS.altKm, tiltDeg: opts.tiltDeg ?? CAMERA_DEFAULTS.tiltDeg, fovDeg: opts.fovDeg ?? CAMERA_DEFAULTS.fovDeg };
   const renderer = new THREE.WebGPURenderer({ antialias: true, logarithmicDepthBuffer: true, forceWebGL: opts.forceWebGL ?? false });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.setSize(innerWidth, innerHeight);
@@ -41,7 +43,7 @@ export async function startLiveScene(host, opts) {
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x000000);
-  const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.05, 5e5);
+  const camera = new THREE.PerspectiveCamera(cam.fovDeg, innerWidth / innerHeight, 0.05, 5e5);
 
   const sunDisc = new THREE.Mesh(new THREE.SphereGeometry(600, 32, 16), new THREE.MeshBasicNodeMaterial({ color: new THREE.Color(60, 55, 48) }));
   const stars = createStars();
@@ -68,7 +70,7 @@ export async function startLiveScene(host, opts) {
 
   const wallStart = Date.now();
   const simNow = () => new Date(wallStart + (Date.now() - wallStart) * timeScale);
-  const shot = buildShot(opts.shot, new Date(wallStart));
+  const shot = buildShot(opts.shot, new Date(wallStart), cam.altKm);
   const starMatrix = new THREE.Matrix4();
 
   function frame() {
@@ -78,7 +80,7 @@ export async function startLiveScene(host, opts) {
     const up = vec.norm(s.rBody);
     const vBody = vec.norm([vec.dot(s.v, f.x), vec.dot(s.v, f.y), vec.dot(s.v, f.z)]);
     const horiz = vec.norm(vec.sub(vBody, vec.scale(up, vec.dot(vBody, up))));
-    const down = Math.acos(RADIUS_KM / vec.len(s.rBody)) + LOOK_DOWN * DEG;
+    const down = Math.acos(RADIUS_KM / vec.len(s.rBody)) + cam.tiltDeg * DEG;
     const forward = vec.add(vec.scale(horiz, Math.cos(down)), vec.scale(up, -Math.sin(down)));
 
     camera.position.copy(toWorld(s.rBody));

@@ -10,6 +10,14 @@ declare global {
 
 const DATA_URL = '/data';
 
+// Preview-only camera overrides, clamped to sensible real-orbit ranges.
+function numberParam(params: URLSearchParams, key: string, min: number, max: number) {
+  const raw = params.get(key);
+  if (raw === null) return undefined;
+  const n = Number(raw);
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : undefined;
+}
+
 export async function boot() {
   const params = new URLSearchParams(location.search);
   const sky = document.querySelector<HTMLElement>('#stage .sky');
@@ -26,6 +34,9 @@ export async function boot() {
     const live = await startLiveScene(sky, {
       dataUrl: DATA_URL,
       shot: params.get('shot'),
+      altKm: numberParam(params, 'alt', 120, 2000),
+      tiltDeg: numberParam(params, 'tilt', -10, 60),
+      fovDeg: numberParam(params, 'fov', 15, 80),
       timeScale,
       forceWebGL: params.has('webgl'),
       telemetry: document.getElementById('telemetry'),
