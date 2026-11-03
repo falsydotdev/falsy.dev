@@ -165,6 +165,6 @@ For consulting, the quickest way to start is a 30-minute call. I work Adelaide h
 | 404 body | There's nothing here but empty space. |
 | 404 link | Back to the home page |
 | Loading (live scene) | Loading Mars terrain… / Loading lunar terrain… |
-| Telemetry example | MARS  18.6°N  226.2°E  LST 06:20  ALT 380 km  v 3.37 km/s  relief×2.5 |
+| Telemetry example | MARS  18.6°N  226.2°E  LST 06:20  ALT 200 km  v 3.45 km/s  relief×2.5 |
 | Explorer edge (v2) | You've reached the edge of the observable universe. Past here, everything is undefined. |
 | Reduced-motion note (title text on the readout) | Orbit paused because your device prefers reduced motion. |

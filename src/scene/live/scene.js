@@ -13,7 +13,7 @@ const DEG = Math.PI / 180;
 const RELIEF = 2.5;
 const HAZE = 0.2;
 // Camera defaults. Tilt is degrees below the horizon beyond the geometric dip; it puts the horizon in the upper frame.
-export const CAMERA_DEFAULTS = { altKm: 380, tiltDeg: 12, fovDeg: 50 };
+export const CAMERA_DEFAULTS = { altKm: 200, tiltDeg: 12, fovDeg: 50 };
 // Telemetry items hidden on narrow screens, matching the poster readout.
 const WIDE_FROM = 4;
 

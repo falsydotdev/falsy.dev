@@ -18,7 +18,7 @@ export interface ShotOptions {
   rand?: () => number;
 }
 
-const DEFAULTS = { body: MARS, altKm: 380 };
+const DEFAULTS = { body: MARS, altKm: 200 };
 const SUNRISE_LEAD_S = 60;
 const FLYOVER_LEAD_S = 180;
 const LOW_SUN = { min: 5, max: 25 };
