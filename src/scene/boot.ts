@@ -30,7 +30,9 @@ export async function boot() {
   const probe = await fetch(`${DATA_URL}/meta.json`, { method: 'HEAD' }).catch(() => null);
   if (!probe?.ok) return fallBack();
 
-  const timeScale = Math.max(1, Number(params.get('t') ?? 1) || 1);
+  const tParam = Number(params.get('t') ?? 1);
+  const timeScale = Number.isFinite(tParam) ? Math.max(0, tParam) : 1;
+  const at = params.has('at') ? new Date(params.get('at') ?? '') : undefined;
   const tierParam = params.get('tier');
   try {
     const { startLiveScene } = await import('./live/scene.js');
@@ -42,6 +44,9 @@ export async function boot() {
       fovDeg: numberParam(params, 'fov', 15, 80),
       farKm: numberParam(params, 'far', 0, 5000),
       tier: isTierName(tierParam) ? tierParam : undefined,
+      at: at && !Number.isNaN(at.getTime()) ? at : undefined,
+      seed: numberParam(params, 'seed', 0, 2 ** 32 - 1),
+      feature: params.get('feature'),
       timeScale,
       forceWebGL: params.has('webgl'),
       telemetry: document.getElementById('telemetry'),

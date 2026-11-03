@@ -2,7 +2,24 @@ import { describe, expect, it } from 'vitest';
 import { DEG, vec, bodyVector, sunJ2000, sunElevationAt } from '../../src/scene/ephemeris';
 import { MARS, orbitalPeriod, sample } from '../../src/scene/orbit';
 import { MARS_FEATURES } from '../../src/scene/features';
-import { chooseShot, dawnDusk, featureFlyover, orbitalSunrise } from '../../src/scene/shots';
+import { chooseShot, dawnDusk, featureFlyover, orbitalSunrise, seededRandom } from '../../src/scene/shots';
+
+describe('repeatable shots', () => {
+  const now = new Date('2026-11-03T12:00:00Z');
+
+  it('builds the same shot from the same seed', () => {
+    const a = chooseShot(now, { rand: seededRandom(42) });
+    const b = chooseShot(now, { rand: seededRandom(42) });
+    expect(a.kind).toBe(b.kind);
+    expect(a.orbit).toEqual(b.orbit);
+  });
+
+  it('flies over a named feature at any time of day when asked', () => {
+    const olympus = MARS_FEATURES.filter((f) => f.id === 'olympus-mons');
+    const shot = featureFlyover(now, { features: olympus, anySun: true, rand: seededRandom(1) });
+    expect(shot?.feature?.id).toBe('olympus-mons');
+  });
+});
 
 function seeded(seed: number) {
   return () => {

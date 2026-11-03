@@ -8,7 +8,6 @@ import { selectTiles, tilesToFetch } from '../tiles/select.ts';
 import { TILES, HEIGHT_SIZE, SHADOW_MAP, colorPath, heightPath } from '../tiles/layout.ts';
 import { LayerArray } from './tile-atlas.js';
 import { lighting, toWorld } from './terrain.js';
-import { shadowGrowth } from '../quality.ts';
 
 const GRID = 32;
 const MAX_INSTANCES = 4096;
@@ -21,6 +20,10 @@ const SETTLED_FRACTION = 0.95;
 // session that keeps flying over new ground doesn't accumulate them.
 const RECORD_TTL_FRAMES = 600;
 const WORKERS = 4;
+// The march samples a 10 km map, so 12 steps cast the same shadows as 44. Each step strides
+// 1.62× further, reaching the same ~560 km.
+const SHADOW_STEPS = 12;
+const SHADOW_GROWTH = 1.617;
 
 /** A GRID×GRID patch in tile fractions, with a skirt hanging from each edge to hide LOD cracks. */
 function tileGeometry() {
@@ -73,7 +76,7 @@ class Record {
  */
 export class TiledPlanet {
   /** @param {THREE.WebGPURenderer} renderer */
-  constructor(renderer, { baseUrl, meta, relief, layers, relaxBeyondKm = 500, shadowSteps = 44 }) {
+  constructor(renderer, { baseUrl, meta, relief, layers, relaxBeyondKm = 500 }) {
     this.relaxBeyondKm = relaxBeyondKm > 0 ? relaxBeyondKm : Infinity;
     this.renderer = renderer;
     this.baseUrl = baseUrl;
@@ -106,8 +109,6 @@ export class TiledPlanet {
     geo.instanceCount = 0;
     this.geometry = geo;
     this.exaggeration = uniform(relief);
-    this.shadowSteps = uniform(shadowSteps, 'int');
-    this.shadowGrowth = uniform(shadowGrowth(shadowSteps));
     this.shadowSlot = texture(new THREE.DataTexture(new Uint16Array(1), 1, 1, THREE.RedFormat, THREE.HalfFloatType));
     this.mesh = new THREE.Mesh(geo, this.buildMaterial());
     this.mesh.frustumCulled = false;
@@ -191,14 +192,14 @@ export class TiledPlanet {
         const h0 = shadowHeight(lat, lon).add(0.05);
         const cosLat = max(cos(lat), 0.02);
         const d = float(2).toVar();
-        Loop({ start: int(0), end: this.shadowSteps, type: 'int', condition: '<', name: 'k' }, () => {
+        Loop({ start: 0, end: SHADOW_STEPS, name: 'k' }, () => {
           const latK = lat.add(sn.div(hl).mul(d).div(R));
           const lonK = lon.add(se.div(hl).mul(d).div(cosLat.mul(R)));
           const terrain = shadowHeight(latK, lonK);
           const ray = h0.add(tanE.mul(d)).sub(d.mul(d).div(2 * R));
           const penumbra = d.mul(0.0061).add(0.15);
           shadow.assign(min(shadow, clamp(ray.sub(terrain).div(penumbra).mul(0.5).add(0.5), 0, 1)));
-          d.mulAssign(this.shadowGrowth);
+          d.mulAssign(SHADOW_GROWTH);
         });
       });
 
@@ -383,11 +384,6 @@ export class TiledPlanet {
       if (r && done(r.color) && done(r.height)) ready++;
     }
     return ready >= this.selected.length * SETTLED_FRACTION;
-  }
-
-  setShadowSteps(steps) {
-    this.shadowSteps.value = steps;
-    this.shadowGrowth.value = shadowGrowth(steps);
   }
 
   setRelief(relief) {

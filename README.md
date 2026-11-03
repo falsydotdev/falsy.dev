@@ -27,7 +27,10 @@ Production builds read the tile base URL from `PUBLIC_TILES_URL` in `.env.produc
 |---|---|
 | `live=1` / `live=0` | Force the live scene on or off, ignoring screen width and reduced motion |
 | `shot=dawn-dusk`, `shot=orbital-sunrise`, `shot=feature-flyover` | Pick the orbit instead of a weighted random one |
-| `t=N` | Preview at N× real time. The readout shows `t×N` whenever it isn't 1. |
+| `t=N` | Preview at N× real time, or `t=0` to hold one moment. The readout shows `t×N` whenever it isn't 1. |
+| `at=2026-11-03T20:00:00Z` | Start at this moment instead of now. Lighting and orbit follow from it. |
+| `feature=olympus-mons` | Fly over this feature whatever its time of day. IDs are in `src/scene/features.ts`. |
+| `seed=N` | Make the random choices (shot type, orbit direction) repeatable. With `at=`, the same URL gives the same view. |
 | `alt=N` | Orbit altitude in km (120 to 2000, default 200). Orbital speed follows from it. |
 | `tilt=N` | Degrees the camera looks below the horizon, beyond the geometric dip (default 12). Higher shows more ground moving. |
 | `fov=N` | Vertical field of view in degrees (default 50). Narrower magnifies the motion. |

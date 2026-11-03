@@ -68,12 +68,13 @@ export function lowSunFeatures(when: Date, features: Feature[] = MARS_FEATURES) 
 }
 
 // An orbit whose ground track crosses a low-Sun feature a few minutes after load,
-// travelling along the local terminator so the Sun stays off to the side.
-export function featureFlyover(now: Date, opts: ShotOptions & { features?: Feature[] } = {}): Shot | null {
+// travelling along the local terminator so the Sun stays off to the side. `anySun` drops
+// the low-Sun filter, for previewing one feature whatever its time of day.
+export function featureFlyover(now: Date, opts: ShotOptions & { features?: Feature[]; anySun?: boolean } = {}): Shot | null {
   const { body, altKm } = { ...DEFAULTS, ...opts };
   const rand = opts.rand ?? Math.random;
   const pass = new Date(now.getTime() + FLYOVER_LEAD_S * 1000);
-  const candidates = lowSunFeatures(pass, opts.features);
+  const candidates = opts.anySun ? (opts.features ?? MARS_FEATURES) : lowSunFeatures(pass, opts.features);
   if (candidates.length === 0) return null;
   const feature = candidates[Math.floor(rand() * candidates.length)];
   const f = fromBody(marsFrame(pass), bodyVector(feature.lat, feature.lon));
@@ -89,6 +90,18 @@ const WEIGHTS: [ShotKind, number][] = [
   ['orbital-sunrise', 0.3],
   ['feature-flyover', 0.3],
 ];
+
+/** A repeatable stand-in for Math.random (mulberry32). */
+export function seededRandom(seed: number) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
 export function chooseShot(now: Date, opts: ShotOptions & { features?: Feature[] } = {}): Shot {
   const rand = opts.rand ?? Math.random;

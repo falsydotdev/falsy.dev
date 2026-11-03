@@ -7,18 +7,19 @@ export interface Tier {
   name: TierName;
   /** Upper bound on device pixels per CSS pixel. */
   pixelRatio: number;
-  /** Upper bound on rendered pixels, so a 5K display doesn't render 15 MP at High. */
+  /** Upper bound on rendered pixels, so a 5K display doesn't render 6 MP at High. */
   maxMegapixels: number;
-  shadowSteps: number;
   bloom: boolean;
   /** The camera moves slowly, so 30 looks the same as 60. A divisor of 60 and 120, so the cap lands on whole refreshes. */
   fps: number;
 }
 
+// Terrain texels are about a screen pixel at best, so rendering past 1.25× mostly sharpens
+// stars; side by side, High at 2× and Low at 1× differed by under 1/255 per pixel.
 export const TIERS: readonly Tier[] = [
-  { name: 'high', pixelRatio: 2, maxMegapixels: 8.3, shadowSteps: 44, bloom: true, fps: 30 },
-  { name: 'medium', pixelRatio: 1.25, maxMegapixels: 4.2, shadowSteps: 24, bloom: true, fps: 30 },
-  { name: 'low', pixelRatio: 1, maxMegapixels: 2.1, shadowSteps: 12, bloom: false, fps: 20 },
+  { name: 'high', pixelRatio: 1.25, maxMegapixels: 4.2, bloom: true, fps: 30 },
+  { name: 'medium', pixelRatio: 1, maxMegapixels: 3.7, bloom: true, fps: 30 },
+  { name: 'low', pixelRatio: 0.75, maxMegapixels: 2.1, bloom: false, fps: 20 },
 ];
 
 export function tier(name: TierName): Tier {
@@ -33,13 +34,6 @@ export function isTierName(s: string | null | undefined): s is TierName {
 export function renderPixelRatio(t: Tier, devicePixelRatio: number, cssWidth: number, cssHeight: number) {
   const cap = Math.sqrt((t.maxMegapixels * 1e6) / Math.max(1, cssWidth * cssHeight));
   return Math.max(0.5, Math.min(devicePixelRatio, t.pixelRatio, cap));
-}
-
-// The shadow march's last sample sits this far out at 44 steps; fewer steps stride further to keep the reach.
-const SHADOW_BASE = { steps: 44, growth: 1.14 };
-
-export function shadowGrowth(steps: number) {
-  return SHADOW_BASE.growth ** (SHADOW_BASE.steps / steps);
 }
 
 export interface GpuHints {

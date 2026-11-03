@@ -8,7 +8,8 @@ import { createAtmosphere } from './atmosphere.js';
 import { createStars } from './stars.js';
 import { marsFrame, vec } from '../ephemeris';
 import { sample } from '../orbit';
-import { chooseShot, dawnDusk, orbitalSunrise, featureFlyover } from '../shots';
+import { chooseShot, dawnDusk, orbitalSunrise, featureFlyover, seededRandom } from '../shots';
+import { MARS_FEATURES } from '../features.ts';
 import { telemetryParts } from '../telemetry';
 import { Governor, initialTier, renderPixelRatio, tier as tierByName } from '../quality.ts';
 
@@ -20,8 +21,10 @@ export const CAMERA_DEFAULTS = { altKm: 200, tiltDeg: 12, fovDeg: 50 };
 // Telemetry items hidden on narrow screens, matching the poster readout.
 const WIDE_FROM = 4;
 
-function buildShot(kind, now, altKm) {
-  const o = { altKm };
+function buildShot(kind, now, altKm, rand, featureId) {
+  const o = { altKm, rand };
+  const feature = MARS_FEATURES.find((f) => f.id === featureId);
+  if (feature) return featureFlyover(now, { ...o, features: [feature], anySun: true });
   if (kind === 'dawn-dusk') return dawnDusk(now, o);
   if (kind === 'orbital-sunrise') return orbitalSunrise(now, o);
   if (kind === 'feature-flyover') return featureFlyover(now, o) ?? dawnDusk(now, o);
@@ -32,7 +35,7 @@ function buildShot(kind, now, altKm) {
  * Starts the live Mars scene inside `host`.
  * @param {HTMLElement} host
  * Resolves to null when this machine should get the poster instead.
- * @param {{ dataUrl: string, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void, onLost?: () => void, farKm?: number, altKm?: number, tiltDeg?: number, fovDeg?: number, tier?: import('../quality.ts').TierName }} opts
+ * @param {{ dataUrl: string, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void, onLost?: () => void, farKm?: number, altKm?: number, tiltDeg?: number, fovDeg?: number, tier?: import('../quality.ts').TierName, at?: Date, seed?: number, feature?: string | null }} opts
  */
 // One tile per array layer; 512 layers hold a 4K view with headroom and cost about 180 MB of GPU memory.
 const WANTED_LAYERS = 512;
@@ -147,7 +150,7 @@ export async function startLiveScene(host, opts) {
 
   const meta = await (await fetch(`${opts.dataUrl}/meta.json`)).json();
   const layers = isWebGPU ? gpuLayers ?? 256 : Math.min(WANTED_LAYERS, renderer.backend.gl.getParameter(renderer.backend.gl.MAX_ARRAY_TEXTURE_LAYERS));
-  planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: RELIEF, layers, relaxBeyondKm: opts.farKm, shadowSteps: tier.shadowSteps });
+  planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: RELIEF, layers, relaxBeyondKm: opts.farKm });
   await planet.init();
   scene.add(planet.mesh);
 
@@ -162,15 +165,16 @@ export async function startLiveScene(host, opts) {
       pipeline.needsUpdate = true;
     }
     tier = next;
-    planet.setShadowSteps(next.shadowSteps);
     renderer.setPixelRatio(renderPixelRatio(next, devicePixelRatio, innerWidth, innerHeight));
     renderer.setSize(innerWidth, innerHeight);
     state.tier = next.name;
   };
 
   const wallStart = Date.now();
-  const simNow = () => new Date(wallStart + (Date.now() - wallStart) * timeScale);
-  const shot = buildShot(opts.shot, new Date(wallStart), cam.altKm);
+  const simStart = opts.at?.getTime() ?? wallStart;
+  const simNow = () => new Date(simStart + (Date.now() - wallStart) * timeScale);
+  const rand = opts.seed === undefined ? Math.random : seededRandom(opts.seed);
+  const shot = buildShot(opts.shot, new Date(simStart), cam.altKm, rand, opts.feature);
   const starMatrix = new THREE.Matrix4();
 
   function frame() {

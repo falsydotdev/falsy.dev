@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Governor, initialTier, renderPixelRatio, shadowGrowth, tier } from '../../src/scene/quality.ts';
+import { Governor, initialTier, renderPixelRatio, tier } from '../../src/scene/quality.ts';
 
 const opts = { warmup: 2, window: 4, patience: 2, limit: 0.5, giveUpLimit: 0.75 };
 const feed = (g: Governor, load: number, n: number, showing = true) => Array.from({ length: n }, () => g.sample(load, showing));
@@ -79,21 +79,15 @@ describe('initialTier', () => {
 
 describe('renderPixelRatio', () => {
   it('caps by the tier ratio', () => {
-    expect(renderPixelRatio(tier('high'), 2, 1512, 982)).toBe(2);
-    expect(renderPixelRatio(tier('medium'), 2, 1512, 982)).toBe(1.25);
-    expect(renderPixelRatio(tier('low'), 1, 1512, 982)).toBe(1);
+    expect(renderPixelRatio(tier('high'), 2, 1512, 982)).toBe(1.25);
+    expect(renderPixelRatio(tier('medium'), 2, 1512, 982)).toBe(1);
+    expect(renderPixelRatio(tier('low'), 2, 1512, 982)).toBe(0.75);
+    expect(renderPixelRatio(tier('high'), 1, 1512, 982)).toBe(1);
   });
 
   it('caps by pixel count on very large screens', () => {
     const r = renderPixelRatio(tier('high'), 2, 2560, 1440);
-    expect(2560 * 1440 * r * r).toBeCloseTo(8.3e6, -3);
+    expect(2560 * 1440 * r * r).toBeCloseTo(4.2e6, -3);
   });
 });
 
-describe('shadowGrowth', () => {
-  it('keeps the march reach the same at any step count', () => {
-    const reach = (steps: number) => 2 * shadowGrowth(steps) ** steps;
-    expect(reach(12)).toBeCloseTo(reach(44), 6);
-    expect(reach(24)).toBeCloseTo(reach(44), 6);
-  });
-});
