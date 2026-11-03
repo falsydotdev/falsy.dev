@@ -8,7 +8,7 @@ declare global {
   }
 }
 
-// Tiles are served from public/data in development (`npm run data`) and from R2 in production.
+// In development the dev server serves locally baked tiles at /data; production builds use R2.
 const DATA_URL = import.meta.env.PUBLIC_TILES_URL ?? '/data/mars';
 
 // Preview-only camera overrides, clamped to sensible real-orbit ranges.

@@ -16,13 +16,12 @@ npm run preview
 ```bash
 npm install
 npm run tiles     # once: downloads the USGS mosaics (about 15 GB) and bakes the tile set (about 2 GB)
-npm run data      # links the tiles into public/data
 npm run dev
 ```
 
-Then open http://localhost:4321. The live scene starts on desktop-width windows with WebGPU or WebGL2, and the poster shows until the first frame. Source mosaics and tiles live in `~/.cache/falsy-dev` (override with `FALSY_DATA_DIR`), outside the repo, and `public/data` is gitignored. The steps run separately as `tiles:fetch`, `tiles:heights`, and `tiles:colour`; `tiles:colour -- --near 18.65,226.2,800` cuts only the level-3 tiles within 800 km of a point. `node scripts/tiles/budget.mjs` estimates download size per view by replaying real orbits through the renderer's tile selection.
+Then open http://localhost:4321. The live scene starts on desktop-width windows with WebGPU or WebGL2, and the poster shows until the first frame. Source mosaics and tiles live in `~/.cache/falsy-dev` (override with `FALSY_DATA_DIR`), outside the repo. The dev server serves them at `/data`; builds never include them. The steps run separately as `tiles:fetch`, `tiles:heights`, and `tiles:colour`; `tiles:colour -- --near 18.65,226.2,800` cuts only the level-3 tiles within 800 km of a point. `node scripts/tiles/budget.mjs` estimates download size per view by replaying real orbits through the renderer's tile selection.
 
-In production the tile base URL comes from `PUBLIC_TILES_URL` (default `/data/mars`).
+Production builds read the tile base URL from `PUBLIC_TILES_URL` in `.env.production` (the R2 bucket at `tiles.falsy.dev`). `npm run tiles:upload` sends the tiles to R2, using credentials in `~/.config/falsy-dev/r2.env`.
 
 | Parameter | Effect |
 |---|---|

@@ -9,11 +9,11 @@
     "check": "astro check",
     "deploy": "astro build && wrangler deploy",
     "test": "vitest run",
-    "data": "node scripts/link-data.mjs",
     "tiles:fetch": "node scripts/tiles/fetch-sources.mjs",
     "tiles:heights": "node scripts/tiles/heights.mjs",
     "tiles:colour": "node scripts/tiles/colour.mjs",
-    "tiles": "npm run tiles:fetch && npm run tiles:heights && npm run tiles:colour"
+    "tiles": "npm run tiles:fetch && npm run tiles:heights && npm run tiles:colour",
+    "tiles:upload": "node scripts/tiles/upload.mjs"
   },
   "dependencies": {
     "@fontsource-variable/martian-mono": "^5.3.0",
