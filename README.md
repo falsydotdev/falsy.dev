@@ -21,7 +21,7 @@ npm run dev
 
 Then open http://localhost:4321. The live scene starts on desktop-width windows with WebGPU or WebGL2, and the poster shows until the first frame. Source mosaics and tiles live in `~/.cache/falsy-dev` (override with `FALSY_DATA_DIR`), outside the repo. The dev server serves them at `/data`; builds never include them. The steps run separately as `tiles:fetch`, `tiles:heights`, and `tiles:colour`; `tiles:colour -- --near 18.65,226.2,800` cuts only the level-3 tiles within 800 km of a point. `node scripts/tiles/budget.mjs` estimates download size per view by replaying real orbits through the renderer's tile selection.
 
-Production builds read the tile base URL from `PUBLIC_TILES_URL` in `.env.production` (the R2 bucket at `tiles.falsy.dev`). `doppler run -p falsy-dev -c prd -- npm run tiles:upload` sends the tiles to R2. Secrets live in the `falsy-dev` Doppler project; GitHub Actions needs `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` as repo secrets.
+Production builds read the tile base URL from `PUBLIC_TILES_URL` in `.env.production` (the R2 bucket at `tiles.falsy.dev`). `doppler run -p falsy-dev -c prd -- npm run tiles:upload` sends the tiles to R2. Secrets live in the `falsy-dev` Doppler project.
 
 | Parameter | Effect |
 |---|---|
@@ -60,10 +60,8 @@ Shots are defined in `scripts/posters/shots.json`. The Olympus Mons shot uses th
 
 ## Deploy
 
-Cloudflare Workers static assets, configured in `wrangler.jsonc`. CI deploys `main` once these are set on the repo:
+Cloudflare Workers Builds deploys the Worker (`wrangler.jsonc`, static assets in `dist`) on every push to `main`: the Cloudflare project `falsy-dev` is connected to this repo, with build command `npm run build` and deploy command `npx wrangler deploy`. GitHub Actions only runs checks (type check, tests, build, Lighthouse) and needs no Cloudflare credentials.
 
-- Secrets `CLOUDFLARE_API_TOKEN` (kept in Doppler `falsy-dev/prd` too) (Workers Scripts edit, plus Workers Routes and DNS edit on the falsy.dev zone for the custom domain) and `CLOUDFLARE_ACCOUNT_ID`.
-- Variable `DEPLOY_ENABLED=true`.
-- Variable `POSTERS_ENABLED=true` turns on the daily poster re-render.
+Tiles are served from the R2 bucket `falsy-tiles` at `tiles.falsy.dev`; see "Live Mars locally" for uploads. Secrets live in the Doppler project `falsy-dev`.
 
-To deploy by hand: `npx wrangler login`, then `npm run deploy`.
+The daily poster refresh (`.github/workflows/posters.yml`, switched on by `POSTERS_ENABLED=true`) still deploys with a Cloudflare API token. How posters publish under Workers Builds is undecided.
