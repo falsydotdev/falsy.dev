@@ -1,48 +1,38 @@
-// Decides whether this visitor gets the live scene, then loads it. Everything heavy
-// sits behind a dynamic import, so poster-only visitors never download three.js.
+// Loads the live scene when the stage has decided to try it (see Stage.astro). Everything
+// heavy sits behind a dynamic import, so poster-only visitors never download three.js.
 
 declare global {
   interface Window {
+    __falsyShowPoster?: () => void;
     __falsyLive?: { state: { frames: number; shot: string; backend: string; canvas: HTMLCanvasElement } };
   }
 }
 
 const DATA_URL = '/data';
-const MIN_WIDTH = 768;
-
-function canGoLive(params: URLSearchParams) {
-  const force = params.get('live');
-  if (force === '0') return false;
-  if (force === '1') return true;
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
-  if (innerWidth < MIN_WIDTH) return false;
-  if ('gpu' in navigator) return true;
-  try {
-    return !!document.createElement('canvas').getContext('webgl2');
-  } catch {
-    return false;
-  }
-}
 
 export async function boot() {
   const params = new URLSearchParams(location.search);
   const sky = document.querySelector<HTMLElement>('#stage .sky');
-  if (!sky || !canGoLive(params)) return;
+  if (!sky || sky.dataset.scene !== 'pending') return;
+  const fallBack = () => window.__falsyShowPoster?.();
 
   // Until the tile pipeline lands, the live scene needs locally linked data (`npm run data`).
   const probe = await fetch(`${DATA_URL}/meta.json`, { method: 'HEAD' }).catch(() => null);
-  if (!probe?.ok) return;
+  if (!probe?.ok) return fallBack();
 
-  const { startLiveScene } = await import('./live/scene.js');
   const timeScale = Math.max(1, Number(params.get('t') ?? 1) || 1);
   try {
+    const { startLiveScene } = await import('./live/scene.js');
     const live = await startLiveScene(sky, {
       dataUrl: DATA_URL,
       shot: params.get('shot'),
       timeScale,
       forceWebGL: params.has('webgl'),
       telemetry: document.getElementById('telemetry'),
-      onFirstFrame: () => sky.classList.add('is-live'),
+      onFirstFrame: () => {
+        sky.dataset.scene = 'live';
+        sky.classList.add('is-live');
+      },
     });
     window.__falsyLive = live;
     document.addEventListener('visibilitychange', () => live.setRunning(document.visibilityState === 'visible'));
@@ -52,6 +42,7 @@ export async function boot() {
     document.addEventListener('astro:after-swap', onScroll);
   } catch (err) {
     sky.classList.remove('is-live');
-    console.warn('Live scene unavailable, keeping the poster.', err);
+    fallBack();
+    console.warn('Live scene unavailable, showing the poster.', err);
   }
 }

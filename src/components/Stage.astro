@@ -59,24 +59,49 @@ const fallback = choices[0];
   <p id="telemetry" class="telemetry"></p>
   <script is:inline define:vars={{ choices }}>
     (() => {
+      // Decide before anything paints: visitors who'll get the live scene see dark
+      // space until it fades in, so a poster of somewhere else never flashes first.
+      const willTryLive = (() => {
+        const force = new URLSearchParams(location.search).get('live');
+        if (force === '0') return false;
+        if (force === '1') return true;
+        if (matchMedia('(prefers-reduced-motion: reduce)').matches || innerWidth < 768) return false;
+        if ('gpu' in navigator) return true;
+        try { return !!document.createElement('canvas').getContext('webgl2'); } catch { return false; }
+      })();
+
       let last = null;
       try { last = localStorage.getItem('falsy:poster'); } catch {}
       const pool = choices.length > 1 ? choices.filter((c) => c.id !== last) : choices;
       const pick = pool[Math.floor(Math.random() * pool.length)];
-      try { localStorage.setItem('falsy:poster', pick.id); } catch {}
       const img = document.getElementById('poster');
-      const show = () => img.classList.add('in');
-      img.addEventListener('load', show, { once: true });
-      img.style.objectPosition = pick.focus;
-      img.sizes = '100vw';
-      img.srcset = pick.srcset;
-      img.src = pick.src;
-      if (img.complete && img.naturalWidth) show();
-      document.documentElement.style.setProperty('--horizon', String(pick.horizon));
       const t = document.getElementById('telemetry');
-      t.innerHTML = pick.telemetry;
-      t.title = pick.title;
-      t.dataset.poster = pick.id;
+      const sky = img.closest('.sky');
+
+      const showPoster = () => {
+        if (img.getAttribute('src')) return;
+        try { localStorage.setItem('falsy:poster', pick.id); } catch {}
+        const show = () => img.classList.add('in');
+        img.addEventListener('load', show, { once: true });
+        img.style.objectPosition = pick.focus;
+        img.sizes = '100vw';
+        img.srcset = pick.srcset;
+        img.src = pick.src;
+        if (img.complete && img.naturalWidth) show();
+        sky.style.setProperty('--horizon', String(pick.horizon));
+        t.innerHTML = pick.telemetry;
+        t.title = pick.title;
+        t.dataset.poster = pick.id;
+        sky.dataset.scene = 'poster';
+      };
+      window.__falsyShowPoster = showPoster;
+
+      if (!willTryLive) return showPoster();
+      sky.dataset.scene = 'pending';
+      sky.style.setProperty('--horizon', '0.3');
+      t.textContent = 'Loading Mars terrain…';
+      // If the live scene hasn't taken over by now, something went wrong: fall back.
+      setTimeout(() => { if (sky.dataset.scene === 'pending') showPoster(); }, 12000);
     })();
   </script>
 </div>
