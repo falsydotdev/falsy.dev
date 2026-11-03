@@ -41,6 +41,10 @@ const SETTLE_TIMEOUT_MS = 6000;
 const RESUME_SNAPSHOT_AFTER_MS = 2000;
 const RESUME_SETTLE_TIMEOUT_MS = 5000;
 const RESUME_FADE_MS = 1200;
+// The camera moves slowly, so 30 fps looks the same as 60 or 120 and spares laptops a hot GPU.
+// Past the first screen, the background only peeks out beside content, so it drops to 15.
+const FRAME_MS = 1000 / 30;
+const THROTTLED_FRAME_MS = 1000 / 15;
 
 async function adapterLayerLimit(forceWebGL) {
   if (forceWebGL || !navigator.gpu) return undefined;
@@ -195,7 +199,8 @@ export async function startLiveScene(host, opts) {
 
   renderer.setAnimationLoop((t) => {
     if (!running) return;
-    if (throttled && t - lastRender < 66) return;
+    // 0.9 absorbs rAF jitter so a 120 Hz display renders every 4th vsync, and a 60 Hz one every 2nd.
+    if (t - lastRender < (throttled ? THROTTLED_FRAME_MS : FRAME_MS) * 0.9) return;
     lastRender = t;
     const s = frame();
     pipeline.render();

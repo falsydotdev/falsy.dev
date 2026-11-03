@@ -40,7 +40,8 @@ html {
   background: var(--space);
   -webkit-text-size-adjust: 100%;
   scroll-behavior: smooth;
-  scroll-padding-top: 24px;
+  /* Clears the sticky header when jumping to a section. */
+  scroll-padding-top: 80px;
 }
 
 body {
