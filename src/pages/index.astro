@@ -197,7 +197,10 @@ const projects = (await getCollection('projects')).sort((a, b) => a.data.order -
   }
 
   .builds strong {
-    font-weight: 600;
+    display: block;
+    margin-bottom: 2px;
+    font: 500 var(--step--1) / 1.6 var(--data);
+    letter-spacing: 0.02em;
   }
 
   .steps {
@@ -218,7 +221,6 @@ const projects = (await getCollection('projects')).sort((a, b) => a.data.order -
 
   .aside {
     color: var(--muted);
-    font-style: italic;
   }
 
   .proof {

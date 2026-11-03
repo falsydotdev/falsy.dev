@@ -72,7 +72,7 @@ Claude drafts all copy in Justin's voice with the `sound-like-justin` skill, and
 | Role | Face | Used for |
 |---|---|---|
 | Display | Instrument Serif | Name, section titles, and project names. Italics for emphasis. |
-| Body | Instrument Sans | Running text and descriptions |
+| Body | IBM Plex Sans | Running text and descriptions. Replaced Instrument Sans on 2026-11-03 (see `design/body-fonts.html`). |
 | Data | Martian Mono | Telemetry, nav, labels, tags, and buttons |
 
 | Token | Value | Notes |

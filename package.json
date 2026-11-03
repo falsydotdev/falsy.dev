@@ -12,8 +12,8 @@
     "data": "node scripts/link-data.mjs"
   },
   "dependencies": {
-    "@fontsource-variable/instrument-sans": "^5.3.0",
     "@fontsource-variable/martian-mono": "^5.3.0",
+    "@fontsource/ibm-plex-sans": "^5.3.0",
     "@fontsource/instrument-serif": "^5.3.0",
     "astro": "^7.4.2",
     "astronomy-engine": "^2.1.19",

@@ -1,6 +1,6 @@
 @import '@fontsource/instrument-serif/latin-400.css';
 @import '@fontsource/instrument-serif/latin-400-italic.css';
-@import '@fontsource-variable/instrument-sans/wght.css';
+@import '@fontsource/ibm-plex-sans/latin-400.css';
 @import '@fontsource-variable/martian-mono/wght.css';
 
 :root {
@@ -17,7 +17,7 @@
   --glass-line: rgba(156, 198, 236, 0.24);
 
   --display: 'Instrument Serif', Georgia, 'Times New Roman', serif;
-  --body: 'Instrument Sans Variable', 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --data: 'Martian Mono Variable', 'Martian Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
   --gutter: clamp(16px, 6vw, 96px);
