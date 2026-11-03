@@ -16,6 +16,6 @@ export const person = {
 export const site = {
   name: 'falsy.dev',
   url: 'https://falsy.dev',
-  title: `${person.name} · GTM engineering and RevOps`,
-  description: `I build AI revenue systems for B2B SaaS companies through ${consultancy.name}. Here are my projects, my consulting work, and a view of Mars rendered from real data.`,
+  title: `${person.name} · falsy.dev`,
+  description: `I'm not a trained developer, but I spend most days building software, mostly with AI. Here are my projects, my consulting work through ${consultancy.name}, and a view of Mars rendered from real data.`,
 };

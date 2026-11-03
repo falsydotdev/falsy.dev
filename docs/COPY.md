@@ -21,16 +21,18 @@ Phase 1 ships with poster stills, not the live scene, so two lines that claim "l
 
 ## Meta
 
-- **Title:** Justin Powell · GTM engineering and RevOps
-- **Description:** I build AI revenue systems for B2B SaaS companies through RevOps Rocks. Here are my projects, my consulting work, and a live view of Mars.
+- **Title:** Justin Powell · falsy.dev
+- **Description:** I'm not a trained developer, but I spend most days building software, mostly with AI. Here are my projects, my consulting work through RevOps Rocks, and a view of Mars rendered from real data.
 
 ## Hero
 
 - **Eyebrow:** falsy.dev
 - **Headline:** Justin *Powell*
-- **Line:** I build AI revenue systems for B2B SaaS teams, mostly in HubSpot. I studied physics and economics, and I've worked in RevOps since 2012.
+- **Line:** I'm not a trained developer, but I spend most days building software, mostly with AI. (Approved 2026-11-03.)
 - **Primary button:** Book a call →
 - **Secondary link:** See my projects
+
+Projects now come before Consulting on the page (2026-11-03).
 
 ## Consulting
 
@@ -125,6 +127,8 @@ It checks more than 50,000 sources for new roles.
 I'm Justin. I'm American, I live in Adelaide, and I've worked in RevOps since 2012, in the US, the UK, Germany and Australia.
 
 I studied physics for four years, first at the University of Arizona and then at the University of Utah, and graduated with a degree in economics and a minor in physics. Physics taught me to measure something before I try to change it. I still work that way: I look at what's actually in your CRM before I suggest a fix.
+
+In JavaScript, a `falsy` value acts false without actually being false. That's about where I sit with the developer title. (Approved 2026-11-03.)
 
 The planet behind this page uses real NASA and USGS data, lit by where the Sun is right now. You're watching from a real low orbit, moving as fast as a spacecraft would. I built it because I like space and wanted my site to show the kind of work I do.
 

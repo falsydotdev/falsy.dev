@@ -184,3 +184,9 @@ img {
     animation-duration: 0.01ms !important;
   }
 }
+
+code {
+  font-family: var(--data);
+  font-size: 0.88em;
+  color: var(--accent);
+}

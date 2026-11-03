@@ -4,12 +4,12 @@ Status: agreed 2026-11-02. Architecture decisions are in [`adr/`](adr/), and the
 
 ## Purpose
 
-falsy.dev is Justin Powell's personal hub. Its main job is to win GTM engineering and RevOps consulting work. Its second job is to show developer peers what he builds. The live planetary background is the signature. It shows the engineering standard of the work without getting in the way of the content.
+falsy.dev is Justin Powell's personal portfolio. He's a solo builder who isn't a trained developer but builds software most days, mostly with AI. The page shows his projects first and his GTM engineering and RevOps consulting second (reframed 2026-11-03; it was consulting-first). The live planetary background is the signature. It shows the engineering standard of the work without getting in the way of the content.
 
 ## Audience
 
-1. **Consulting buyers:** revenue and operations leaders who might hire Justin. They need the offer, proof, and a way to book a call, fast.
-2. **Developer and technical peers:** they look at the projects, the repo, and the easter egg.
+1. **People curious about what Justin builds:** peers, users of his apps, and collaborators. They look at the projects, the repo, and the easter egg.
+2. **Consulting buyers:** revenue and operations leaders who might hire Justin. They need the offer, proof, and a way to book a call.
 
 ## Hard rules
 
@@ -24,7 +24,7 @@ falsy.dev is Justin Powell's personal hub. Its main job is to win GTM engineerin
 - falsy.dev lives under the RevOps-Rocks GitHub organization.
 - The consulting section presents RevOps Rocks as the company you hire.
 - The consulting brand's name, logo, and links live in one config file. A rename from RevOps Rocks to falsy should be a one-line change plus redirects.
-- The "falsy" name gets light wordplay on the void and `null`, in the 404 page, loading text, and the explorer's edge-of-universe message. Never in the headline.
+- The name means Justin is a "falsy" developer: in JavaScript, a falsy value acts false without actually being false. About explains it in one line. Light wordplay on the void and `null` is fine in the 404 page, loading text, and the explorer's edge-of-universe message. Never in the headline.
 
 ## Content
 
@@ -33,8 +33,8 @@ falsy.dev is Justin Powell's personal hub. Its main job is to win GTM engineerin
 One short scroll:
 
 1. Hero: name, one-line positioning, and the booking call to action.
-2. Consulting: the offer, outcomes, and the booking link.
-3. Selected projects.
+2. Selected projects.
+3. Consulting: the offer, outcomes, and the booking link.
 4. About: from physics to RevOps.
 5. Contact.
 

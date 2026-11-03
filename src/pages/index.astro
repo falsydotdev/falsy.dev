@@ -12,7 +12,7 @@ const projects = (await getCollection('projects')).sort((a, b) => a.data.order -
     <p class="label">falsy.dev</p>
     <h1 id="hero-title">Justin <em>Powell</em></h1>
     <p class="lede">
-      I build AI revenue systems for B2B SaaS teams, mostly in HubSpot. I studied physics and economics, and I've worked in RevOps since 2012.
+      I'm not a trained developer, but I spend most days building software, mostly with AI.
     </p>
     <div class="actions">
       <a class="button primary" href={person.bookingUrl} data-track="book-call">Book a call</a>
@@ -20,8 +20,18 @@ const projects = (await getCollection('projects')).sort((a, b) => a.data.order -
     </div>
   </section>
 
+  <section id="projects" class="projects" aria-labelledby="projects-title">
+    <div class="projects-head">
+      <p class="label">01 / Projects</p>
+      <h2 id="projects-title">Projects</h2>
+    </div>
+    <div class="cards">
+      {projects.map((p) => <ProjectCard project={p} />)}
+    </div>
+  </section>
+
   <section id="consulting" class="panel glass" aria-labelledby="consulting-title">
-    <p class="label">01 / Consulting</p>
+    <p class="label">02 / Consulting</p>
     <h2 id="consulting-title">Consulting</h2>
     <p>
       I run {consultancy.name}, a small consultancy for founders and COOs at B2B SaaS companies. I build one revenue system at a time, for a fixed price, in the stack you already use. Most builds are live in about 30 days.
@@ -64,16 +74,6 @@ const projects = (await getCollection('projects')).sort((a, b) => a.data.order -
     </div>
   </section>
 
-  <section id="projects" class="projects" aria-labelledby="projects-title">
-    <div class="projects-head">
-      <p class="label">02 / Projects</p>
-      <h2 id="projects-title">Projects</h2>
-    </div>
-    <div class="cards">
-      {projects.map((p) => <ProjectCard project={p} />)}
-    </div>
-  </section>
-
   <section id="about" class="panel glass" aria-labelledby="about-title">
     <p class="label">03 / About</p>
     <h2 id="about-title">About</h2>
@@ -82,6 +82,9 @@ const projects = (await getCollection('projects')).sort((a, b) => a.data.order -
     </p>
     <p>
       I studied physics for four years, first at the University of Arizona and then at the University of Utah, and graduated with a degree in economics and a minor in physics. Physics taught me to measure something before I try to change it. I still work that way: I look at what's actually in your CRM before I suggest a fix.
+    </p>
+    <p>
+      In JavaScript, a <code>falsy</code> value acts false without actually being false. That's about where I sit with the developer title.
     </p>
     <p>
       The planet behind this page is rendered from real NASA and USGS data. It's a still frame, lit by where the Sun really was at the time shown in the bottom corner. I built it because I like space and wanted my site to show the kind of work I do.
