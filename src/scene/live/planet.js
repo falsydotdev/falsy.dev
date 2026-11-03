@@ -7,16 +7,13 @@ import { FACES, parent, tileId } from '../tiles/cube.ts';
 import { selectTiles, tilesToFetch } from '../tiles/select.ts';
 import { TILES, HEIGHT_SIZE, SHADOW_MAP, colorPath, heightPath } from '../tiles/layout.ts';
 import { LayerArray } from './tile-atlas.js';
-import { lighting } from './terrain.js';
+import { lighting, toWorld } from './terrain.js';
 
 const GRID = 32;
 const MAX_INSTANCES = 4096;
 const MAX_IN_FLIGHT = 12;
 const WORKERS = 4;
 const SHADOW_STEPS = 44;
-
-// Body frame → three.js world (y up), as in terrain.js.
-const toWorld = (b) => new THREE.Vector3(b[0], b[2], -b[1]);
 
 /** A GRID×GRID patch in tile fractions, with a skirt hanging from each edge to hide LOD cracks. */
 function tileGeometry() {
@@ -282,12 +279,11 @@ export class TiledPlanet {
   source(rec, kind) {
     let k = rec.key;
     let r = rec;
-    while (r[kind].state !== 'ready') {
+    while (!r || r[kind].state !== 'ready') {
       const p = parent(k);
       if (!p) return null;
       k = p;
       r = this.records.get(tileId(k));
-      if (!r) return null;
     }
     r.lastUsed = this.frame;
     const d = rec.key.level - k.level;

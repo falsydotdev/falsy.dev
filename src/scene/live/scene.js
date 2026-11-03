@@ -47,17 +47,25 @@ export async function startLiveScene(host, opts) {
   const timeScale = opts.timeScale ?? 1;
   const cam = { altKm: opts.altKm ?? CAMERA_DEFAULTS.altKm, tiltDeg: opts.tiltDeg ?? CAMERA_DEFAULTS.tiltDeg, fovDeg: opts.fovDeg ?? CAMERA_DEFAULTS.fovDeg };
   const forceWebGL = opts.forceWebGL ?? false;
-  const gpuLayers = await adapterLayerLimit(forceWebGL);
-  const renderer = new THREE.WebGPURenderer({
-    antialias: true,
-    logarithmicDepthBuffer: true,
-    forceWebGL,
-    requiredLimits: gpuLayers ? { maxTextureArrayLayers: gpuLayers } : undefined,
+  let gpuLayers = await adapterLayerLimit(forceWebGL);
+  const makeRenderer = async (layers) => {
+    const r = new THREE.WebGPURenderer({
+      antialias: true,
+      logarithmicDepthBuffer: true,
+      forceWebGL,
+      requiredLimits: layers ? { maxTextureArrayLayers: layers } : undefined,
+    });
+    await r.init();
+    return r;
+  };
+  // three.js asks for its own adapter, which can differ from ours on dual-GPU machines.
+  const renderer = await makeRenderer(gpuLayers).catch(() => {
+    gpuLayers = undefined;
+    return makeRenderer(undefined);
   });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.setSize(innerWidth, innerHeight);
   renderer.toneMapping = THREE.AgXToneMapping;
-  await renderer.init();
   renderer.domElement.className = 'live-canvas';
   host.prepend(renderer.domElement);
 
