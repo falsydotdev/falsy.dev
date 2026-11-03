@@ -158,3 +158,6 @@ prototypes/*/artifact/
 .wrangler/
 .lighthouseci/
 posters-out*/
+
+# Interim local Mars data (npm run data)
+public/data

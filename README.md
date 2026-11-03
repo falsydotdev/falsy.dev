@@ -11,6 +11,23 @@ npm run build     # static site in dist/
 npm run preview
 ```
 
+### Live Mars locally
+
+```bash
+npm install
+npm run data      # once: builds the prototype's Mars textures (about 31 MB from USGS) and links them into public/data
+npm run dev
+```
+
+Then open http://localhost:4321. The live scene starts on desktop-width windows with WebGPU or WebGL2, and the poster shows until the first frame. `public/data` is an interim stand-in for the Phase 2 tile pipeline. It's gitignored and kept out of deploys by `public/.assetsignore`.
+
+| Parameter | Effect |
+|---|---|
+| `live=1` / `live=0` | Force the live scene on or off, ignoring screen width and reduced motion |
+| `shot=dawn-dusk`, `shot=orbital-sunrise`, `shot=feature-flyover` | Pick the orbit instead of a weighted random one |
+| `t=N` | Preview at N× real time. The readout shows `t×N` whenever it isn't 1. |
+| `webgl` | Force the WebGL2 backend |
+
 ## Where things live
 
 | Path | What |

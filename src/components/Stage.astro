@@ -108,6 +108,23 @@ const fallback = choices[0];
     opacity: 1;
   }
 
+  .sky :global(.live-canvas) {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    transition: opacity 1200ms ease;
+  }
+
+  .sky:global(.is-live) :global(.live-canvas) {
+    opacity: 1;
+  }
+
+  .sky:global(.is-live) img {
+    opacity: 0;
+  }
+
   .grid {
     --cell: clamp(56px, 8vw, 128px);
     background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);

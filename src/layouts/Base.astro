@@ -49,6 +49,10 @@ const ogImage = new URL('/og.jpg', site.url).href;
       <slot />
     </main>
     <Footer />
+    <script>
+      import { boot } from '../scene/boot';
+      boot();
+    </script>
   </body>
 </html>
 
