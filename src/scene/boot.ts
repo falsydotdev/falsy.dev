@@ -37,6 +37,7 @@ export async function boot() {
       altKm: numberParam(params, 'alt', 120, 2000),
       tiltDeg: numberParam(params, 'tilt', -10, 60),
       fovDeg: numberParam(params, 'fov', 15, 80),
+      farKm: numberParam(params, 'far', 0, 5000),
       timeScale,
       forceWebGL: params.has('webgl'),
       telemetry: document.getElementById('telemetry'),

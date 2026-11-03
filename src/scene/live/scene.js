@@ -30,7 +30,7 @@ function buildShot(kind, now, altKm) {
 /**
  * Starts the live Mars scene inside `host`.
  * @param {HTMLElement} host
- * @param {{ dataUrl: string, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void, onLost?: () => void, altKm?: number, tiltDeg?: number, fovDeg?: number }} opts
+ * @param {{ dataUrl: string, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void, onLost?: () => void, farKm?: number, altKm?: number, tiltDeg?: number, fovDeg?: number }} opts
  */
 // One tile per array layer; 512 layers hold a 4K view with headroom and cost about 180 MB of GPU memory.
 const WANTED_LAYERS = 512;
@@ -96,7 +96,7 @@ export async function startLiveScene(host, opts) {
 
   const meta = await (await fetch(`${opts.dataUrl}/meta.json`)).json();
   const layers = renderer.backend.isWebGPUBackend ? gpuLayers ?? 256 : Math.min(WANTED_LAYERS, renderer.backend.gl.getParameter(renderer.backend.gl.MAX_ARRAY_TEXTURE_LAYERS));
-  planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: RELIEF, layers });
+  planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: RELIEF, layers, relaxBeyondKm: opts.farKm });
   await planet.init();
   scene.add(planet.mesh);
 

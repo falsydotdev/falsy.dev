@@ -32,6 +32,7 @@ In production the tile base URL comes from `PUBLIC_TILES_URL` (default `/data/ma
 | `alt=N` | Orbit altitude in km (120 to 2000, default 200). Orbital speed follows from it. |
 | `tilt=N` | Degrees the camera looks below the horizon, beyond the geometric dip (default 12). Higher shows more ground moving. |
 | `fov=N` | Vertical field of view in degrees (default 50). Narrower magnifies the motion. |
+| `far=N` | Distance in km beyond which terrain detail relaxes in proportion (default 500, `far=0` for full detail everywhere). The main lever on download size. |
 | `webgl` | Force the WebGL2 backend |
 
 ## Where things live

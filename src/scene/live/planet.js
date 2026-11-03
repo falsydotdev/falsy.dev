@@ -69,7 +69,8 @@ class Record {
  */
 export class TiledPlanet {
   /** @param {THREE.WebGPURenderer} renderer */
-  constructor(renderer, { baseUrl, meta, relief, layers }) {
+  constructor(renderer, { baseUrl, meta, relief, layers, relaxBeyondKm = 500 }) {
+    this.relaxBeyondKm = relaxBeyondKm > 0 ? relaxBeyondKm : Infinity;
     this.renderer = renderer;
     this.baseUrl = baseUrl;
     this.meta = meta;
@@ -301,7 +302,7 @@ export class TiledPlanet {
   update(pose, view) {
     this.frame++;
     const cam = { ...pose, ...view };
-    const opts = { radiusKm: this.radiusKm, heightRangeKm: this.heightRangeKm, tilePx: TILES.colorPx, maxLevel: TILES.maxLevel, maxTexelPx: this.texelBias };
+    const opts = { radiusKm: this.radiusKm, heightRangeKm: this.heightRangeKm, tilePx: TILES.colorPx, maxLevel: TILES.maxLevel, maxTexelPx: this.texelBias, relaxBeyondKm: this.relaxBeyondKm };
     let selected = selectTiles(cam, opts);
     // Keep the working set well inside the atlas; coarsen evenly if a huge viewport asks for too much.
     const budget = this.colors.layers * 0.6;

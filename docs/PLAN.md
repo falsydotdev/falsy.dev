@@ -62,6 +62,15 @@ Phases build on each other on stacked branches. Nothing launches until Phase 2 i
 7. **Glass panels:** renderer-drawn glass behind text boxes that overlap the planet.
 8. **Baked shading:** evaluate de-shading the Viking mosaic.
 
+**Status (2026-11-03):** tile pipeline and streaming renderer built on branch `phase-2/tiles`. See ADR 0004 for formats.
+
+| Step | State |
+|---|---|
+| 1. Tile pipeline | Done locally: 131,070 colour (AVIF) and height tiles, levels 0 to 7, plus a coarse shadow map, about 1.6 GB in `~/.cache/falsy-dev`. Not uploaded: needs an R2 bucket and credentials. |
+| 2. Terrain renderer | Quadtree LOD on an equi-angular cube-sphere, one instanced draw, array-texture atlases with LRU eviction, ancestor fallback while streaming, coarse-map shadows. Works on WebGPU and WebGL2. Floating origin and reversed depth aren't needed at 200 km: tile positions are precise to about 0.5 m. |
+| Budget | `scripts/tiles/budget.mjs`, 12 shots × 90 s at 3200×1800: 6.4 MB first view and 8.9 MB after 90 s with the default 500 km far relaxation (9.1 and 12.1 MB without it). Tilt changes nothing while the horizon is in frame. |
+| Robustness | Bounded tile records and GPU memory (soak-tested over 35 orbit-minutes), poster fallback on GPU device loss, and a crossfade from the last frame when a background tab returns. |
+
 **Done when:**
 - A typical view loads 20 MB or less of tiles.
 - It holds 60 fps on an M-series laptop, and 30 fps or better on a mid-range Windows laptop.
