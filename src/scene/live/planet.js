@@ -11,7 +11,11 @@ import { lighting, toWorld } from './terrain.js';
 
 const GRID = 32;
 const MAX_INSTANCES = 4096;
-const MAX_IN_FLIGHT = 12;
+// HTTP/2 multiplexes these over one connection; fewer would leave a high-latency link idle.
+const MAX_IN_FLIGHT = 32;
+// Over a network the camera keeps moving while tiles arrive, so a few edge tiles are always
+// in flight; they draw from their parent meanwhile.
+const SETTLED_FRACTION = 0.95;
 // Records for tiles without GPU data are dropped after this many unused frames, so a long
 // session that keeps flying over new ground doesn't accumulate them.
 const RECORD_TTL_FRAMES = 600;
@@ -364,13 +368,16 @@ export class TiledPlanet {
     this.stats.records = this.records.size;
   }
 
-  /** True once every selected tile draws from its own texels. */
+  /** True once nearly every selected tile draws from its own texels. */
   settled() {
-    if (!this.selected) return false;
-    return this.selected.every((s) => {
+    if (!this.selected?.length) return false;
+    const done = (slot) => slot.state === 'ready' || slot.state === 'missing';
+    let ready = 0;
+    for (const s of this.selected) {
       const r = this.records.get(s.id);
-      return r && r.color.state !== 'idle' && r.color.state !== 'loading' && r.height.state !== 'idle' && r.height.state !== 'loading';
-    });
+      if (r && done(r.color) && done(r.height)) ready++;
+    }
+    return ready >= this.selected.length * SETTLED_FRACTION;
   }
 
   setRelief(relief) {
