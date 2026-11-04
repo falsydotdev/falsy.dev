@@ -1,6 +1,6 @@
 # falsy.dev v1 build plan
 
-Each phase ships to production on its own. Phase 1 gets a real site in front of buyers while the planet work continues behind it. See [`SPEC.md`](SPEC.md) for the what and why.
+Phases build on each other on stacked branches. Nothing launches until Phase 2 is done; then everything merges to `main` together and goes live with live Mars (decided 2026-11-03). See [`SPEC.md`](SPEC.md) for the what and why.
 
 ## Phase 0: Direction
 
@@ -26,16 +26,16 @@ Each phase ships to production on its own. Phase 1 gets a real site in front of 
 
 **Done when:** falsy.dev is live with real content, a poster background, and working booking.
 
-**Status (2026-11-03):** built on branch `phase-1/site-shell`, waiting on the Cloudflare credentials to go live.
+**Status (2026-11-03):** built on branch `phase-1/site-shell` (draft PR #2). It won't launch on its own: it merges with Phase 2.
 
 | Step | State |
 |---|---|
 | 1. Persistence spike | Passed. See ADR 0002. |
 | 2. Astro project | Done: home, three project pages, 404, and `src/config/brand.ts` |
 | 3. Design system | Done: Direction D tokens in `src/styles/global.css`, self-hosted fonts |
-| 4. Poster pipeline | Three Mars stills. `scripts/posters/render.mjs` and `encode.mjs` run locally. The daily job runs on GitHub Actions with SwiftShader WebGL2 (`.github/workflows/posters.yml`), switched on by the `POSTERS_ENABLED` variable. |
+| 4. Poster pipeline | Replaced in Phase 2 (2026-11-04): six fixed stills rendered by the live scene on a local GPU, each in a landscape and a portrait framing, committed to the repo. The daily SwiftShader job is gone. |
 | 5. Contact | Done: HubSpot meetings link and plain-text email |
-| 6. Deploy | `wrangler.jsonc` and the CI deploy job are ready. They need the Cloudflare secrets and `DEPLOY_ENABLED=true`. No R2 bucket yet, because nothing uses one until Phase 2. |
+| 6. Deploy | Cloudflare Workers Builds deploys `main` (project `falsy-dev`, connected 2026-11-03). Tiles are in R2 bucket `falsy-tiles` at `tiles.falsy.dev`. GitHub Actions only runs checks. |
 | 7. Performance budget | Lighthouse CI on every PR, using mobile with simulated slow 4G. Home: performance 99 to 100, accessibility, best practices, and SEO all 100. First contentful paint is 1.13 s, and largest contentful paint is 1.65 to 1.8 s. |
 
 ## Phase 2: Live Mars
@@ -62,9 +62,21 @@ Each phase ships to production on its own. Phase 1 gets a real site in front of 
 7. **Glass panels:** renderer-drawn glass behind text boxes that overlap the planet.
 8. **Baked shading:** evaluate de-shading the Viking mosaic.
 
+**Status (2026-11-03):** tile pipeline and streaming renderer built on branch `phase-2/tiles`. See ADR 0004 for formats.
+
+| Step | State |
+|---|---|
+| 1. Tile pipeline | Done: 131,070 colour (AVIF) and height tiles, levels 0 to 7, plus a coarse shadow map, about 1.6 GB. Built in `~/.cache/falsy-dev` and uploaded to R2. |
+| 2. Terrain renderer | Quadtree LOD on an equi-angular cube-sphere, one instanced draw, array-texture atlases with LRU eviction, ancestor fallback while streaming, coarse-map shadows. Works on WebGPU and WebGL2. Floating origin and reversed depth aren't needed at 200 km: tile positions are precise to about 0.5 m. |
+| Budget | `scripts/tiles/budget.mjs`, 12 shots × 90 s at 3200×1800: 6.4 MB first view and 8.9 MB after 90 s with the default 500 km far relaxation (9.1 and 12.1 MB without it). Tilt changes nothing while the horizon is in frame. |
+| 6. Quality tiers | Done. High, Medium, and Low change render resolution (up to 1.25×, 1×, 0.75×, each with a pixel cap), bloom, and frame rate (30, 30, 20). Side by side on a fixed frame, 2× with 44 shadow steps differed from 1× with 12 by under 1/255 per pixel, so the defaults dropped to what's visible. The start tier comes from the GPU vendor, then the scene measures GPU time per frame and steps down when it passes 60% of the frame interval, crossfading like a tab return. It never steps back up. Past Low, it freezes on its last frame. Data Saver gets the poster. On an M5 Max with a 2× screen, High costs about 7 ms per frame (the old 2× High cost 16 ms). |
+| 3. Atmosphere | Done. Hillaire-style tables (optical depth, and light scattered more than once) are built in a worker at startup in about 100 ms, then the shader marches 24 steps per pixel with table lookups instead of a nested sunlight march. Multiple scattering adds a faint orange twilight arc on the night side. Light shafts test each sunbeam against the coarse height map at its lowest point, so tall terrain at the limb (Tharsis) cuts streaks into the sunrise glow. The haze now stops at the terrain instead of the bare sphere. Cost is about +0.5 ms per frame at High on an M5 Max. Temporal accumulation wasn't needed. |
+| 4. Composition | Done. `src/scene/composition.ts` grid-searches camera pitch and roll per viewport, so the limb and its glow pass under the measured hero text and rise toward the upper right (about 10° of roll on a laptop). Shots put the dayside, the flyover feature, and the sunrise on the right. Re-solved on resize. |
+| Robustness | Bounded tile records and GPU memory (soak-tested over 35 orbit-minutes), poster fallback on GPU device loss, and a crossfade from the last frame when a background tab returns. |
+
 **Done when:**
 - A typical view loads 20 MB or less of tiles.
-- It holds 60 fps on an M-series laptop, and 30 fps or better on a mid-range Windows laptop.
+- It holds High at 30 fps on an M-series laptop, and Medium or better on a mid-range Windows laptop. (Frame rate is capped at 30, since the camera moves too slowly for more to show.)
 - The poster fallback works on phones.
 
 ## Phase 3: The Moon

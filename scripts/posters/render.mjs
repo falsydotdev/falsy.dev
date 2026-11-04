@@ -1,89 +1,126 @@
-// Renders poster frames from the prototype renderer, then encodes them.
-// Usage: node scripts/posters/render.mjs [--webgl] [--out <dir>]
-//   --webgl  use SwiftShader WebGL2 (for GPU-less CI runners) instead of WebGPU
-// Needs prototypes/mars-orbit/public/data. Build it with `npm run data` in that folder.
+// Renders the poster stills from the site's own live scene, on this machine's GPU.
+// Usage: node scripts/posters/render.mjs [--out <dir>] [--url <running dev server>] [--only <id>]
+// Needs the local tiles (`npm run tiles:*`). Without --url it starts `astro dev` itself.
+// The posters are a fixed set: each shot pins its time, so re-rendering gives the same frames.
 import { spawn } from 'node:child_process';
-import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { chromium } from 'playwright';
-import { nextSunrise } from '../../prototypes/mars-orbit/src/ephemeris.js';
 
 const { values: args } = parseArgs({
-  options: { webgl: { type: 'boolean', default: false }, out: { type: 'string', default: 'posters-out' }, port: { type: 'string', default: '5181' } },
+  options: {
+    out: { type: 'string', default: 'posters-out' },
+    url: { type: 'string' },
+    port: { type: 'string', default: '4350' },
+    only: { type: 'string' },
+  },
 });
 
 const root = resolve(import.meta.dirname, '../..');
-const proto = resolve(root, 'prototypes/mars-orbit');
 const outDir = resolve(root, args.out);
-const OLYMPUS = { lat: 18.65, lon: 226.2 };
-const HOUR = 3600e3;
+// Each shot renders twice, framed by the same solver as the live scene: laid out like a
+// laptop screen at 2560 px wide, and like a phone at 1170 px wide. `live=1` forces the
+// live scene on at phone width.
+const VIEWS = [
+  {
+    key: 'landscape',
+    viewport: { width: 1440, height: 810 },
+    scale: 2560 / 1440,
+  },
+  { key: 'portrait', viewport: { width: 390, height: 844 }, scale: 3 },
+];
+const RELIEF = 2.5;
+const TIMEOUT = 120e3;
 
-await access(resolve(proto, 'public/data/meta.json')).catch(() => {
-  throw new Error('Missing prototype data. Run `npm run data` in prototypes/mars-orbit first.');
-});
 await mkdir(outDir, { recursive: true });
 
-// The most recent sunrise, so the poster never shows a time that hasn't happened yet.
-function lastSunrise(now) {
-  for (const back of [26, 52]) {
-    const t = nextSunrise(new Date(now - back * HOUR), OLYMPUS.lat, OLYMPUS.lon, 7);
-    if (t && t.getTime() <= now) return t;
-  }
-  throw new Error('No Olympus Mons sunrise found in the last two sols');
+let server;
+let base = args.url;
+if (!base) {
+  server = spawn(resolve(root, 'node_modules/.bin/astro'), ['dev', '--port', args.port], { cwd: root, stdio: ['ignore', 'pipe', 'inherit'] });
+  base = await new Promise((ok, fail) => {
+    server.stdout.on('data', (d) => {
+      const m = d.toString().match(/http:\/\/localhost:\d+/);
+      if (m) ok(m[0]);
+    });
+    server.on('exit', (code) => fail(new Error(`astro dev exited with ${code}`)));
+  });
 }
 
-function parseTelemetry(text) {
-  const m = text.match(/([\d.]+)°([NS])\s+([\d.]+)°E\s+·\s+LOCAL SOLAR\s+(\d\d:\d\d)/);
-  if (!m) throw new Error(`Unexpected telemetry: ${text}`);
-  return { lat: Number(m[1]) * (m[2] === 'S' ? -1 : 1), lon: Number(m[3]), lst: m[4] };
+function parseTelemetry(spans) {
+  const lat = spans[1].match(/([\d.]+)°([NS])/);
+  const lon = spans[2].match(/([\d.]+)°E/);
+  const lst = spans[3].match(/(\d\d:\d\d)/);
+  const alt = spans[4].match(/(\d+) km/);
+  if (!lat || !lon || !lst || !alt) throw new Error(`Unexpected telemetry: ${spans.join(' ')}`);
+  return {
+    lat: Number(lat[1]) * (lat[2] === 'S' ? -1 : 1),
+    lon: Number(lon[1]),
+    lst: lst[1],
+    altKm: Number(alt[1]),
+  };
 }
 
-const server = spawn(resolve(proto, 'node_modules/.bin/vite'), ['--port', args.port, '--strictPort'], { cwd: proto, stdio: ['ignore', 'pipe', 'inherit'] });
-await new Promise((ok, fail) => {
-  server.stdout.on('data', (d) => d.toString().includes('Local') && ok());
-  server.on('exit', (code) => fail(new Error(`vite exited with ${code}`)));
+const browser = await chromium.launch({
+  channel: 'chromium',
+  args: ['--enable-unsafe-webgpu', '--ignore-gpu-blocklist'],
+  headless: true,
 });
 
-const launchArgs = args.webgl
-  ? ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist']
-  : ['--enable-unsafe-webgpu', '--enable-features=Vulkan', '--ignore-gpu-blocklist'];
-const browser = await chromium.launch({ channel: 'chromium', args: launchArgs, headless: true });
-const page = await browser.newPage({ viewport: { width: 2560, height: 1440 }, deviceScaleFactor: 1 });
-page.on('pageerror', (e) => console.error('page error:', e.message));
-
-const shots = JSON.parse(await readFile(resolve(import.meta.dirname, 'shots.json'), 'utf8'));
+const shots = JSON.parse(await readFile(resolve(import.meta.dirname, 'shots.json'), 'utf8')).filter((s) => !args.only || s.id === args.only);
 const frames = [];
 try {
   for (const shot of shots) {
-    const now = Date.now();
-    const at = shot.time === 'last-olympus-sunrise' ? lastSunrise(now) : new Date(now);
-    const url = `http://localhost:${args.port}/?hud=0&hero=0&speed=0&at=${at.toISOString()}&${shot.query}${args.webgl ? '&webgl' : ''}`;
     const started = performance.now();
-    await page.goto(url);
-    await page.waitForFunction(() => document.body.classList.contains('ready'), null, { timeout: 600e3 });
-    await page.waitForFunction(() => (window.proto?.renderer.info.frame ?? 0) > 8 && document.getElementById('telemetry').textContent.includes('°'), null, { timeout: 600e3 });
-    const text = await page.evaluate(() => {
-      document.getElementById('stage').style.transition = 'none';
-      const el = document.getElementById('telemetry');
-      el.style.visibility = 'hidden';
-      return el.textContent;
-    });
-    await page.waitForFunction((f) => window.proto.renderer.info.frame > f + 2, await page.evaluate(() => window.proto.renderer.info.frame), { timeout: 600e3 });
-    // Software rendering on CI takes tens of seconds per frame, and a screenshot waits for the next one.
-    const backend = await page.evaluate(() => {
-      window.proto.renderer.setAnimationLoop(null);
-      return window.proto.renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL2';
-    });
-    const png = `${shot.id}.png`;
-    await page.screenshot({ path: resolve(outDir, png), timeout: 300e3 });
-    const { query, time, ...meta } = shot;
-    frames.push({ ...meta, png, body: 'Mars', ...parseTelemetry(text), at: new Date(Math.floor(at.getTime() / 60e3) * 60e3).toISOString() });
-    console.log(`${shot.id}: ${backend}, ${((performance.now() - started) / 1000).toFixed(1)} s, ${text}`);
+    const frame = {};
+    for (const view of VIEWS) {
+      // A shot can pick a different moment for the phone still with `portraitQuery`.
+      const params = new URLSearchParams(shot.query);
+      if (view.key === 'portrait') for (const [k, v] of new URLSearchParams(shot.portraitQuery ?? '')) params.set(k, v);
+      const at = new Date(new Date(params.get('at')).getTime() + Number(params.get('skip') ?? 0) * 1000);
+      const page = await browser.newPage({
+        viewport: view.viewport,
+        deviceScaleFactor: view.scale,
+      });
+      page.on('pageerror', (e) => console.error('page error:', e.message));
+      await page.goto(`${base}/?${params}&t=0&tier=high&live=1&scale=${view.scale.toFixed(4)}`);
+      await page.waitForSelector('.sky.is-live', { timeout: TIMEOUT });
+      // Wait for every visible tile at full detail, then a few more frames for the fade-in.
+      await page.waitForFunction(
+        () => {
+          const s = window.__falsyLive?.state;
+          return s && s.tiles.pending === 0 && s.tiles.inFlight === 0 && s.frames > 30;
+        },
+        null,
+        { timeout: TIMEOUT, polling: 250 },
+      );
+      await page.waitForTimeout(1500);
+      const state = await page.evaluate(() => {
+        const s = window.__falsyLive.state;
+        return {
+          backend: s.backend,
+          spans: [...document.querySelectorAll('#telemetry span')].map((el) => el.textContent),
+        };
+      });
+      if (state.backend !== 'WebGPU') throw new Error(`Expected WebGPU, got ${state.backend}`);
+      await page.addStyleTag({
+        content:
+          'header, main, footer, .skip, #telemetry, .sky .grid, .sky .scrim, astro-dev-toolbar { visibility: hidden !important } html { scrollbar-width: none }',
+      });
+      await page.waitForTimeout(200);
+      const png = `${shot.id}-${view.key}.png`;
+      await page.screenshot({ path: resolve(outDir, png), scale: 'device' });
+      frame[view.key] = { png, ...parseTelemetry(state.spans), at: at.toISOString() };
+      await page.close();
+    }
+    const { query, portraitQuery, ...meta } = shot;
+    frames.push({ ...meta, body: 'Mars', relief: RELIEF, ...frame.landscape, portrait: frame.portrait });
+    console.log(`${shot.id}: ${((performance.now() - started) / 1000).toFixed(1)} s`);
   }
 } finally {
   await browser.close();
-  server.kill();
+  server?.kill();
 }
 
 await writeFile(resolve(outDir, 'frames.json'), JSON.stringify(frames, null, 2) + '\n');
