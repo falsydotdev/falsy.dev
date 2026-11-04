@@ -4,12 +4,12 @@ Status: agreed 2026-11-02. Architecture decisions are in [`adr/`](adr/), and the
 
 ## Purpose
 
-falsy.dev is Justin Powell's personal hub. Its main job is to win GTM engineering and RevOps consulting work. Its second job is to show developer peers what he builds. The live planetary background is the signature. It shows the engineering standard of the work without getting in the way of the content.
+falsy.dev is Justin Powell's personal portfolio. He's a solo builder who isn't a trained developer but builds software most days with AI. The page shows his projects first and his GTM engineering and RevOps consulting second (reframed 2026-11-03; it was consulting-first). The live planetary background is the signature. It shows the engineering standard of the work without getting in the way of the content.
 
 ## Audience
 
-1. **Consulting buyers:** revenue and operations leaders who might hire Justin. They need the offer, proof, and a way to book a call, fast.
-2. **Developer and technical peers:** they look at the projects, the repo, and the easter egg.
+1. **People curious about what Justin builds:** peers, users of his apps, and collaborators. They look at the projects, the repo, and the easter egg.
+2. **Consulting buyers:** revenue and operations leaders who might hire Justin. They need the offer, proof, and a way to book a call.
 
 ## Hard rules
 
@@ -21,10 +21,10 @@ falsy.dev is Justin Powell's personal hub. Its main job is to win GTM engineerin
 
 ## Brand
 
-- falsy.dev lives under the RevOps-Rocks GitHub organization.
+- falsy.dev lives under Justin's personal GitHub account, `falsydotdev` (moved from the RevOps-Rocks organization on 2026-11-04).
 - The consulting section presents RevOps Rocks as the company you hire.
 - The consulting brand's name, logo, and links live in one config file. A rename from RevOps Rocks to falsy should be a one-line change plus redirects.
-- The "falsy" name gets light wordplay on the void and `null`, in the 404 page, loading text, and the explorer's edge-of-universe message. Never in the headline.
+- The name means Justin is a "falsy" developer: in JavaScript, a falsy value acts false without actually being false. About explains it in one line. Light wordplay on the void and `null` is fine in the 404 page, loading text, and the explorer's edge-of-universe message. Never in the headline.
 
 ## Content
 
@@ -32,9 +32,9 @@ falsy.dev is Justin Powell's personal hub. Its main job is to win GTM engineerin
 
 One short scroll:
 
-1. Hero: name, one-line positioning, and the booking call to action.
-2. Consulting: the offer, outcomes, and the booking link.
-3. Selected projects.
+1. Hero: location, name, and one-line positioning. No buttons, only a quiet scroll cue (2026-11-03). Booking lives in Consulting and Contact.
+2. Selected projects.
+3. Consulting: the offer, outcomes, and the booking link.
 4. About: from physics to RevOps.
 5. Contact.
 
@@ -72,14 +72,14 @@ Claude drafts all copy in Justin's voice with the `sound-like-justin` skill, and
 | Role | Face | Used for |
 |---|---|---|
 | Display | Instrument Serif | Name, section titles, and project names. Italics for emphasis. |
-| Body | Instrument Sans | Running text and descriptions |
+| Body | IBM Plex Sans | Running text and descriptions. Replaced Instrument Sans on 2026-11-03 (see `design/body-fonts.html`). |
 | Data | Martian Mono | Telemetry, nav, labels, tags, and buttons |
 
 | Token | Value | Notes |
 |---|---|---|
 | Ink | `#eef1f4` | |
 | Muted ink | `rgba(220, 228, 236, 0.7)` | |
-| Accent | `#9cc6ec` | The Martian-sunset blue. It's the only accent, because it stays readable over orange terrain and grey regolith. |
+| Accent | Mars `#e8915f`, Moon `#d8d4cc`, Earth `#6fc2b4` | Matches the body on screen, set by `data-body` on the root before first paint. Grid, glass borders and hover states are mixed from it. Chosen 2026-11-04 over a fixed blue after side-by-side mockups. Composition rules keep the planet out from behind accent text. |
 | Glass | `rgba(10, 16, 26, 0.46)`, with a 1px border at 24% accent | Card corners get an accent bracket. |
 
 - **Screen grid:** a coordinate grid in the empty sky, at 12% accent, fading out before the planet.
@@ -100,7 +100,7 @@ Each load picks a body, with weights favoring the most striking ones. The site n
 
 ### Shots
 
-The camera rides a real low orbit at real orbital speed. For Mars at 380 km, that's 3.37 km/s, with one orbit taking 1.96 hours. Mars turns underneath, so each orbit's ground track lands about 29° of longitude west of the last. Each load picks one of three orbits:
+The camera rides a real low orbit at real orbital speed. For Mars at 200 km (the default since 2026-11-03), that's 3.45 km/s, with one orbit taking 1.82 hours. Mars turns underneath, so each orbit's ground track lands about 27° of longitude west of the last. Each load picks one of three orbits:
 
 - **Dawn-dusk orbit:** an orbit whose plane is perpendicular to the Sun line, so it rides the terminator. It gives long shadows on the day-night line. It isn't a true sun-synchronous orbit, which at this altitude needs an inclination of about 93° and relies on Mars' J2 oblateness. Over a visit of minutes the two look the same, and the readout never claims sun-synchronous.
 - **Orbital sunrise:** an orbit that crosses the terminator. The camera starts about a minute before orbital sunrise, on the night side, with the Sun behind the planet. The atmosphere's rim glows, and light shafts fan through the dust before the Sun breaks the limb. Bodies without an atmosphere, like the Moon, get a hard-edged sunrise with no glow.
@@ -110,8 +110,8 @@ Choosing the orbit and where the camera starts on it is a camera choice. The clo
 
 Composition rules:
 
-- The horizon sits in the upper part of the frame.
-- Dark space stays behind the text column.
+- Dark space stays behind the text column. For each viewport, the camera's pitch and roll are solved so the limb, including about 35 km of glow above it, passes below the hero text and the header, then rises toward the upper right. The planet fills the open side of the page.
+- The bright side of every shot is on the right. Dawn-dusk orbits run with the dayside on the right, flyovers pass about 100 km to the left of their feature, and the orbital sunrise orbit is tipped 15° off the Sun line so the Sun rises right of centre.
 - The Sun stays out of frame by default. Strong forward scattering from Martian dust washes out the terrain when the camera looks into the Sun. The orbital sunrise shot is the exception: the Sun sits behind the planet's limb.
 
 ### Time and motion
@@ -126,12 +126,12 @@ Composition rules:
 - **Relief:** height is exaggerated 2.5× by default on rocky bodies. The telemetry says so, for example `RELIEF ×2.5`.
 - **Shadows:** terrain shadows are raymarched through the height data.
 - **Atmosphere:** Hillaire-style physically based scattering, with dust-dominated Mie scattering for Mars and no atmosphere for the Moon. It includes light shafts (volumetric shadowing) for the orbital sunrise shot.
-- **Heavy effects:** these use temporal accumulation, because the scene changes slowly.
+- **Heavy effects:** precomputed lookup tables keep the atmosphere to about 0.5 ms per frame, so temporal accumulation isn't needed. It stays an option if a heavier effect arrives, because the scene changes slowly.
 - **Scale:** the renderer uses a floating origin and reversed depth from day one, so the v2 zoom across 17 orders of magnitude works without a rewrite.
 
 ### Telemetry readout
 
-The readout sits in a corner, for example `MARS  18.4°N  226.0°E  LST 06:12  ALT 380 km  v 3.37 km/s  relief×2.5`. It shows real values for the current shot. Clicking it starts the explorer. A keyboard sequence also starts the explorer.
+The readout sits in a corner, for example `MARS  18.4°N  226.0°E  LST 06:12  ALT 200 km  v 3.45 km/s  relief×2.5`. It shows real values for the current shot. Clicking it starts the explorer. A keyboard sequence also starts the explorer.
 
 ### Fallback poster
 
@@ -178,8 +178,8 @@ PostHog in cookieless mode tracks:
 
 ## Repository
 
-- `RevOps-Rocks/falsy.dev`. It's private until launch, then goes public.
-- Secrets live only in Cloudflare and GitHub environment settings.
+- `falsydotdev/falsy.dev`. It's private until launch, then goes public. A gitleaks scan of all branches on 2026-11-04 found no credentials in the history.
+- Secrets live in Doppler, and in Cloudflare and GitHub settings where a deploy needs them. They're never committed.
 
 ## Data credits
 

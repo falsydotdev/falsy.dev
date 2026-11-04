@@ -1,32 +1,45 @@
 [
   {
     "id": "mars-olympus",
-    "label": "Olympus Mons at sunrise",
-    "query": "mode=olympus&exag=2.5",
-    "time": "last-olympus-sunrise",
-    "altKm": 380,
-    "relief": 2.5,
-    "focus": "62% 60%",
-    "horizon": 0.55
+    "label": "Olympus Mons in the morning",
+    "query": "feature=olympus-mons&at=2026-11-03T20:24:00Z&skip=100",
+    "portraitQuery": "skip=0",
+    "focus": "72% 50%",
+    "horizon": 0.42
   },
   {
-    "id": "mars-orbit-1",
-    "label": "Mars from low orbit, along the terminator",
-    "query": "orbitAlt=380&exag=2.5&phi=110&heading=100",
-    "time": "now",
-    "altKm": 380,
-    "relief": 2.5,
-    "focus": "58% 70%",
-    "horizon": 0.27
+    "id": "mars-valles",
+    "label": "Valles Marineris in the morning",
+    "query": "feature=valles-marineris&at=2026-11-03T15:34:00Z&skip=60",
+    "focus": "70% 50%",
+    "horizon": 0.42
   },
   {
-    "id": "mars-orbit-2",
-    "label": "Mars from low orbit, along the terminator",
-    "query": "orbitAlt=380&exag=2.5&phi=290&heading=95",
-    "time": "now",
-    "altKm": 380,
-    "relief": 2.5,
-    "focus": "70% 65%",
-    "horizon": 0.27
+    "id": "mars-noctis",
+    "label": "Noctis Labyrinthus in the morning",
+    "query": "feature=noctis-labyrinthus&at=2026-11-03T18:25:00Z&skip=60",
+    "focus": "68% 50%",
+    "horizon": 0.42
+  },
+  {
+    "id": "mars-gale",
+    "label": "Gale Crater in the evening",
+    "query": "feature=gale-crater&at=2026-11-03T12:16:00Z&skip=60",
+    "focus": "72% 50%",
+    "horizon": 0.42
+  },
+  {
+    "id": "mars-elysium",
+    "label": "Elysium Mons in the evening",
+    "query": "feature=elysium-mons&at=2026-11-03T11:48:00Z&skip=60",
+    "focus": "70% 50%",
+    "horizon": 0.42
+  },
+  {
+    "id": "mars-sunrise",
+    "label": "Orbital sunrise over Tharsis",
+    "query": "shot=orbital-sunrise&at=2026-11-04T08:00:00Z&seed=173&skip=50",
+    "focus": "70% 50%",
+    "horizon": 0.42
   }
 ]

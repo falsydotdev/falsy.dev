@@ -1,4 +1,5 @@
 import { defineConfig } from 'astro/config';
+import { serveTiles } from './scripts/tiles/dev-server.mjs';
 
 export default defineConfig({
   site: 'https://falsy.dev',
@@ -7,5 +8,6 @@ export default defineConfig({
   prefetch: { prefetchAll: true, defaultStrategy: 'hover' },
   vite: {
     build: { target: 'es2022' },
+    plugins: [serveTiles()],
   },
 });

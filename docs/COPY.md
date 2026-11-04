@@ -16,21 +16,22 @@ Phase 1 ships with poster stills, not the live scene, so two lines that claim "l
 
 | Spot | Before (approved) | After (Phase 1) | Why |
 |---|---|---|---|
-| About, paragraph 3 | The planet behind this page uses real NASA and USGS data, lit by where the Sun is right now. You're watching from a real low orbit, moving as fast as a spacecraft would. | The planet behind this page is rendered from real NASA and USGS data. It's a still frame, lit by where the Sun really was at the time shown in the bottom corner. | A poster is a still, so "right now" and "moving" aren't true yet. |
+| About, paragraph 3 | (Replaced 2026-11-04, see About below.) | | Phase 2 shows the live scene on computers and stills on phones, so the paragraph now covers both. |
 | Meta description | …and a live view of Mars. | …and a view of Mars rendered from real data. | Same reason |
 
 ## Meta
 
-- **Title:** Justin Powell · GTM engineering and RevOps
-- **Description:** I build AI revenue systems for B2B SaaS companies through RevOps Rocks. Here are my projects, my consulting work, and a live view of Mars.
+- **Title:** Justin Powell · falsy.dev
+- **Description:** I'm not a trained developer, but I spend most days building software with AI. Here are my projects, my consulting work through RevOps Rocks, and a view of Mars rendered from real data.
 
 ## Hero
 
-- **Eyebrow:** falsy.dev
+- **Eyebrow:** Adelaide · 34.9°S 138.6°E
 - **Headline:** Justin *Powell*
-- **Line:** I build AI revenue systems for B2B SaaS teams, mostly in HubSpot. I studied physics and economics, and I've worked in RevOps since 2012.
-- **Primary button:** Book a call →
-- **Secondary link:** See my projects
+- **Line:** I'm not a trained developer, but I spend most days building software with AI. (Approved 2026-11-03.)
+- **Buttons:** none. A quiet "Projects ↓" scroll cue instead.
+
+Projects now come before Consulting on the page (2026-11-03).
 
 ## Consulting
 
@@ -44,14 +45,14 @@ I run RevOps Rocks, a small consultancy for founders and COOs at B2B SaaS compan
 - **Renewal pipeline:** renewals show up in HubSpot months ahead, each with an owner and a next step.
 - **Forecasting and internal tools:** a forecast you can check line by line, plus the small tools your team keeps asking for.
 
-**How it works**
+**How it works** (cut from the site 2026-11-03; it belongs on revops.rocks)
 
 1. A free 30-minute scoping call.
 2. A fixed-price proposal.
 3. About four weeks of building, in HubSpot most of the time.
 4. Handover and training, so your team runs it from there.
 
-I don't bill by the hour, write strategy decks without building anything, or do Salesforce admin.
+(Cut from the site 2026-11-03.) I don't bill by the hour, write strategy decks without building anything, or do Salesforce admin.
 
 **Proof line:** I've been the first RevOps hire through one IPO and two acquisitions. Clients include UpGuard, Sherlok and Elita. RevOps Rocks is a HubSpot Gold Solutions Partner.
 
@@ -66,7 +67,7 @@ At Magnific (formerly Freepik), I led the AI rebuild of a legacy product. It wen
 ### KarstScout
 
 - **Card label:** PRJ-01 / GEOSPATIAL
-- **Card line:** Finds likely cave entrances in US LiDAR data.
+- **Card line:** Finds likely cave entrances in US LiDAR data, and lets you inspect each one in 3D.
 - **Tags:** python · pdal · sveltekit · maplibre
 
 **Detail page**
@@ -81,6 +82,8 @@ KarstScout scans USGS 3DEP LiDAR for places where a cave entrance is likely. It 
 
 It favours precision over recall, so it only flags places it's fairly sure about.
 
+My favourite part is the point view. Click a spot and it streams the raw LiDAR points around it into a 3D view in your browser, up to 12 million of them. You can spin and tilt it, hide everything but the ground, flip the surface so sinkholes show up as mounds, and measure the drop between two points.
+
 I built it for my dad, who's a serious caver. It's invite-only for now, for a small group of cavers and geologists.
 
 - **Status:** live, invite-only
@@ -89,14 +92,16 @@ I built it for my dad, who's a serious caver. It's invite-only for now, for a sm
 ### Stipendium
 
 - **Card label:** PRJ-02 / RESEARCH FUNDING
-- **Card line:** Matches individual researchers to the funding they're actually eligible for.
+- **Card line:** Shows individual researchers which grants they can apply for.
 - **Tags:** nextjs · supabase · cloudflare r2
 
 **Detail page**
 
-Most grant databases are sold to universities, and they're hard to use if you're one researcher trying to work out what you can apply for. Stipendium reads the eligibility rules from each funder's own documents and quotes them word for word, so you can check every match yourself.
+I built Stipendium for researchers looking for funding on their own. Most grant databases are sold to universities, so they're not much help to one person trying to figure out what they can apply for.
 
-It starts with Australia, and it handles the tricky cross-border cases, like a German citizen doing a PhD in Australia. When a rule is unclear, it doesn't count you as eligible.
+It reads the eligibility rules in each funder's own documents and quotes them word for word, so you can check them yourself. When a rule isn't clear, it doesn't list you as eligible.
+
+It covers Australia first, including cross-border cases like a German citizen doing a PhD here.
 
 - **Status:** early, with a waitlist open at stipendium.fyi
 - **Stack:** Next.js on Vercel, Supabase, Cloudflare R2 for the source archive, and PostHog without cookies
@@ -118,15 +123,34 @@ It checks more than 50,000 sources for new roles.
 - **Status:** live at revopsroles.com
 - **Stack:** Next.js on Vercel, BullMQ workers on Railway, Supabase, Meilisearch, Stripe, and the Claude API for classification
 
+### falsy.dev
+
+- **Card label:** PRJ-04 / THIS SITE
+- **Card line:** This site, and the live Mars orbit behind it, rendered from real NASA data.
+- **Tags:** astro · three.js · webgpu · cloudflare
+
+**Detail page**
+
+The background is a live render of Mars from a real orbit about 200 km up. The Sun is where it actually is right now, so the lighting and time of day match the real planet. The readout at the bottom shows where you are.
+
+The terrain comes from NASA's Mars Global Surveyor elevation data and the Viking orbiter colour mosaic. I cut both into about 130,000 small tiles, and the page streams only the ones in view, usually a few megabytes. Relief is exaggerated 2.5× so the mountains stand out from this height.
+
+It checks how fast your graphics card is and turns the quality down if it needs to. On phones, or with reduced motion turned on, you get a still image instead.
+
+- **Status:** live, with the code on GitHub at github.com/falsydotdev/falsy.dev (the repo must be public before launch)
+- **Stack:** Astro on Cloudflare Workers, three.js with WebGPU (and a WebGL2 fallback), and terrain tiles in Cloudflare R2
+
 ## About
 
 **Heading:** About
 
-I'm Justin. I'm American, I live in Adelaide, and I've worked in RevOps since 2012, in the US, the UK, Germany and Australia.
+I'm Justin. I'm American, I live in Adelaide, and I've worked in RevOps since 2012, in the US, the UK, Germany and Australia. I've also managed product and tech teams at EyeEm and at Slidesgo, which is part of Magnific.
 
-I studied physics for four years, first at the University of Arizona and then at the University of Utah, and graduated with a degree in economics and a minor in physics. Physics taught me to measure something before I try to change it. I still work that way: I look at what's actually in your CRM before I suggest a fix.
+I studied physics for four years, first at the University of Arizona and then at the University of Utah, and graduated with a degree in economics and a minor in physics. Physics taught me to measure something before I try to change it. I still work that way, whether it's a CRM or a LiDAR survey.
 
-The planet behind this page uses real NASA and USGS data, lit by where the Sun is right now. You're watching from a real low orbit, moving as fast as a spacecraft would. I built it because I like space and wanted my site to show the kind of work I do.
+In JavaScript, a `falsy` value acts false without actually being false. That's kind of how I feel when I talk about being a “developer”. (Approved 2026-11-03.)
+
+The planet behind this page is Mars, rendered from real NASA and USGS data. On a computer, you're watching it live from a real orbit about 200 km up, moving as fast as a spacecraft would, with the Sun where it really is right now. On a phone, you get a still from the same renderer. The mountains are stretched 2.5 times taller so they show up from that height. I built it because I love space and physics, and I wanted my site to show the kind of work I do. (Updated 2026-11-04 to be accurate for both the live view and the stills.)
 
 **Credits (footer):** Terrain from USGS Astrogeology: MOLA elevation and the Viking MDIM 2.1 colour mosaic. Moon data from NASA's Scientific Visualization Studio.
 
@@ -134,10 +158,12 @@ The planet behind this page uses real NASA and USGS data, lit by where the Sun i
 
 **Heading:** Contact
 
-The quickest way to start is a 30-minute call. I work Adelaide hours, and the booking page shows times in your time zone.
+If you want to talk about one of my projects, email is best.
+
+For consulting, the quickest way to start is a 30-minute call. I work Adelaide hours, and the booking page shows times in your time zone.
 
 - **Button:** Book a call → (links to https://meetings-eu1.hubspot.com/justin-powell/book-a-meeting-australia-time-zone)
-- **Email, shown as plain text:** justin@revops.rocks
+- **Email, shown as plain text:** hello@falsy.dev
 
 **Form intro:** Or tell me what you're working on, and I'll reply within one business day.
 
@@ -150,7 +176,7 @@ The quickest way to start is a 30-minute call. I work Adelaide hours, and the bo
 
 - **Submit button:** Send
 - **Success message:** Thanks! I'll be in touch soon.
-- **Error message:** That didn't send. Try again, or email me at justin@revops.rocks.
+- **Error message:** That didn't send. Try again, or email me at hello@falsy.dev.
 
 ## Small text
 
@@ -160,6 +186,6 @@ The quickest way to start is a 30-minute call. I work Adelaide hours, and the bo
 | 404 body | There's nothing here but empty space. |
 | 404 link | Back to the home page |
 | Loading (live scene) | Loading Mars terrain… / Loading lunar terrain… |
-| Telemetry example | MARS  18.6°N  226.2°E  LST 06:20  ALT 380 km  v 3.37 km/s  relief×2.5 |
+| Telemetry example | MARS  18.6°N  226.2°E  LST 06:20  ALT 200 km  v 3.45 km/s  relief×2.5 |
 | Explorer edge (v2) | You've reached the edge of the observable universe. Past here, everything is undefined. |
 | Reduced-motion note (title text on the readout) | Orbit paused because your device prefers reduced motion. |
