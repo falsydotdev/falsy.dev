@@ -1,4 +1,4 @@
-import { type Vec3, vec, marsFrame, toBody, sunJ2000, latLon, localSolarTime } from './ephemeris';
+import { type Vec3, vec, marsFrame, toBody, sunJ2000, latLon, localSolarTime } from './ephemeris.ts';
 
 export interface Body {
   name: string;

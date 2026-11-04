@@ -8,7 +8,10 @@ declare global {
   }
 }
 
-const DATA_URL = '/data';
+import { isTierName } from './quality.ts';
+
+// In development the dev server serves locally baked tiles at /data; production builds use R2.
+const DATA_URL = import.meta.env.PUBLIC_TILES_URL ?? '/data/mars';
 
 // Preview-only camera overrides, clamped to sensible real-orbit ranges.
 function numberParam(params: URLSearchParams, key: string, min: number, max: number) {
@@ -18,17 +21,37 @@ function numberParam(params: URLSearchParams, key: string, min: number, max: num
   return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : undefined;
 }
 
+// The hero text and header the camera frames the planet around, as viewport fractions.
+function measureLayout() {
+  const parts = [...document.querySelectorAll('.hero > :not(.scroll-cue)')].map((el) => el.getBoundingClientRect());
+  const header = document.querySelector('[data-header]')?.getBoundingClientRect();
+  if (parts.length === 0 || !header) return null;
+  const w = innerWidth;
+  const h = innerHeight;
+  return {
+    text: {
+      left: Math.min(...parts.map((r) => r.left)) / w,
+      right: Math.max(...parts.map((r) => r.right)) / w,
+      top: (Math.min(...parts.map((r) => r.top)) + scrollY) / h,
+      bottom: (Math.max(...parts.map((r) => r.bottom)) + scrollY) / h,
+    },
+    headerBottom: header.bottom / h,
+  };
+}
+
 export async function boot() {
   const params = new URLSearchParams(location.search);
   const sky = document.querySelector<HTMLElement>('#stage .sky');
   if (!sky || sky.dataset.scene !== 'pending') return;
   const fallBack = () => window.__falsyShowPoster?.();
 
-  // Until the tile pipeline lands, the live scene needs locally linked data (`npm run data`).
   const probe = await fetch(`${DATA_URL}/meta.json`, { method: 'HEAD' }).catch(() => null);
   if (!probe?.ok) return fallBack();
 
-  const timeScale = Math.max(1, Number(params.get('t') ?? 1) || 1);
+  const tParam = Number(params.get('t') ?? 1);
+  const timeScale = Number.isFinite(tParam) ? Math.max(0, tParam) : 1;
+  const at = params.has('at') ? new Date(params.get('at') ?? '') : undefined;
+  const tierParam = params.get('tier');
   try {
     const { startLiveScene } = await import('./live/scene.js');
     const live = await startLiveScene(sky, {
@@ -36,15 +59,29 @@ export async function boot() {
       shot: params.get('shot'),
       altKm: numberParam(params, 'alt', 120, 2000),
       tiltDeg: numberParam(params, 'tilt', -10, 60),
+      rollDeg: numberParam(params, 'roll', -45, 45),
       fovDeg: numberParam(params, 'fov', 15, 80),
+      farKm: numberParam(params, 'far', 0, 5000),
+      tier: isTierName(tierParam) ? tierParam : undefined,
+      at: at && !Number.isNaN(at.getTime()) ? at : undefined,
+      seed: numberParam(params, 'seed', 0, 2 ** 32 - 1),
+      feature: params.get('feature'),
+      scale: numberParam(params, 'scale', 0.5, 3),
+      skip: numberParam(params, 'skip', 0, 3600),
       timeScale,
       forceWebGL: params.has('webgl'),
       telemetry: document.getElementById('telemetry'),
+      layout: measureLayout,
+      onLost: () => {
+        sky.classList.remove('is-live');
+        fallBack();
+      },
       onFirstFrame: () => {
         sky.dataset.scene = 'live';
         sky.classList.add('is-live');
       },
     });
+    if (!live) return fallBack();
     window.__falsyLive = live;
     document.addEventListener('visibilitychange', () => live.setRunning(document.visibilityState === 'visible'));
     // The background stays visible beside the content, so past the first screen it slows down instead of stopping.

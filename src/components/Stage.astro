@@ -14,13 +14,14 @@ interface Poster {
   horizon: number;
   label: string;
   sources: { src: string; width: number }[];
+  portrait?: Pick<Poster, 'lat' | 'lon' | 'lst' | 'altKm' | 'at'> & { sources: { src: string; width: number }[] };
 }
 
 const posters = posterData as Poster[];
 const pad = (n: number) => String(n).padStart(2, '0');
 const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 
-function telemetry(p: Poster) {
+function telemetry(p: Pick<Poster, 'body' | 'lat' | 'lon' | 'lst' | 'altKm' | 'relief' | 'at'>) {
   const at = new Date(p.at);
   const lat = `${Math.abs(p.lat).toFixed(1)}°${p.lat >= 0 ? 'N' : 'S'}`;
   const lon = `${(((p.lon % 360) + 360) % 360).toFixed(1)}°E`;
@@ -37,12 +38,15 @@ function telemetry(p: Poster) {
   return parts.map(([text, cls]) => `<span${cls ? ` class="${cls}"` : ''}>${text}</span>`).join('');
 }
 
+const srcset = (sources: { src: string; width: number }[]) => sources.map((s) => `${s.src} ${s.width}w`).join(', ');
 const choices = posters.map((p) => ({
   id: p.id,
+  body: p.body.toLowerCase(),
   focus: p.focus,
   horizon: p.horizon,
   src: p.sources[1]?.src ?? p.sources[0].src,
-  srcset: p.sources.map((s) => `${s.src} ${s.width}w`).join(', '),
+  srcset: srcset(p.sources),
+  portrait: p.portrait ? { src: p.portrait.sources[0].src, srcset: srcset(p.portrait.sources), telemetry: telemetry({ ...p, ...p.portrait }) } : null,
   telemetry: telemetry(p),
   title: `${p.label}. A still frame rendered from MOLA elevation and Viking colour data, lit by the real Sun position at ${p.at.slice(0, 10)} ${p.at.slice(11, 16)} UTC. Relief is exaggerated ${p.relief}×.`,
 }));
@@ -51,7 +55,7 @@ const fallback = choices[0];
 
 <div id="stage" transition:persist="stage">
   <div class="sky" aria-hidden="true">
-    <img id="poster" alt="" decoding="async" fetchpriority="high" />
+    <img id="poster" alt="" decoding="async" />
     <noscript><img class="in" src={fallback.src} srcset={fallback.srcset} sizes="100vw" alt="" style={`object-position:${fallback.focus}`} /></noscript>
     <div class="grid"></div>
     <div class="scrim"></div>
@@ -66,6 +70,7 @@ const fallback = choices[0];
         if (force === '0') return false;
         if (force === '1') return true;
         if (matchMedia('(prefers-reduced-motion: reduce)').matches || innerWidth < 768) return false;
+        if (navigator.connection?.saveData) return false;
         if ('gpu' in navigator) return true;
         try { return !!document.createElement('canvas').getContext('webgl2'); } catch { return false; }
       })();
@@ -74,6 +79,7 @@ const fallback = choices[0];
       try { last = localStorage.getItem('falsy:poster'); } catch {}
       const pool = choices.length > 1 ? choices.filter((c) => c.id !== last) : choices;
       const pick = pool[Math.floor(Math.random() * pool.length)];
+      document.documentElement.dataset.body = pick.body ?? 'mars';
       const img = document.getElementById('poster');
       const t = document.getElementById('telemetry');
       const sky = img.closest('.sky');
@@ -83,13 +89,15 @@ const fallback = choices[0];
         try { localStorage.setItem('falsy:poster', pick.id); } catch {}
         const show = () => img.classList.add('in');
         img.addEventListener('load', show, { once: true });
-        img.style.objectPosition = pick.focus;
+        // Tall screens get a still framed for a phone layout, so the planet sits below the text.
+        const tall = pick.portrait && innerHeight > innerWidth;
+        img.style.objectPosition = tall ? '50% 50%' : pick.focus;
         img.sizes = '100vw';
-        img.srcset = pick.srcset;
-        img.src = pick.src;
+        img.srcset = tall ? pick.portrait.srcset : pick.srcset;
+        img.src = tall ? pick.portrait.src : pick.src;
         if (img.complete && img.naturalWidth) show();
         sky.style.setProperty('--horizon', String(pick.horizon));
-        t.innerHTML = pick.telemetry;
+        t.innerHTML = tall ? pick.portrait.telemetry : pick.telemetry;
         t.title = pick.title;
         t.dataset.poster = pick.id;
         sky.dataset.scene = 'poster';

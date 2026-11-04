@@ -9,7 +9,7 @@ export const consultancy = {
 export const person = {
   name: 'Justin Powell',
   firstName: 'Justin',
-  email: 'justin@revops.rocks',
+  email: 'hello@falsy.dev',
   bookingUrl: 'https://meetings-eu1.hubspot.com/justin-powell/book-a-meeting-australia-time-zone',
   linkedin: 'https://www.linkedin.com/in/powelljustin',
   github: 'https://github.com/falsydotdev',

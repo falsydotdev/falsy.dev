@@ -21,7 +21,7 @@ falsy.dev is Justin Powell's personal portfolio. He's a solo builder who isn't a
 
 ## Brand
 
-- falsy.dev lives under the RevOps-Rocks GitHub organization.
+- falsy.dev lives under Justin's personal GitHub account, `falsydotdev` (moved from the RevOps-Rocks organization on 2026-11-04).
 - The consulting section presents RevOps Rocks as the company you hire.
 - The consulting brand's name, logo, and links live in one config file. A rename from RevOps Rocks to falsy should be a one-line change plus redirects.
 - The name means Justin is a "falsy" developer: in JavaScript, a falsy value acts false without actually being false. About explains it in one line. Light wordplay on the void and `null` is fine in the 404 page, loading text, and the explorer's edge-of-universe message. Never in the headline.
@@ -79,7 +79,7 @@ Claude drafts all copy in Justin's voice with the `sound-like-justin` skill, and
 |---|---|---|
 | Ink | `#eef1f4` | |
 | Muted ink | `rgba(220, 228, 236, 0.7)` | |
-| Accent | `#9cc6ec` | The Martian-sunset blue. It's the only accent, because it stays readable over orange terrain and grey regolith. |
+| Accent | Mars `#e8915f`, Moon `#d8d4cc`, Earth `#6fc2b4` | Matches the body on screen, set by `data-body` on the root before first paint. Grid, glass borders and hover states are mixed from it. Chosen 2026-11-04 over a fixed blue after side-by-side mockups. Composition rules keep the planet out from behind accent text. |
 | Glass | `rgba(10, 16, 26, 0.46)`, with a 1px border at 24% accent | Card corners get an accent bracket. |
 
 - **Screen grid:** a coordinate grid in the empty sky, at 12% accent, fading out before the planet.
@@ -110,8 +110,8 @@ Choosing the orbit and where the camera starts on it is a camera choice. The clo
 
 Composition rules:
 
-- The horizon sits in the upper part of the frame.
-- Dark space stays behind the text column.
+- Dark space stays behind the text column. For each viewport, the camera's pitch and roll are solved so the limb, including about 35 km of glow above it, passes below the hero text and the header, then rises toward the upper right. The planet fills the open side of the page.
+- The bright side of every shot is on the right. Dawn-dusk orbits run with the dayside on the right, flyovers pass about 100 km to the left of their feature, and the orbital sunrise orbit is tipped 15° off the Sun line so the Sun rises right of centre.
 - The Sun stays out of frame by default. Strong forward scattering from Martian dust washes out the terrain when the camera looks into the Sun. The orbital sunrise shot is the exception: the Sun sits behind the planet's limb.
 
 ### Time and motion
@@ -126,7 +126,7 @@ Composition rules:
 - **Relief:** height is exaggerated 2.5× by default on rocky bodies. The telemetry says so, for example `RELIEF ×2.5`.
 - **Shadows:** terrain shadows are raymarched through the height data.
 - **Atmosphere:** Hillaire-style physically based scattering, with dust-dominated Mie scattering for Mars and no atmosphere for the Moon. It includes light shafts (volumetric shadowing) for the orbital sunrise shot.
-- **Heavy effects:** these use temporal accumulation, because the scene changes slowly.
+- **Heavy effects:** precomputed lookup tables keep the atmosphere to about 0.5 ms per frame, so temporal accumulation isn't needed. It stays an option if a heavier effect arrives, because the scene changes slowly.
 - **Scale:** the renderer uses a floating origin and reversed depth from day one, so the v2 zoom across 17 orders of magnitude works without a rewrite.
 
 ### Telemetry readout
@@ -178,8 +178,8 @@ PostHog in cookieless mode tracks:
 
 ## Repository
 
-- `RevOps-Rocks/falsy.dev`. It's private until launch, then goes public.
-- Secrets live only in Cloudflare and GitHub environment settings.
+- `falsydotdev/falsy.dev`. It's private until launch, then goes public. A gitleaks scan of all branches on 2026-11-04 found no credentials in the history.
+- Secrets live in Doppler, and in Cloudflare and GitHub settings where a deploy needs them. They're never committed.
 
 ## Data credits
 

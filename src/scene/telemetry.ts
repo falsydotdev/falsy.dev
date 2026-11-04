@@ -1,4 +1,4 @@
-import type { CameraSample } from './orbit';
+import type { CameraSample } from './orbit.ts';
 
 export interface TelemetryOptions {
   body: string;
