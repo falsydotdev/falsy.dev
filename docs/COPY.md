@@ -16,7 +16,7 @@ Phase 1 ships with poster stills, not the live scene, so two lines that claim "l
 
 | Spot | Before (approved) | After (Phase 1) | Why |
 |---|---|---|---|
-| About, paragraph 3 | The planet behind this page uses real NASA and USGS data, lit by where the Sun is right now. You're watching from a real low orbit, moving as fast as a spacecraft would. | The planet behind this page is rendered from real NASA and USGS data. It's a still frame, lit by where the Sun really was at the time shown in the bottom corner. | A poster is a still, so "right now" and "moving" aren't true yet. |
+| About, paragraph 3 | (Replaced 2026-11-04, see About below.) | | Phase 2 shows the live scene on computers and stills on phones, so the paragraph now covers both. |
 | Meta description | …and a live view of Mars. | …and a view of Mars rendered from real data. | Same reason |
 
 ## Meta
@@ -150,7 +150,7 @@ I studied physics for four years, first at the University of Arizona and then at
 
 In JavaScript, a `falsy` value acts false without actually being false. That's kind of how I feel when I talk about being a “developer”. (Approved 2026-11-03.)
 
-The planet behind this page uses real NASA and USGS data, lit by where the Sun is right now. You're watching from a real low orbit, moving as fast as a spacecraft would. I built it because I like space and wanted my site to show the kind of work I do.
+The planet behind this page is Mars, rendered from real NASA and USGS data. On a computer, you're watching it live from a real orbit about 200 km up, moving as fast as a spacecraft would, with the Sun where it really is right now. On a phone, you get a still from the same renderer. The mountains are stretched 2.5 times taller so they show up from that height. I built it because I love space and physics, and I wanted my site to show the kind of work I do. (Updated 2026-11-04 to be accurate for both the live view and the stills.)
 
 **Credits (footer):** Terrain from USGS Astrogeology: MOLA elevation and the Viking MDIM 2.1 colour mosaic. Moon data from NASA's Scientific Visualization Studio.
 
