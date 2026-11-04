@@ -8,5 +8,7 @@
     "html_handling": "drop-trailing-slash"
   },
   "routes": [{ "pattern": "falsy.dev", "custom_domain": true }],
+  // Workers Builds runs `wrangler preview` for pull requests, which needs this block.
+  "previews": {},
   "observability": { "enabled": true }
 }
