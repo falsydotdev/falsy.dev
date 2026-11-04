@@ -12,12 +12,17 @@ import { chooseShot, dawnDusk, orbitalSunrise, featureFlyover, seededRandom } fr
 import { MARS_FEATURES } from '../features.ts';
 import { telemetryParts } from '../telemetry';
 import { Governor, initialTier, renderPixelRatio, tier as tierByName } from '../quality.ts';
+import { solveFraming } from '../composition.ts';
 
 const DEG = Math.PI / 180;
 const RELIEF = 2.5;
 const HAZE = 0.2;
-// Camera defaults. Tilt is degrees below the horizon beyond the geometric dip; it puts the horizon in the upper frame.
-export const CAMERA_DEFAULTS = { altKm: 200, tiltDeg: 12, fovDeg: 50 };
+// Camera defaults. Tilt (degrees below the horizon beyond the geometric dip) and roll come from
+// the framing solver for each viewport unless a preview URL sets them.
+export const CAMERA_DEFAULTS = { altKm: 200, fovDeg: 50 };
+// Where the hero text sits when the page has none to measure, as viewport fractions.
+const DEFAULT_TEXT_BOX = { left: 0.06, right: 0.55, top: 0.12, bottom: 0.42 };
+const DEFAULT_HEADER_BOTTOM = 0.07;
 // Telemetry items hidden on narrow screens, matching the poster readout.
 const WIDE_FROM = 4;
 
@@ -35,7 +40,7 @@ function buildShot(kind, now, altKm, rand, featureId) {
  * Starts the live Mars scene inside `host`.
  * @param {HTMLElement} host
  * Resolves to null when this machine should get the poster instead.
- * @param {{ dataUrl: string, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void, onLost?: () => void, farKm?: number, altKm?: number, tiltDeg?: number, fovDeg?: number, tier?: import('../quality.ts').TierName, at?: Date, seed?: number, feature?: string | null, scale?: number }} opts
+ * @param {{ dataUrl: string, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void, onLost?: () => void, farKm?: number, altKm?: number, tiltDeg?: number, rollDeg?: number, fovDeg?: number, tier?: import('../quality.ts').TierName, at?: Date, seed?: number, feature?: string | null, scale?: number, layout?: () => { text: import('../composition.ts').Box, headerBottom: number } | null }} opts
  */
 // One tile per array layer; 512 layers hold a 4K view with headroom and cost about 180 MB of GPU memory.
 const WANTED_LAYERS = 512;
@@ -68,7 +73,14 @@ function webglRenderer(gl) {
 
 export async function startLiveScene(host, opts) {
   const timeScale = opts.timeScale ?? 1;
-  const cam = { altKm: opts.altKm ?? CAMERA_DEFAULTS.altKm, tiltDeg: opts.tiltDeg ?? CAMERA_DEFAULTS.tiltDeg, fovDeg: opts.fovDeg ?? CAMERA_DEFAULTS.fovDeg };
+  const cam = { altKm: opts.altKm ?? CAMERA_DEFAULTS.altKm, fovDeg: opts.fovDeg ?? CAMERA_DEFAULTS.fovDeg, tiltDeg: 0, rollDeg: 0 };
+  const frameView = () => {
+    const page = opts.layout?.() ?? { text: DEFAULT_TEXT_BOX, headerBottom: DEFAULT_HEADER_BOTTOM };
+    const solved = solveFraming({ radiusKm: RADIUS_KM, altKm: cam.altKm, fovDeg: cam.fovDeg, aspect: innerWidth / innerHeight, ...page });
+    cam.tiltDeg = opts.tiltDeg ?? solved.tiltDeg;
+    cam.rollDeg = opts.rollDeg ?? solved.rollDeg;
+  };
+  frameView();
   const forceWebGL = opts.forceWebGL ?? false;
   const probe = await probeAdapter(forceWebGL);
   let gpuLayers = probe.layers;
@@ -110,7 +122,10 @@ export async function startLiveScene(host, opts) {
     snapshot = null;
     resumeStarted = 0;
   };
+  let reframe = 0;
   const onResize = () => {
+    clearTimeout(reframe);
+    reframe = setTimeout(frameView, 150);
     camera.aspect = innerWidth / innerHeight;
     camera.updateProjectionMatrix();
     renderer.setPixelRatio(pixelRatio(tier));
@@ -120,6 +135,7 @@ export async function startLiveScene(host, opts) {
     stopped = true;
     renderer.setAnimationLoop(null);
     removeEventListener('resize', onResize);
+    clearTimeout(reframe);
     planet?.dispose();
     pipeline?.dispose();
     renderer.dispose();
@@ -184,7 +200,7 @@ export async function startLiveScene(host, opts) {
     const s = sample(shot.orbit, date);
     const f = marsFrame(date);
     const vBody = [vec.dot(s.v, f.x), vec.dot(s.v, f.y), vec.dot(s.v, f.z)];
-    const pose = orbitCameraPose(s.rBody, vBody, RADIUS_KM, cam.tiltDeg);
+    const pose = orbitCameraPose(s.rBody, vBody, RADIUS_KM, cam.tiltDeg, cam.rollDeg);
 
     camera.position.copy(toWorld(s.rBody));
     camera.up.copy(toWorld(pose.up));
@@ -232,6 +248,7 @@ export async function startLiveScene(host, opts) {
   const state = {
     frames: 0, shot: shot.kind, backend: hints.backend, gpu: hints.vendor ?? hints.description, canvas: renderer.domElement, layers, tiles: planet.stats, firstFrameMs: 0,
     tier: tier.name, timing: governor ? (gpuTiming ? 'gpu' : 'cadence') : 'forced', gpuMs: 0, gpuLog: [], load: 0, tierChanges: [],
+    framing: cam,
   };
   const started = performance.now();
 

@@ -110,8 +110,8 @@ Choosing the orbit and where the camera starts on it is a camera choice. The clo
 
 Composition rules:
 
-- The horizon sits in the upper part of the frame.
-- Dark space stays behind the text column.
+- Dark space stays behind the text column. For each viewport, the camera's pitch and roll are solved so the limb, including about 35 km of glow above it, passes below the hero text and the header, then rises toward the upper right. The planet fills the open side of the page.
+- The bright side of every shot is on the right. Dawn-dusk orbits run with the dayside on the right, flyovers pass about 100 km to the left of their feature, and the orbital sunrise orbit is tipped 15° off the Sun line so the Sun rises right of centre.
 - The Sun stays out of frame by default. Strong forward scattering from Martian dust washes out the terrain when the camera looks into the Sun. The orbital sunrise shot is the exception: the Sun sits behind the planet's limb.
 
 ### Time and motion

@@ -1,4 +1,4 @@
-import { type Vec3, vec, marsFrame, fromBody, sunJ2000, bodyVector, sunElevationAt } from './ephemeris.ts';
+import { type Vec3, DEG, vec, marsFrame, fromBody, sunJ2000, bodyVector, sunElevationAt } from './ephemeris.ts';
 import { type Body, type CircularOrbit, MARS, circularOrbit } from './orbit.ts';
 import { type Feature, MARS_FEATURES } from './features.ts';
 
@@ -22,6 +22,11 @@ const DEFAULTS = { body: MARS, altKm: 200 };
 const SUNRISE_LEAD_S = 60;
 const FLYOVER_LEAD_S = 180;
 const LOW_SUN = { min: 5, max: 25 };
+// The text column is on the left, so every shot keeps the bright side of the frame on the right:
+// the Sun lights the right-hand terrain, a flyover passes its feature on the right, and the
+// sunrise breaks right of centre.
+const FLYOVER_OFFSET_KM = 100;
+const SUNRISE_RIGHT_DEG = 15;
 
 // Two unit vectors that, with `axis`, make a right-handed orthonormal basis. The
 // first lies in the body's equatorial plane, so results don't depend on J2000 quirks.
@@ -32,20 +37,22 @@ function perpendicularBasis(axis: Vec3, pole: Vec3): [Vec3, Vec3] {
   return [u, vec.cross(axis, u)];
 }
 
+/** The camera's right-hand direction for an orbit camera at `r` moving along `v`. */
+export const cameraRight = (r: Vec3, v: Vec3) => vec.norm(vec.cross(v, r));
+
 // An orbit whose plane is perpendicular to the Sun line, so the camera stays over
 // the terminator. It isn't a J2-precessing sun-synchronous orbit, but over a visit
-// of minutes the two are indistinguishable.
+// of minutes the two are indistinguishable. It runs so the dayside is on the right.
 export function dawnDusk(now: Date, opts: ShotOptions = {}): Shot {
   const { body, altKm } = { ...DEFAULTS, ...opts };
   const rand = opts.rand ?? Math.random;
   const sun = sunJ2000(now);
   const [u, w] = perpendicularBasis(sun, marsFrame(now).z);
-  const e2 = rand() < 0.5 ? w : vec.scale(w, -1);
-  return { kind: 'dawn-dusk', orbit: circularOrbit(body, now, altKm, u, e2, rand() * 2 * Math.PI) };
+  return { kind: 'dawn-dusk', orbit: circularOrbit(body, now, altKm, u, vec.scale(w, -1), rand() * 2 * Math.PI) };
 }
 
-// An orbit with the Sun line in its plane, starting on the night side shortly
-// before the camera leaves the planet's shadow.
+// An orbit tipped a little off the Sun line, starting on the night side shortly before the
+// camera leaves the planet's shadow. The tip puts the sunrise right of centre.
 export function orbitalSunrise(now: Date, opts: ShotOptions = {}): Shot {
   const { body, altKm } = { ...DEFAULTS, ...opts };
   const rand = opts.rand ?? Math.random;
@@ -53,9 +60,13 @@ export function orbitalSunrise(now: Date, opts: ShotOptions = {}): Shot {
   const [p, q] = perpendicularBasis(sun, marsFrame(now).z);
   const phi = rand() * 2 * Math.PI;
   const u = vec.add(vec.scale(p, Math.cos(phi)), vec.scale(q, Math.sin(phi)));
-  const probe = circularOrbit(body, now, altKm, sun, u, 0);
-  // r = a (cos θ s + sin θ u) is in shadow for θ in (π − β, π + β), sin β = R / a.
-  const exit = Math.PI + Math.asin(body.radiusKm / probe.a);
+  const tip = SUNRISE_RIGHT_DEG * DEG;
+  const e1 = vec.add(vec.scale(sun, Math.cos(tip)), vec.scale(vec.cross(sun, u), Math.sin(tip)));
+  const probe = circularOrbit(body, now, altKm, e1, u, 0);
+  // r = a (cos θ e1 + sin θ u) has a·cos θ·cos(tip) along the Sun line, so it's in the
+  // cylindrical shadow while cos θ < −c, with c = √(1 − R²/a²) / cos(tip).
+  const c = Math.sqrt(1 - (body.radiusKm / probe.a) ** 2) / Math.cos(tip);
+  const exit = Math.PI + Math.acos(c);
   const orbit = { ...probe, theta0: exit - probe.n * SUNRISE_LEAD_S };
   return { kind: 'orbital-sunrise', orbit, keyMoment: new Date(now.getTime() + SUNRISE_LEAD_S * 1000) };
 }
@@ -67,9 +78,9 @@ export function lowSunFeatures(when: Date, features: Feature[] = MARS_FEATURES) 
   });
 }
 
-// An orbit whose ground track crosses a low-Sun feature a few minutes after load,
-// travelling along the local terminator so the Sun stays off to the side. `anySun` drops
-// the low-Sun filter, for previewing one feature whatever its time of day.
+// An orbit whose ground track passes a low-Sun feature a few minutes after load, with the
+// feature off to the right. It travels along the local terminator so the Sun stays to the
+// right too. `anySun` drops the low-Sun filter, for previewing one feature at any time of day.
 export function featureFlyover(now: Date, opts: ShotOptions & { features?: Feature[]; anySun?: boolean } = {}): Shot | null {
   const { body, altKm } = { ...DEFAULTS, ...opts };
   const rand = opts.rand ?? Math.random;
@@ -78,9 +89,10 @@ export function featureFlyover(now: Date, opts: ShotOptions & { features?: Featu
   if (candidates.length === 0) return null;
   const feature = candidates[Math.floor(rand() * candidates.length)];
   const f = fromBody(marsFrame(pass), bodyVector(feature.lat, feature.lon));
-  let along = vec.norm(vec.cross(sunJ2000(pass), f));
-  if (rand() < 0.5) along = vec.scale(along, -1);
-  const probe = circularOrbit(body, now, altKm, f, along, 0);
+  const along = vec.norm(vec.cross(f, sunJ2000(pass)));
+  const offset = FLYOVER_OFFSET_KM / body.radiusKm;
+  const track = vec.sub(vec.scale(f, Math.cos(offset)), vec.scale(cameraRight(f, along), Math.sin(offset)));
+  const probe = circularOrbit(body, now, altKm, track, along, 0);
   const orbit = { ...probe, theta0: -probe.n * FLYOVER_LEAD_S };
   return { kind: 'feature-flyover', orbit, feature, keyMoment: pass };
 }

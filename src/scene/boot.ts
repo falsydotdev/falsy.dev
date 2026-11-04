@@ -21,6 +21,24 @@ function numberParam(params: URLSearchParams, key: string, min: number, max: num
   return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : undefined;
 }
 
+// The hero text and header the camera frames the planet around, as viewport fractions.
+function measureLayout() {
+  const parts = [...document.querySelectorAll('.hero > :not(.scroll-cue)')].map((el) => el.getBoundingClientRect());
+  const header = document.querySelector('[data-header]')?.getBoundingClientRect();
+  if (parts.length === 0 || !header) return null;
+  const w = innerWidth;
+  const h = innerHeight;
+  return {
+    text: {
+      left: Math.min(...parts.map((r) => r.left)) / w,
+      right: Math.max(...parts.map((r) => r.right)) / w,
+      top: (Math.min(...parts.map((r) => r.top)) + scrollY) / h,
+      bottom: (Math.max(...parts.map((r) => r.bottom)) + scrollY) / h,
+    },
+    headerBottom: header.bottom / h,
+  };
+}
+
 export async function boot() {
   const params = new URLSearchParams(location.search);
   const sky = document.querySelector<HTMLElement>('#stage .sky');
@@ -41,6 +59,7 @@ export async function boot() {
       shot: params.get('shot'),
       altKm: numberParam(params, 'alt', 120, 2000),
       tiltDeg: numberParam(params, 'tilt', -10, 60),
+      rollDeg: numberParam(params, 'roll', -45, 45),
       fovDeg: numberParam(params, 'fov', 15, 80),
       farKm: numberParam(params, 'far', 0, 5000),
       tier: isTierName(tierParam) ? tierParam : undefined,
@@ -51,6 +70,7 @@ export async function boot() {
       timeScale,
       forceWebGL: params.has('webgl'),
       telemetry: document.getElementById('telemetry'),
+      layout: measureLayout,
       onLost: () => {
         sky.classList.remove('is-live');
         fallBack();
