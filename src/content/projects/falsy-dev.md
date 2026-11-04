@@ -7,8 +7,8 @@ tags: [astro, three.js, webgpu, cloudflare]
 status: Live, with the code on GitHub
 stack: Astro on Cloudflare Workers, three.js with WebGPU (and a WebGL2 fallback), and terrain tiles in Cloudflare R2
 link:
-  href: https://github.com/RevOps-Rocks/falsy.dev
-  text: github.com/RevOps-Rocks/falsy.dev
+  href: https://github.com/falsydotdev/falsy.dev
+  text: github.com/falsydotdev/falsy.dev
 ---
 
 The background is a live render of Mars from a real orbit about 200 km up. The Sun is where it actually is right now, so the lighting and time of day match the real planet. The readout at the bottom shows where you are.

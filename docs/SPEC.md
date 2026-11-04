@@ -21,7 +21,7 @@ falsy.dev is Justin Powell's personal portfolio. He's a solo builder who isn't a
 
 ## Brand
 
-- falsy.dev lives under the RevOps-Rocks GitHub organization.
+- falsy.dev lives under Justin's personal GitHub account, `falsydotdev` (moved from the RevOps-Rocks organization on 2026-11-04).
 - The consulting section presents RevOps Rocks as the company you hire.
 - The consulting brand's name, logo, and links live in one config file. A rename from RevOps Rocks to falsy should be a one-line change plus redirects.
 - The name means Justin is a "falsy" developer: in JavaScript, a falsy value acts false without actually being false. About explains it in one line. Light wordplay on the void and `null` is fine in the 404 page, loading text, and the explorer's edge-of-universe message. Never in the headline.
@@ -178,8 +178,8 @@ PostHog in cookieless mode tracks:
 
 ## Repository
 
-- `RevOps-Rocks/falsy.dev`. It's private until launch, then goes public.
-- Secrets live only in Cloudflare and GitHub environment settings.
+- `falsydotdev/falsy.dev`. It's private until launch, then goes public. A gitleaks scan of all branches on 2026-11-04 found no credentials in the history.
+- Secrets live in Doppler, and in Cloudflare and GitHub settings where a deploy needs them. They're never committed.
 
 ## Data credits
 
