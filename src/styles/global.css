@@ -9,12 +9,15 @@
   --ink: #eef1f4;
   --muted: rgba(220, 228, 236, 0.7);
   --faint: rgba(220, 228, 236, 0.5);
-  --accent: #9cc6ec;
-  --accent-ink: #0b1420;
-  --grid: rgba(156, 198, 236, 0.12);
+  /* The accent takes the colour of the body on screen; Mars is the default. */
+  --accent: #e8915f;
+  --accent-ink: #1a0d06;
+  --accent-wash: color-mix(in srgb, var(--accent) 12%, transparent);
+  --grid: color-mix(in srgb, var(--accent) 12%, transparent);
   --glass: rgba(10, 16, 26, 0.46);
   --glass-strong: rgba(8, 12, 20, 0.72);
-  --glass-line: rgba(156, 198, 236, 0.24);
+  --glass-line: color-mix(in srgb, var(--accent) 24%, transparent);
+  --glass-hover: color-mix(in srgb, var(--accent) 55%, transparent);
 
   --display: 'Instrument Serif', Georgia, 'Times New Roman', serif;
   --body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -135,8 +138,18 @@ img {
   background: transparent;
 }
 
+:root[data-body='moon'] {
+  --accent: #d8d4cc;
+  --accent-ink: #11100e;
+}
+
+:root[data-body='earth'] {
+  --accent: #6fc2b4;
+  --accent-ink: #04140f;
+}
+
 .button.secondary:hover {
-  background: rgba(156, 198, 236, 0.12);
+  background: var(--accent-wash);
 }
 
 .glass {

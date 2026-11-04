@@ -39,6 +39,7 @@ function telemetry(p: Poster) {
 
 const choices = posters.map((p) => ({
   id: p.id,
+  body: p.body.toLowerCase(),
   focus: p.focus,
   horizon: p.horizon,
   src: p.sources[1]?.src ?? p.sources[0].src,
@@ -75,6 +76,7 @@ const fallback = choices[0];
       try { last = localStorage.getItem('falsy:poster'); } catch {}
       const pool = choices.length > 1 ? choices.filter((c) => c.id !== last) : choices;
       const pick = pool[Math.floor(Math.random() * pool.length)];
+      document.documentElement.dataset.body = pick.body ?? 'mars';
       const img = document.getElementById('poster');
       const t = document.getElementById('telemetry');
       const sky = img.closest('.sky');

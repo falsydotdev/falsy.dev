@@ -79,7 +79,7 @@ Claude drafts all copy in Justin's voice with the `sound-like-justin` skill, and
 |---|---|---|
 | Ink | `#eef1f4` | |
 | Muted ink | `rgba(220, 228, 236, 0.7)` | |
-| Accent | `#9cc6ec` | The Martian-sunset blue. It's the only accent, because it stays readable over orange terrain and grey regolith. |
+| Accent | Mars `#e8915f`, Moon `#d8d4cc`, Earth `#6fc2b4` | Matches the body on screen, set by `data-body` on the root before first paint. Grid, glass borders and hover states are mixed from it. Chosen 2026-11-04 over a fixed blue after side-by-side mockups. Composition rules keep the planet out from behind accent text. |
 | Glass | `rgba(10, 16, 26, 0.46)`, with a 1px border at 24% accent | Card corners get an accent bracket. |
 
 - **Screen grid:** a coordinate grid in the empty sky, at 12% accent, fading out before the planet.
