@@ -67,7 +67,7 @@ At Magnific (formerly Freepik), I led the AI rebuild of a legacy product. It wen
 ### KarstScout
 
 - **Card label:** PRJ-01 / GEOSPATIAL
-- **Card line:** Finds likely cave entrances in US LiDAR data.
+- **Card line:** Finds likely cave entrances in US LiDAR data, and lets you inspect each one in 3D.
 - **Tags:** python · pdal · sveltekit · maplibre
 
 **Detail page**
@@ -81,6 +81,8 @@ KarstScout scans USGS 3DEP LiDAR for places where a cave entrance is likely. It 
 5. Scores a shortlist.
 
 It favours precision over recall, so it only flags places it's fairly sure about.
+
+My favourite part is the point view. Click a spot and it streams the raw LiDAR points around it into a 3D view in your browser, up to 12 million of them. You can spin and tilt it, hide everything but the ground, flip the surface so sinkholes show up as mounds, and measure the drop between two points.
 
 I built it for my dad, who's a serious caver. It's invite-only for now, for a small group of cavers and geologists.
 
