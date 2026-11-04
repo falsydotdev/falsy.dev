@@ -95,7 +95,8 @@ function setExaggeration(x) {
 
 // --- Time -------------------------------------------------------------------
 const startWall = performance.now();
-let baseDate = new Date();
+const fixedDate = params.has('at') ? new Date(params.get('at')) : null;
+let baseDate = fixedDate ?? new Date();
 let modeSwitched = false;
 let sunriseDate = null;
 function simDate() {
@@ -113,13 +114,13 @@ async function applyMode() {
   setExaggeration(exag);
   if (state.mode === 'olympus') {
     if (!params.has('heading')) state.heading = 85;
-    sunriseDate ??= nextSunrise(new Date(), OLYMPUS.lat, OLYMPUS.lon, 7);
+    sunriseDate ??= fixedDate ?? nextSunrise(new Date(), OLYMPUS.lat, OLYMPUS.lon, 7);
     baseDate = sunriseDate;
     region.mesh.visible = true;
     global.holeEnabled.value = 1;
   } else {
     if (!params.has('heading')) state.heading = 75 + Math.random() * 40;
-    baseDate = new Date();
+    baseDate = fixedDate ?? new Date();
     if (region) region.mesh.visible = false;
     global.holeEnabled.value = 0;
   }

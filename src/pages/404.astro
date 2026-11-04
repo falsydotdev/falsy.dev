@@ -1,0 +1,34 @@
+---
+import Base from '../layouts/Base.astro';
+import { site } from '../config/brand';
+---
+
+<Base title={`Not found · ${site.name}`} description="There's nothing here but empty space.">
+  <section class="void" aria-labelledby="void-title">
+    <p class="label">404 / null</p>
+    <h1 id="void-title">This page is <em>falsy</em></h1>
+    <p>There's nothing here but empty space.</p>
+    <a class="button primary" href="/">Back to the home page</a>
+  </section>
+</Base>
+
+<style>
+  .void {
+    display: grid;
+    justify-items: start;
+    gap: 20px;
+    margin: clamp(48px, 16vh, 180px) var(--gutter) 0;
+    max-width: 40rem;
+  }
+
+  h1 {
+    font-size: var(--step-4);
+    line-height: 0.95;
+  }
+
+  p:not(.label) {
+    font-size: var(--step-1);
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+</style>

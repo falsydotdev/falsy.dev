@@ -1,0 +1,211 @@
+---
+import posterData from '../data/posters.json';
+
+interface Poster {
+  id: string;
+  body: string;
+  lat: number;
+  lon: number;
+  lst: string;
+  altKm: number;
+  relief: number;
+  at: string;
+  focus: string;
+  horizon: number;
+  label: string;
+  sources: { src: string; width: number }[];
+  portrait?: Pick<Poster, 'lat' | 'lon' | 'lst' | 'altKm' | 'at'> & { sources: { src: string; width: number }[] };
+}
+
+const posters = posterData as Poster[];
+const pad = (n: number) => String(n).padStart(2, '0');
+const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+
+function telemetry(p: Pick<Poster, 'body' | 'lat' | 'lon' | 'lst' | 'altKm' | 'relief' | 'at'>) {
+  const at = new Date(p.at);
+  const lat = `${Math.abs(p.lat).toFixed(1)}°${p.lat >= 0 ? 'N' : 'S'}`;
+  const lon = `${(((p.lon % 360) + 360) % 360).toFixed(1)}°E`;
+  const still = `${pad(at.getUTCDate())} ${months[at.getUTCMonth()]} ${pad(at.getUTCHours())}:${pad(at.getUTCMinutes())} UTC`;
+  const parts = [
+    [p.body.toUpperCase(), ''],
+    [lat, ''],
+    [lon, ''],
+    [`LST ${p.lst}`, ''],
+    [`ALT ${p.altKm} km`, 'wide'],
+    [`relief×${p.relief}`, 'wide'],
+    [`still ${still}`, 'wide'],
+  ];
+  return parts.map(([text, cls]) => `<span${cls ? ` class="${cls}"` : ''}>${text}</span>`).join('');
+}
+
+const srcset = (sources: { src: string; width: number }[]) => sources.map((s) => `${s.src} ${s.width}w`).join(', ');
+const choices = posters.map((p) => ({
+  id: p.id,
+  body: p.body.toLowerCase(),
+  focus: p.focus,
+  horizon: p.horizon,
+  src: p.sources[1]?.src ?? p.sources[0].src,
+  srcset: srcset(p.sources),
+  portrait: p.portrait ? { src: p.portrait.sources[0].src, srcset: srcset(p.portrait.sources), telemetry: telemetry({ ...p, ...p.portrait }) } : null,
+  telemetry: telemetry(p),
+  title: `${p.label}. A still frame rendered from MOLA elevation and Viking colour data, lit by the real Sun position at ${p.at.slice(0, 10)} ${p.at.slice(11, 16)} UTC. Relief is exaggerated ${p.relief}×.`,
+}));
+const fallback = choices[0];
+---
+
+<div id="stage" transition:persist="stage">
+  <div class="sky" aria-hidden="true">
+    <img id="poster" alt="" decoding="async" />
+    <noscript><img class="in" src={fallback.src} srcset={fallback.srcset} sizes="100vw" alt="" style={`object-position:${fallback.focus}`} /></noscript>
+    <div class="grid"></div>
+    <div class="scrim"></div>
+  </div>
+  <p id="telemetry" class="telemetry"></p>
+  <script is:inline define:vars={{ choices }}>
+    (() => {
+      // Decide before anything paints: visitors who'll get the live scene see dark
+      // space until it fades in, so a poster of somewhere else never flashes first.
+      const willTryLive = (() => {
+        const force = new URLSearchParams(location.search).get('live');
+        if (force === '0') return false;
+        if (force === '1') return true;
+        if (matchMedia('(prefers-reduced-motion: reduce)').matches || innerWidth < 768) return false;
+        if (navigator.connection?.saveData) return false;
+        if ('gpu' in navigator) return true;
+        try { return !!document.createElement('canvas').getContext('webgl2'); } catch { return false; }
+      })();
+
+      let last = null;
+      try { last = localStorage.getItem('falsy:poster'); } catch {}
+      const pool = choices.length > 1 ? choices.filter((c) => c.id !== last) : choices;
+      const pick = pool[Math.floor(Math.random() * pool.length)];
+      document.documentElement.dataset.body = pick.body ?? 'mars';
+      const img = document.getElementById('poster');
+      const t = document.getElementById('telemetry');
+      const sky = img.closest('.sky');
+
+      const showPoster = () => {
+        if (img.getAttribute('src')) return;
+        try { localStorage.setItem('falsy:poster', pick.id); } catch {}
+        const show = () => img.classList.add('in');
+        img.addEventListener('load', show, { once: true });
+        // Tall screens get a still framed for a phone layout, so the planet sits below the text.
+        const tall = pick.portrait && innerHeight > innerWidth;
+        img.style.objectPosition = tall ? '50% 50%' : pick.focus;
+        img.sizes = '100vw';
+        img.srcset = tall ? pick.portrait.srcset : pick.srcset;
+        img.src = tall ? pick.portrait.src : pick.src;
+        if (img.complete && img.naturalWidth) show();
+        sky.style.setProperty('--horizon', String(pick.horizon));
+        t.innerHTML = tall ? pick.portrait.telemetry : pick.telemetry;
+        t.title = pick.title;
+        t.dataset.poster = pick.id;
+        sky.dataset.scene = 'poster';
+      };
+      window.__falsyShowPoster = showPoster;
+
+      if (!willTryLive) return showPoster();
+      sky.dataset.scene = 'pending';
+      sky.style.setProperty('--horizon', '0.3');
+      t.textContent = 'Loading Mars terrain…';
+      // If the live scene hasn't taken over by now, something went wrong: fall back.
+      setTimeout(() => { if (sky.dataset.scene === 'pending') showPoster(); }, 12000);
+    })();
+  </script>
+</div>
+
+<style>
+  .sky {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+  }
+
+  .sky img,
+  .grid,
+  .scrim {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .sky img {
+    object-fit: cover;
+    opacity: 0;
+    transition: opacity 900ms ease;
+  }
+
+  .sky img:global(.in) {
+    opacity: 1;
+  }
+
+  .sky :global(.live-canvas) {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    transition: opacity 1200ms ease;
+  }
+
+  .sky:global(.is-live) :global(.live-canvas) {
+    opacity: 1;
+  }
+
+  .sky:global(.is-live) img {
+    opacity: 0;
+  }
+
+  .grid {
+    --cell: clamp(56px, 8vw, 128px);
+    background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: var(--cell) var(--cell);
+    background-position: calc(var(--gutter) - 1px) -1px;
+    mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.45) calc(var(--horizon, 0.5) * 70%), transparent calc(var(--horizon, 0.5) * 92%));
+  }
+
+  .scrim {
+    background:
+      linear-gradient(90deg, rgba(5, 7, 11, 0.7) 0%, rgba(5, 7, 11, 0.35) 38%, transparent 62%),
+      linear-gradient(0deg, rgba(5, 7, 11, 0.55) 0%, transparent 30%);
+  }
+
+  .telemetry {
+    position: fixed;
+    left: var(--gutter);
+    right: var(--gutter);
+    bottom: 0;
+    z-index: 5;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 1.6em;
+    margin: 0;
+    padding: 0.85em 0 max(0.9em, env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--grid);
+    background: rgba(5, 7, 11, 0.7);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 0 0 100vmax rgba(5, 7, 11, 0.7);
+    clip-path: inset(0 -100vmax 0 -100vmax);
+    font: 300 var(--step--2) / 1 var(--data);
+    letter-spacing: 0.04em;
+    color: var(--accent);
+    pointer-events: auto;
+  }
+
+  .telemetry :global(span) {
+    white-space: nowrap;
+  }
+
+  @media (max-width: 640px) {
+    .scrim {
+      background: linear-gradient(180deg, rgba(5, 7, 11, 0.5) 0%, rgba(5, 7, 11, 0.45) 55%, rgba(5, 7, 11, 0.2) 75%, rgba(5, 7, 11, 0.5) 100%);
+    }
+
+    .telemetry :global(.wide) {
+      display: none;
+    }
+  }
+</style>

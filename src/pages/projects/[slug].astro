@@ -1,0 +1,150 @@
+---
+import { getCollection, render } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import { person, site } from '../../config/brand';
+
+export async function getStaticPaths() {
+  const projects = await getCollection('projects');
+  return projects.map((project) => ({ params: { slug: project.id }, props: { project } }));
+}
+
+const { project } = Astro.props;
+const { Content } = await render(project);
+const { title, label, line, status, stack, link } = project.data;
+---
+
+<Base title={`${title} · ${site.name}`} description={line}>
+  <article class="project glass" aria-labelledby="project-title">
+    <a class="back" href="/#projects">All projects</a>
+    <p class="label">{label}</p>
+    <h1 id="project-title">{title}</h1>
+    <p class="line">{line}</p>
+
+    <dl class="facts">
+      <div>
+        <dt>Status</dt>
+        <dd>{status}</dd>
+      </div>
+      <div>
+        <dt>Stack</dt>
+        <dd>{stack}</dd>
+      </div>
+      {
+        link && (
+          <div>
+            <dt>Link</dt>
+            <dd>
+              <a href={link.href}>{link.text}</a>
+            </dd>
+          </div>
+        )
+      }
+    </dl>
+
+    <div class="prose">
+      <Content />
+    </div>
+
+    <div class="cta">
+      <p>Want something like this for your team?</p>
+      <a class="button primary" href={person.bookingUrl} data-track="book-call">Book a call</a>
+    </div>
+  </article>
+</Base>
+
+<style>
+  .project {
+    display: grid;
+    gap: 22px;
+    max-width: 50rem;
+    margin: clamp(32px, 8vh, 96px) var(--gutter) 48px;
+    padding: clamp(24px, 4vw, 48px);
+  }
+
+  .back {
+    justify-self: start;
+    font: 400 var(--step--1) / 1 var(--data);
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    text-decoration: none;
+  }
+
+  .back::before {
+    content: '\2190\00a0';
+    color: var(--accent);
+  }
+
+  .back:hover {
+    color: var(--ink);
+  }
+
+  h1 {
+    font-size: var(--step-3);
+  }
+
+  .line {
+    font-size: var(--step-1);
+    color: var(--muted);
+    max-width: 40rem;
+  }
+
+  .facts {
+    display: grid;
+    gap: 12px;
+    margin: 0;
+    padding-block: 18px;
+    border-block: 1px solid var(--grid);
+  }
+
+  .facts div {
+    display: grid;
+    grid-template-columns: minmax(5.5rem, auto) 1fr;
+    gap: 16px;
+  }
+
+  dt {
+    font: 400 var(--step--2) / 1.9 var(--data);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  dd {
+    margin: 0;
+    color: var(--muted);
+    min-width: 0;
+  }
+
+  dd a {
+    color: var(--ink);
+    text-underline-offset: 4px;
+  }
+
+  .prose {
+    display: grid;
+    gap: 16px;
+    max-width: 65ch;
+  }
+
+  .prose :global(ol) {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding-left: 1.4em;
+  }
+
+  .prose :global(li::marker) {
+    font-family: var(--data);
+    font-size: var(--step--1);
+    color: var(--accent);
+  }
+
+  .cta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px 24px;
+    padding-top: 22px;
+    border-top: 1px solid var(--grid);
+  }
+</style>
