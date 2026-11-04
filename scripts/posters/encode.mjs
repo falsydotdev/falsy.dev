@@ -6,7 +6,7 @@ import { dirname, resolve } from 'node:path';
 import sharp from 'sharp';
 
 const WIDTHS = [960, 1600, 2560];
-const PORTRAIT_WIDTHS = [600, 1170];
+const PORTRAIT_WIDTHS = [600, 800, 1170];
 const root = resolve(import.meta.dirname, '../..');
 const framesPath = resolve(process.argv[2] ?? 'posters-out/frames.json');
 const frames = JSON.parse(await readFile(framesPath, 'utf8'));

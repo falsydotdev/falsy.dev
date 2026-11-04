@@ -41,6 +41,11 @@
           "bytes": 28911
         },
         {
+          "src": "/posters/mars-olympus-portrait-800.avif",
+          "width": 800,
+          "bytes": 44161
+        },
+        {
           "src": "/posters/mars-olympus-portrait-1170.avif",
           "width": 1170,
           "bytes": 76864
@@ -88,6 +93,11 @@
           "src": "/posters/mars-valles-portrait-600.avif",
           "width": 600,
           "bytes": 26198
+        },
+        {
+          "src": "/posters/mars-valles-portrait-800.avif",
+          "width": 800,
+          "bytes": 37965
         },
         {
           "src": "/posters/mars-valles-portrait-1170.avif",
@@ -139,6 +149,11 @@
           "bytes": 31415
         },
         {
+          "src": "/posters/mars-noctis-portrait-800.avif",
+          "width": 800,
+          "bytes": 47170
+        },
+        {
           "src": "/posters/mars-noctis-portrait-1170.avif",
           "width": 1170,
           "bytes": 78687
@@ -186,6 +201,11 @@
           "src": "/posters/mars-gale-portrait-600.avif",
           "width": 600,
           "bytes": 32571
+        },
+        {
+          "src": "/posters/mars-gale-portrait-800.avif",
+          "width": 800,
+          "bytes": 47407
         },
         {
           "src": "/posters/mars-gale-portrait-1170.avif",
@@ -237,6 +257,11 @@
           "bytes": 18724
         },
         {
+          "src": "/posters/mars-elysium-portrait-800.avif",
+          "width": 800,
+          "bytes": 26878
+        },
+        {
           "src": "/posters/mars-elysium-portrait-1170.avif",
           "width": 1170,
           "bytes": 45157
@@ -284,6 +309,11 @@
           "src": "/posters/mars-sunrise-portrait-600.avif",
           "width": 600,
           "bytes": 2869
+        },
+        {
+          "src": "/posters/mars-sunrise-portrait-800.avif",
+          "width": 800,
+          "bytes": 3838
         },
         {
           "src": "/posters/mars-sunrise-portrait-1170.avif",
