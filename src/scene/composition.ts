@@ -32,7 +32,7 @@ const RIGHT_TARGET = 0.3;
 // Roll is a stylistic tilt; each 10° costs as much as missing the target by 0.1.
 const ROLL_COST = 0.01;
 const TILTS = range(-10, 25, 0.5);
-const ROLLS = range(0, 20, 0.5);
+const ROLLS = range(0, 20, 1);
 export const FALLBACK_FRAMING: Framing = { tiltDeg: 12, rollDeg: 0 };
 
 function range(from: number, to: number, step: number) {

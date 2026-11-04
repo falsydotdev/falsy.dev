@@ -126,7 +126,7 @@ Composition rules:
 - **Relief:** height is exaggerated 2.5× by default on rocky bodies. The telemetry says so, for example `RELIEF ×2.5`.
 - **Shadows:** terrain shadows are raymarched through the height data.
 - **Atmosphere:** Hillaire-style physically based scattering, with dust-dominated Mie scattering for Mars and no atmosphere for the Moon. It includes light shafts (volumetric shadowing) for the orbital sunrise shot.
-- **Heavy effects:** these use temporal accumulation, because the scene changes slowly.
+- **Heavy effects:** precomputed lookup tables keep the atmosphere to about 0.5 ms per frame, so temporal accumulation isn't needed. It stays an option if a heavier effect arrives, because the scene changes slowly.
 - **Scale:** the renderer uses a floating origin and reversed depth from day one, so the v2 zoom across 17 orders of magnitude works without a rewrite.
 
 ### Telemetry readout
