@@ -1,92 +1,296 @@
 [
   {
     "id": "mars-olympus",
-    "label": "Olympus Mons at sunrise",
-    "altKm": 380,
-    "relief": 2.5,
-    "focus": "62% 60%",
-    "horizon": 0.55,
+    "label": "Olympus Mons in the morning",
+    "focus": "72% 50%",
+    "horizon": 0.42,
     "body": "Mars",
-    "lat": 5.8,
-    "lon": 226.1,
-    "lst": "06:20",
-    "at": "2026-11-01T18:39:00.000Z",
+    "relief": 2.5,
+    "lat": 14.2,
+    "lon": 225,
+    "lst": "06:43",
+    "altKm": 200,
+    "at": "2026-11-03T20:25:40.000Z",
     "sources": [
       {
         "src": "/posters/mars-olympus-960.avif",
         "width": 960,
-        "bytes": 8805
+        "bytes": 25563
       },
       {
         "src": "/posters/mars-olympus-1600.avif",
         "width": 1600,
-        "bytes": 19201
+        "bytes": 57785
       },
       {
         "src": "/posters/mars-olympus-2560.avif",
         "width": 2560,
-        "bytes": 36085
+        "bytes": 130898
       }
-    ]
+    ],
+    "portrait": {
+      "lat": 8.7,
+      "lon": 225.8,
+      "lst": "06:44",
+      "altKm": 200,
+      "at": "2026-11-03T20:24:00.000Z",
+      "sources": [
+        {
+          "src": "/posters/mars-olympus-portrait-600.avif",
+          "width": 600,
+          "bytes": 28911
+        },
+        {
+          "src": "/posters/mars-olympus-portrait-1170.avif",
+          "width": 1170,
+          "bytes": 76864
+        }
+      ]
+    }
   },
   {
-    "id": "mars-orbit-1",
-    "label": "Mars from low orbit, along the terminator",
-    "altKm": 380,
-    "relief": 2.5,
-    "focus": "58% 70%",
-    "horizon": 0.27,
+    "id": "mars-valles",
+    "label": "Valles Marineris in the morning",
+    "focus": "70% 50%",
+    "horizon": 0.42,
     "body": "Mars",
-    "lat": -66.8,
-    "lon": 103.4,
-    "lst": "15:59",
-    "at": "2026-11-02T12:58:00.000Z",
+    "relief": 2.5,
+    "lat": -20.7,
+    "lon": 300.9,
+    "lst": "07:03",
+    "altKm": 200,
+    "at": "2026-11-03T15:35:00.000Z",
     "sources": [
       {
-        "src": "/posters/mars-orbit-1-960.avif",
+        "src": "/posters/mars-valles-960.avif",
         "width": 960,
-        "bytes": 11292
+        "bytes": 22864
       },
       {
-        "src": "/posters/mars-orbit-1-1600.avif",
+        "src": "/posters/mars-valles-1600.avif",
         "width": 1600,
-        "bytes": 20614
+        "bytes": 47960
       },
       {
-        "src": "/posters/mars-orbit-1-2560.avif",
+        "src": "/posters/mars-valles-2560.avif",
         "width": 2560,
-        "bytes": 34132
+        "bytes": 88084
       }
-    ]
+    ],
+    "portrait": {
+      "lat": -20.7,
+      "lon": 300.9,
+      "lst": "07:03",
+      "altKm": 200,
+      "at": "2026-11-03T15:35:00.000Z",
+      "sources": [
+        {
+          "src": "/posters/mars-valles-portrait-600.avif",
+          "width": 600,
+          "bytes": 26198
+        },
+        {
+          "src": "/posters/mars-valles-portrait-1170.avif",
+          "width": 1170,
+          "bytes": 61149
+        }
+      ]
+    }
   },
   {
-    "id": "mars-orbit-2",
-    "label": "Mars from low orbit, along the terminator",
-    "altKm": 380,
-    "relief": 2.5,
-    "focus": "70% 65%",
-    "horizon": 0.27,
+    "id": "mars-noctis",
+    "label": "Noctis Labyrinthus in the morning",
+    "focus": "68% 50%",
+    "horizon": 0.42,
     "body": "Mars",
-    "lat": 70,
-    "lon": 309.4,
-    "lst": "05:43",
-    "at": "2026-11-02T12:58:00.000Z",
+    "relief": 2.5,
+    "lat": -13.7,
+    "lon": 257.6,
+    "lst": "06:57",
+    "altKm": 200,
+    "at": "2026-11-03T18:26:00.000Z",
     "sources": [
       {
-        "src": "/posters/mars-orbit-2-960.avif",
+        "src": "/posters/mars-noctis-960.avif",
         "width": 960,
-        "bytes": 10178
+        "bytes": 28037
       },
       {
-        "src": "/posters/mars-orbit-2-1600.avif",
+        "src": "/posters/mars-noctis-1600.avif",
         "width": 1600,
-        "bytes": 19571
+        "bytes": 60760
       },
       {
-        "src": "/posters/mars-orbit-2-2560.avif",
+        "src": "/posters/mars-noctis-2560.avif",
         "width": 2560,
-        "bytes": 34376
+        "bytes": 119065
       }
-    ]
+    ],
+    "portrait": {
+      "lat": -13.7,
+      "lon": 257.6,
+      "lst": "06:57",
+      "altKm": 200,
+      "at": "2026-11-03T18:26:00.000Z",
+      "sources": [
+        {
+          "src": "/posters/mars-noctis-portrait-600.avif",
+          "width": 600,
+          "bytes": 31415
+        },
+        {
+          "src": "/posters/mars-noctis-portrait-1170.avif",
+          "width": 1170,
+          "bytes": 78687
+        }
+      ]
+    }
+  },
+  {
+    "id": "mars-gale",
+    "label": "Gale Crater in the evening",
+    "focus": "72% 50%",
+    "horizon": 0.42,
+    "body": "Mars",
+    "relief": 2.5,
+    "lat": 0.9,
+    "lon": 140.9,
+    "lst": "17:11",
+    "altKm": 200,
+    "at": "2026-11-03T12:17:00.000Z",
+    "sources": [
+      {
+        "src": "/posters/mars-gale-960.avif",
+        "width": 960,
+        "bytes": 25223
+      },
+      {
+        "src": "/posters/mars-gale-1600.avif",
+        "width": 1600,
+        "bytes": 53875
+      },
+      {
+        "src": "/posters/mars-gale-2560.avif",
+        "width": 2560,
+        "bytes": 102782
+      }
+    ],
+    "portrait": {
+      "lat": 0.9,
+      "lon": 140.9,
+      "lst": "17:11",
+      "altKm": 200,
+      "at": "2026-11-03T12:17:00.000Z",
+      "sources": [
+        {
+          "src": "/posters/mars-gale-portrait-600.avif",
+          "width": 600,
+          "bytes": 32571
+        },
+        {
+          "src": "/posters/mars-gale-portrait-1170.avif",
+          "width": 1170,
+          "bytes": 76071
+        }
+      ]
+    }
+  },
+  {
+    "id": "mars-elysium",
+    "label": "Elysium Mons in the evening",
+    "focus": "70% 50%",
+    "horizon": 0.42,
+    "body": "Mars",
+    "relief": 2.5,
+    "lat": 31.6,
+    "lon": 149.8,
+    "lst": "17:19",
+    "altKm": 200,
+    "at": "2026-11-03T11:49:00.000Z",
+    "sources": [
+      {
+        "src": "/posters/mars-elysium-960.avif",
+        "width": 960,
+        "bytes": 15674
+      },
+      {
+        "src": "/posters/mars-elysium-1600.avif",
+        "width": 1600,
+        "bytes": 33992
+      },
+      {
+        "src": "/posters/mars-elysium-2560.avif",
+        "width": 2560,
+        "bytes": 63772
+      }
+    ],
+    "portrait": {
+      "lat": 31.6,
+      "lon": 149.8,
+      "lst": "17:19",
+      "altKm": 200,
+      "at": "2026-11-03T11:49:00.000Z",
+      "sources": [
+        {
+          "src": "/posters/mars-elysium-portrait-600.avif",
+          "width": 600,
+          "bytes": 18724
+        },
+        {
+          "src": "/posters/mars-elysium-portrait-1170.avif",
+          "width": 1170,
+          "bytes": 45157
+        }
+      ]
+    }
+  },
+  {
+    "id": "mars-sunrise",
+    "label": "Orbital sunrise over Tharsis",
+    "focus": "70% 50%",
+    "horizon": 0.42,
+    "body": "Mars",
+    "relief": 2.5,
+    "lat": 19.5,
+    "lon": 249,
+    "lst": "19:35",
+    "altKm": 200,
+    "at": "2026-11-04T08:00:50.000Z",
+    "sources": [
+      {
+        "src": "/posters/mars-sunrise-960.avif",
+        "width": 960,
+        "bytes": 3965
+      },
+      {
+        "src": "/posters/mars-sunrise-1600.avif",
+        "width": 1600,
+        "bytes": 7454
+      },
+      {
+        "src": "/posters/mars-sunrise-2560.avif",
+        "width": 2560,
+        "bytes": 12333
+      }
+    ],
+    "portrait": {
+      "lat": 19.5,
+      "lon": 249,
+      "lst": "19:35",
+      "altKm": 200,
+      "at": "2026-11-04T08:00:50.000Z",
+      "sources": [
+        {
+          "src": "/posters/mars-sunrise-portrait-600.avif",
+          "width": 600,
+          "bytes": 2869
+        },
+        {
+          "src": "/posters/mars-sunrise-portrait-1170.avif",
+          "width": 1170,
+          "bytes": 5515
+        }
+      ]
+    }
   }
 ]

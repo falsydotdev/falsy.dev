@@ -67,6 +67,7 @@ export async function boot() {
       seed: numberParam(params, 'seed', 0, 2 ** 32 - 1),
       feature: params.get('feature'),
       scale: numberParam(params, 'scale', 0.5, 3),
+      skip: numberParam(params, 'skip', 0, 3600),
       timeScale,
       forceWebGL: params.has('webgl'),
       telemetry: document.getElementById('telemetry'),

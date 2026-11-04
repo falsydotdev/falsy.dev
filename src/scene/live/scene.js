@@ -40,7 +40,7 @@ function buildShot(kind, now, altKm, rand, featureId) {
  * Starts the live Mars scene inside `host`.
  * @param {HTMLElement} host
  * Resolves to null when this machine should get the poster instead.
- * @param {{ dataUrl: string, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void, onLost?: () => void, farKm?: number, altKm?: number, tiltDeg?: number, rollDeg?: number, fovDeg?: number, tier?: import('../quality.ts').TierName, at?: Date, seed?: number, feature?: string | null, scale?: number, layout?: () => { text: import('../composition.ts').Box, headerBottom: number } | null }} opts
+ * @param {{ dataUrl: string, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void, onLost?: () => void, farKm?: number, altKm?: number, tiltDeg?: number, rollDeg?: number, fovDeg?: number, tier?: import('../quality.ts').TierName, at?: Date, seed?: number, feature?: string | null, scale?: number, skip?: number, layout?: () => { text: import('../composition.ts').Box, headerBottom: number } | null }} opts
  */
 // One tile per array layer; 512 layers hold a 4K view with headroom and cost about 180 MB of GPU memory.
 const WANTED_LAYERS = 512;
@@ -194,7 +194,8 @@ export async function startLiveScene(host, opts) {
 
   const wallStart = Date.now();
   const simStart = opts.at?.getTime() ?? wallStart;
-  const simNow = () => new Date(simStart + (Date.now() - wallStart) * timeScale);
+  // `skip` starts the clock part-way into the shot, for stills of a chosen moment.
+  const simNow = () => new Date(simStart + (opts.skip ?? 0) * 1000 + (Date.now() - wallStart) * timeScale);
   const rand = opts.seed === undefined ? Math.random : seededRandom(opts.seed);
   const shot = buildShot(opts.shot, new Date(simStart), cam.altKm, rand, opts.feature);
   const starMatrix = new THREE.Matrix4();

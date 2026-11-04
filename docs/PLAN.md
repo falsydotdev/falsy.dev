@@ -33,7 +33,7 @@ Phases build on each other on stacked branches. Nothing launches until Phase 2 i
 | 1. Persistence spike | Passed. See ADR 0002. |
 | 2. Astro project | Done: home, three project pages, 404, and `src/config/brand.ts` |
 | 3. Design system | Done: Direction D tokens in `src/styles/global.css`, self-hosted fonts |
-| 4. Poster pipeline | Three Mars stills. `scripts/posters/render.mjs` and `encode.mjs` run locally. The daily job runs on GitHub Actions with SwiftShader WebGL2 (`.github/workflows/posters.yml`), switched on by the `POSTERS_ENABLED` variable. |
+| 4. Poster pipeline | Replaced in Phase 2 (2026-11-04): six fixed stills rendered by the live scene on a local GPU, each in a landscape and a portrait framing, committed to the repo. The daily SwiftShader job is gone. |
 | 5. Contact | Done: HubSpot meetings link and plain-text email |
 | 6. Deploy | Cloudflare Workers Builds deploys `main` (project `falsy-dev`, connected 2026-11-03). Tiles are in R2 bucket `falsy-tiles` at `tiles.falsy.dev`. GitHub Actions only runs checks. |
 | 7. Performance budget | Lighthouse CI on every PR, using mobile with simulated slow 4G. Home: performance 99 to 100, accessibility, best practices, and SEO all 100. First contentful paint is 1.13 s, and largest contentful paint is 1.65 to 1.8 s. |

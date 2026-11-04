@@ -334,6 +334,7 @@ export class TiledPlanet {
     for (const r of wanted) r.lastUsed = this.frame;
     const idle = wanted.filter((r) => r.color.state === 'idle' || r.height.state === 'idle');
     this.stats.pending = idle.length;
+    this.stats.inFlight = this.inFlight;
     if (this.inFlight < MAX_IN_FLIGHT && idle.length) {
       const dist = new Map(selected.map((s) => [s.id, s.distanceKm]));
       idle.sort((a, b) => a.key.level - b.key.level || (dist.get(a.id) ?? 0) - (dist.get(b.id) ?? 0));

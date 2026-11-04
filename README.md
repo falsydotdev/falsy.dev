@@ -33,6 +33,7 @@ Production builds read the tile base URL from `PUBLIC_TILES_URL` in `.env.produc
 | `seed=N` | Make the random choices (shot type, orbit direction) repeatable. With `at=`, the same URL gives the same view. |
 | `alt=N` | Orbit altitude in km (120 to 2000, default 200). Orbital speed follows from it. |
 | `tilt=N` | Degrees the camera looks below the horizon, beyond the geometric dip. Higher shows more ground moving. By default the framing solver picks it for the viewport. |
+| `skip=N` | Starts the clock N seconds into the shot, for stills of a chosen moment (for example `skip=50` on an orbital sunrise). |
 | `roll=N` | Degrees the camera banks right, dropping the horizon on the left. By default the framing solver picks it, so the limb passes below the hero text and rises to the right. |
 | `fov=N` | Vertical field of view in degrees (default 50). Narrower magnifies the motion. |
 | `far=N` | Distance in km beyond which terrain detail relaxes in proportion (default 500, `far=0` for full detail everywhere). The main lever on download size. |
@@ -48,26 +49,25 @@ Production builds read the tile base URL from `PUBLIC_TILES_URL` in `.env.produc
 | `src/content/projects/` | One Markdown file per project. Front matter drives the card and the facts list. |
 | `src/components/Stage.astro` | The persisted background: poster, sky grid, and telemetry readout. |
 | `src/data/posters.json` | Poster metadata, written by the poster pipeline |
-| `scripts/posters/` | Poster pipeline: `render.mjs` drives the prototype renderer, and `encode.mjs` writes AVIF files |
+| `scripts/posters/` | Poster pipeline: `render.mjs` screenshots the live scene, and `encode.mjs` writes AVIF files |
 | `src/scene/tiles/` | Cube-sphere tile addressing, LOD selection, and the tile file formats |
 | `scripts/tiles/` | Tile pipeline: source download, height and colour cutters, budget estimate |
-| `prototypes/mars-orbit/` | The Mars rendering prototype, which also renders the posters for now |
+| `prototypes/mars-orbit/` | The original Mars rendering prototype, kept for reference |
 | `docs/` | Spec, plan, ADRs, research, copy, and design references |
 
 ## Posters
 
+The posters are a fixed set of six stills, committed in `public/posters`. They show on phones, with reduced motion or Data Saver, and whenever the live scene can't run. Each is rendered by the live scene itself on a machine with a GPU, so it needs the local tiles:
+
 ```bash
-cd prototypes/mars-orbit && npm install && npm run data && cd ../..   # once, about 31 MB from USGS
-node scripts/posters/render.mjs            # add --webgl to use SwiftShader, as CI does
+node scripts/posters/render.mjs            # starts astro dev; or --url http://localhost:4321, --only <id>
 node scripts/posters/encode.mjs posters-out/frames.json
 ```
 
-Shots are defined in `scripts/posters/shots.json`. The Olympus Mons shot uses the most recent real sunrise there. The orbit shots use the current time.
+Shots are defined in `scripts/posters/shots.json` as live-scene URL parameters with a pinned time, so re-rendering gives the same frames. Each shot renders twice: a landscape still framed for a laptop layout, and a portrait still framed for a phone layout, which tall screens get. `portraitQuery` can pick a different moment for the portrait still. The first shot also becomes `public/og.jpg`.
 
 ## Deploy
 
 Cloudflare Workers Builds deploys the Worker (`wrangler.jsonc`, static assets in `dist`) on every push to `main`: the Cloudflare project `falsy-dev` is connected to this repo, with build command `npm run build` and deploy command `npx wrangler deploy`. GitHub Actions only runs checks (type check, tests, build, Lighthouse) and needs no Cloudflare credentials.
 
 Tiles are served from the R2 bucket `falsy-tiles` at `tiles.falsy.dev`; see "Live Mars locally" for uploads. Secrets live in the Doppler project `falsy-dev`.
-
-The daily poster refresh (`.github/workflows/posters.yml`, switched on by `POSTERS_ENABLED=true`) still deploys with a Cloudflare API token. How posters publish under Workers Builds is undecided.
