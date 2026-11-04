@@ -111,6 +111,7 @@ export async function startLiveScene(host, opts) {
   const pixelRatio = (t) => (opts.scale ? Math.min(devicePixelRatio, opts.scale) : renderPixelRatio(t, devicePixelRatio, innerWidth, innerHeight));
 
   let planet;
+  let atmosphere;
   let pipeline;
   let stopped = false;
   let snapshot = null;
@@ -137,6 +138,7 @@ export async function startLiveScene(host, opts) {
     removeEventListener('resize', onResize);
     clearTimeout(reframe);
     planet?.dispose();
+    atmosphere?.dispose();
     pipeline?.dispose();
     renderer.dispose();
     renderer.domElement.remove();
@@ -161,16 +163,18 @@ export async function startLiveScene(host, opts) {
 
   const sunDisc = new THREE.Mesh(new THREE.SphereGeometry(600, 32, 16), new THREE.MeshBasicNodeMaterial({ color: new THREE.Color(60, 55, 48) }));
   const stars = createStars();
-  const atmosphere = createAtmosphere({ planetRadius: RADIUS_KM });
-  atmosphere.uniforms.density.value = HAZE;
   lighting.opticalDepth.value = HAZE * 0.7;
-  scene.add(sunDisc, stars, atmosphere.mesh);
+  scene.add(sunDisc, stars);
 
   const meta = await (await fetch(`${opts.dataUrl}/meta.json`)).json();
   const layers = isWebGPU ? gpuLayers ?? 256 : Math.min(WANTED_LAYERS, renderer.backend.gl.getParameter(renderer.backend.gl.MAX_ARRAY_TEXTURE_LAYERS));
   planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: RELIEF, layers, relaxBeyondKm: opts.farKm });
-  await planet.init();
-  scene.add(planet.mesh);
+  const tiledPlanet = planet;
+  [atmosphere] = await Promise.all([
+    createAtmosphere({ planetRadius: RADIUS_KM, density: HAZE, terrainHeight: (n) => tiledPlanet.coarseHeight(n) }),
+    planet.init(),
+  ]);
+  scene.add(planet.mesh, atmosphere.mesh);
 
   pipeline = new THREE.RenderPipeline(renderer);
   const sceneColor = pass(scene, camera).getTextureNode('output');

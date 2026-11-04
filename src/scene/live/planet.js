@@ -114,6 +114,14 @@ export class TiledPlanet {
     this.mesh.frustumCulled = false;
   }
 
+  /** Exaggerated terrain height in km under world-space unit direction `n`, from the coarse shadow map. */
+  coarseHeight(n) {
+    const lat = asin(n.y);
+    const lon = atan(n.z.negate(), n.x);
+    const uvMap = vec2(lon.add(Math.PI).div(2 * Math.PI), float(Math.PI / 2).sub(lat).div(Math.PI));
+    return this.shadowSlot.sample(uvMap).level(0).r.mul(this.exaggeration);
+  }
+
   buildMaterial() {
     const R = this.radiusKm;
     const fn = uniformArray(FACES.map((f) => toWorld(f.n)), 'vec3');
