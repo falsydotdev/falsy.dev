@@ -53,7 +53,9 @@ const ogImage = new URL('/og.jpg', site.url).href;
     <Footer />
     <script>
       import { boot } from '../scene/boot';
+      import { startAnalytics } from '../analytics';
       boot();
+      startAnalytics();
     </script>
   </body>
 </html>
