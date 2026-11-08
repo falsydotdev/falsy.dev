@@ -38,7 +38,7 @@ function buildShot(body, kind, now, altKm, rand, featureId) {
  * Starts the live scene of one body inside `host`.
  * @param {HTMLElement} host
  * Resolves to null when this machine should get the poster instead.
- * @param {{ dataUrl: string, body?: string, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void, onLost?: () => void, farKm?: number, altKm?: number, tiltDeg?: number, rollDeg?: number, fovDeg?: number, tier?: import('../quality.ts').TierName, at?: Date, seed?: number, feature?: string | null, scale?: number, skip?: number, layout?: () => { text: import('../composition.ts').Box, headerBottom: number } | null }} opts
+ * @param {{ dataUrl: string, body?: string, settleTimeoutMs?: number, holdGovernor?: boolean, startTier?: import('../quality.ts').TierName, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void, onLost?: () => void, farKm?: number, altKm?: number, tiltDeg?: number, rollDeg?: number, fovDeg?: number, tier?: import('../quality.ts').TierName, at?: Date, seed?: number, feature?: string | null, scale?: number, skip?: number, layout?: () => { text: import('../composition.ts').Box, headerBottom: number } | null }} opts
  */
 // One tile per array layer; 512 layers hold a 4K view with headroom and cost about 180 MB of GPU memory.
 const WANTED_LAYERS = 512;
@@ -100,7 +100,9 @@ export async function startLiveScene(host, opts) {
   });
   const isWebGPU = renderer.backend.isWebGPUBackend;
   const hints = isWebGPU ? { backend: 'WebGPU', ...probe.info } : { backend: 'WebGL2', description: webglRenderer(renderer.backend.gl) };
-  const startTier = opts.tier ?? initialTier(hints);
+  // A switch starts at the tier the governor had already settled on for this machine.
+  const autoTier = initialTier(hints);
+  const startTier = opts.tier ?? (autoTier !== 'poster' && opts.startTier ? opts.startTier : autoTier);
   if (startTier === 'poster') {
     renderer.dispose();
     return null;
@@ -112,6 +114,7 @@ export async function startLiveScene(host, opts) {
   let planet;
   let atmosphere;
   let pipeline;
+  let layers;
   let stopped = false;
   let snapshot = null;
   let resumeStarted = 0;
@@ -165,17 +168,27 @@ export async function startLiveScene(host, opts) {
   applyBodyLight(body);
   scene.add(sunDisc, stars);
 
-  const meta = await (await fetch(`${opts.dataUrl}/meta.json`)).json();
-  if (meta.body !== body.id || Math.abs(meta.radiusKm - body.radiusKm) > 1e-6) console.warn(`Tiles at ${opts.dataUrl} are for ${meta.body}, not ${body.id}.`);
-  const layers = isWebGPU ? gpuLayers ?? 256 : Math.min(WANTED_LAYERS, renderer.backend.gl.getParameter(renderer.backend.gl.MAX_ARRAY_TEXTURE_LAYERS));
-  planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: body.relief, layers, relaxBeyondKm: opts.farKm });
-  const tiledPlanet = planet;
-  [atmosphere] = await Promise.all([
-    body.atmosphere ? createAtmosphere({ planetRadius: body.radiusKm, density: body.atmosphere.density, terrainHeight: (n) => tiledPlanet.coarseHeight(n) }) : null,
-    planet.init(),
-  ]);
-  scene.add(planet.mesh);
-  if (atmosphere) scene.add(atmosphere.mesh);
+  try {
+    await loadPlanet();
+  } catch (err) {
+    teardown();
+    throw err;
+  }
+  async function loadPlanet() {
+    const res = await fetch(`${opts.dataUrl}/meta.json`);
+    if (!res.ok) throw new Error(`No tiles at ${opts.dataUrl}`);
+    const meta = await res.json();
+    if (meta.body !== body.id || Math.abs(meta.radiusKm - body.radiusKm) > 1e-6) console.warn(`Tiles at ${opts.dataUrl} are for ${meta.body}, not ${body.id}.`);
+    layers = isWebGPU ? gpuLayers ?? 256 : Math.min(WANTED_LAYERS, renderer.backend.gl.getParameter(renderer.backend.gl.MAX_ARRAY_TEXTURE_LAYERS));
+    planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: body.relief, layers, relaxBeyondKm: opts.farKm });
+    const tiledPlanet = planet;
+    [atmosphere] = await Promise.all([
+      body.atmosphere ? createAtmosphere({ planetRadius: body.radiusKm, density: body.atmosphere.density, terrainHeight: (n) => tiledPlanet.coarseHeight(n) }) : null,
+      planet.init(),
+    ]);
+    scene.add(planet.mesh);
+    if (atmosphere) scene.add(atmosphere.mesh);
+  }
 
   pipeline = new THREE.RenderPipeline(renderer);
   const sceneColor = pass(scene, camera).getTextureNode('output');
@@ -202,6 +215,8 @@ export async function startLiveScene(host, opts) {
   const starMatrix = new THREE.Matrix4();
 
   function frame() {
+    // Lighting uniforms are shared by every scene, and two overlap during a body switch.
+    applyBodyLight(body);
     const date = simNow();
     const s = sample(shot.orbit, date);
     const f = bodyFrame(body, date);
@@ -226,23 +241,28 @@ export async function startLiveScene(host, opts) {
     return s;
   }
 
+  // Only the scene on screen writes the readout; during a body switch the incoming one stays quiet.
+  let telemetryEl = opts.telemetry ?? null;
   let lastTelemetry = 0;
   function updateTelemetry(s, t) {
-    if (!opts.telemetry || t - lastTelemetry < 500) return;
+    if (!telemetryEl || t - lastTelemetry < 500) return;
     lastTelemetry = t;
     const parts = telemetryParts(s, { body: body.name, relief: body.relief });
     if (timeScale !== 1) parts.push(`t×${timeScale}`);
-    opts.telemetry.replaceChildren(
-      ...parts.map((text, i) => {
-        const span = document.createElement('span');
-        span.textContent = text;
-        if (i >= WIDE_FROM) span.className = 'wide';
-        return span;
-      }),
-    );
-    opts.telemetry.dataset.poster = '';
-    opts.telemetry.dataset.shot = shot.kind;
-    opts.telemetry.title = `Live: ${shot.kind.replace('-', ' ')}${shot.feature ? ` over ${shot.feature.name}` : ''}. Lit by the Sun's real position now, from a real ${Math.round(s.altKm)} km orbit. Relief is exaggerated ${body.relief}×.`;
+    // Nodes are updated in place, so the body switch button keeps focus and hover.
+    const label = telemetryEl.querySelector('.body-switch');
+    if (label) label.textContent = parts.shift();
+    const offset = label ? 1 : 0;
+    const spans = [...telemetryEl.querySelectorAll(':scope > span')];
+    parts.forEach((text, i) => {
+      const span = spans[i] ?? telemetryEl.appendChild(document.createElement('span'));
+      if (span.textContent !== text) span.textContent = text;
+      span.className = i + offset >= WIDE_FROM ? 'wide' : '';
+    });
+    for (const extra of spans.slice(parts.length)) extra.remove();
+    telemetryEl.dataset.poster = '';
+    telemetryEl.dataset.shot = shot.kind;
+    telemetryEl.title = `Live: ${shot.kind.replace('-', ' ')}${shot.feature ? ` over ${shot.feature.name}` : ''}. Lit by the Sun's real position now, from a real ${Math.round(s.altKm)} km orbit. Relief is exaggerated ${body.relief}×.`;
   }
 
   let running = true;
@@ -253,6 +273,8 @@ export async function startLiveScene(host, opts) {
   // Submit-to-done time is the frame's real GPU cost whenever the GPU starts the frame idle.
   const gpuTiming = isWebGPU;
   const governor = opts.tier ? null : new Governor(tier.name, gpuTiming ? GPU_LIMITS : CADENCE_LIMITS);
+  // While two scenes overlap in a body switch, each sees the other's GPU time as its own load.
+  let governorHeld = opts.holdGovernor ?? false;
   const state = {
     frames: 0, body: body.id, shot: shot.kind, backend: hints.backend, gpu: hints.vendor ?? hints.description, canvas: renderer.domElement, layers, tiles: planet.stats, firstFrameMs: 0,
     tier: tier.name, timing: governor ? (gpuTiming ? 'gpu' : 'cadence') : 'forced', gpuMs: 0, gpuLog: [], load: 0, tierChanges: [],
@@ -299,12 +321,13 @@ export async function startLiveScene(host, opts) {
     takeSnapshot();
     teardown();
     state.tier = 'frozen';
-    if (opts.telemetry) opts.telemetry.title = 'Paused: the live view was too heavy for this device, so its last frame stays up.';
+    if (telemetryEl) telemetryEl.title = 'Paused: the live view was too heavy for this device, so its last frame stays up.';
   };
 
   let timingBusy = false;
   let lastWrites = 0;
   const measure = (interval) => {
+    if (governorHeld) return;
     const judge = (load) => {
       if (stopped || !governor) return;
       const verdict = governor.sample(load, !first);
@@ -358,7 +381,7 @@ export async function startLiveScene(host, opts) {
       resumeStarted = 0;
       fadeSnapshot();
     }
-    if (first && (planet.settled() || performance.now() - started > SETTLE_TIMEOUT_MS)) {
+    if (first && (planet.settled() || performance.now() - started > (opts.settleTimeoutMs ?? SETTLE_TIMEOUT_MS))) {
       first = false;
       state.firstFrameMs = Math.round(performance.now() - started);
       opts.onFirstFrame?.();
@@ -369,6 +392,33 @@ export async function startLiveScene(host, opts) {
 
   return {
     state,
+    body: body.id,
+    canvas: renderer.domElement,
+    dispose() {
+      if (!stopped) teardown();
+      dropSnapshot();
+    },
+    /** What's on screen: the frozen last frame if there is one, else the live canvas. */
+    surface() {
+      return snapshot ?? renderer.domElement;
+    },
+    // Stops the scene and frees the GPU, leaving a copy of its last frame in its place for the caller to remove.
+    freeze() {
+      if (stopped || first) return null;
+      takeSnapshot();
+      const still = snapshot;
+      snapshot = null;
+      teardown();
+      return still;
+    },
+    setTelemetry(el) {
+      telemetryEl = el;
+      lastTelemetry = 0;
+    },
+    holdGovernor(on) {
+      governorHeld = on;
+      if (!on) governor?.reset();
+    },
     setRunning(on) {
       if (on === running || stopped) return;
       governor?.reset();

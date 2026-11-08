@@ -3,6 +3,26 @@
 @import '@fontsource/ibm-plex-sans/latin-400.css';
 @import '@fontsource-variable/martian-mono/wght.css';
 
+/* Registered so the accent can ease between bodies when the visitor switches. */
+@property --accent {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #e8915f;
+}
+
+@property --accent-ink {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #1a0d06;
+}
+
+/* Only during a switch, so a first load never fades from the default. */
+:root.body-fade {
+  transition:
+    --accent 1s ease,
+    --accent-ink 1s ease;
+}
+
 :root {
   color-scheme: dark;
   --space: #05070b;

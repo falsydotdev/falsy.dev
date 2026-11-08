@@ -27,8 +27,8 @@ function telemetry(p: Pick<Poster, 'body' | 'lat' | 'lon' | 'lst' | 'altKm' | 'r
   const lat = `${Math.abs(p.lat).toFixed(1)}°${p.lat >= 0 ? 'N' : 'S'}`;
   const lon = `${(((p.lon % 360) + 360) % 360).toFixed(1)}°E`;
   const still = `${pad(at.getUTCDate())} ${months[at.getUTCMonth()]} ${pad(at.getUTCHours())}:${pad(at.getUTCMinutes())} UTC`;
+  // The body name is the switch button, which the stage keeps in front of these.
   const parts = [
-    [p.body.toUpperCase(), ''],
     [lat, ''],
     [lon, ''],
     [`LST ${p.lst}`, ''],
@@ -41,6 +41,7 @@ function telemetry(p: Pick<Poster, 'body' | 'lat' | 'lon' | 'lst' | 'altKm' | 'r
 
 const DATA_CREDIT: Record<string, string> = { mars: 'MOLA elevation and Viking colour data', moon: 'LOLA elevation and LROC colour data' };
 const bodies = Object.keys(BODIES);
+const names = Object.fromEntries(Object.values(BODIES).map((b) => [b.id, b.name]));
 const srcset = (sources: { src: string; width: number }[]) => sources.map((s) => `${s.src} ${s.width}w`).join(', ');
 const choices = posters.map((p) => ({
   id: p.id,
@@ -63,8 +64,8 @@ const fallback = choices[0];
     <div class="grid"></div>
     <div class="scrim"></div>
   </div>
-  <p id="telemetry" class="telemetry"></p>
-  <script is:inline define:vars={{ choices, bodies }}>
+  <p id="telemetry" class="telemetry"><button type="button" class="body-switch"></button></p>
+  <script is:inline define:vars={{ choices, bodies, names }}>
     (() => {
       // Decide before anything paints: visitors who'll get the live scene see dark
       // space until it fades in, so a poster of somewhere else never flashes first.
@@ -81,6 +82,7 @@ const fallback = choices[0];
       // A first visit gets a random body; after that bodies alternate, so a visitor never sees
       // the same one twice in a row. `?body=` picks one for previews and shared links.
       const read = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
+      const write = (key, value) => { try { localStorage.setItem(key, value); } catch {} };
       const asked = new URLSearchParams(location.search).get('body');
       const lastBody = read('falsy:body');
       let body = bodies.includes(asked) ? asked
@@ -88,43 +90,131 @@ const fallback = choices[0];
         : bodies[Math.floor(Math.random() * bodies.length)];
       // A body without posters can still be shown live, but not as a still.
       if (!willTryLive && !choices.some((c) => c.body === body)) body = choices[0].body;
-      if (!asked) try { localStorage.setItem('falsy:body', body); } catch {}
+      if (!asked) write('falsy:body', body);
 
-      const last = read('falsy:poster');
-      const ofBody = choices.filter((c) => c.body === body);
-      const shown = ofBody.length ? ofBody : choices;
-      const pool = shown.length > 1 ? shown.filter((c) => c.id !== last) : shown;
-      const pick = pool[Math.floor(Math.random() * pool.length)];
-      document.documentElement.dataset.body = body;
-      const img = document.getElementById('poster');
+      const root = document.documentElement;
+      root.dataset.body = body;
+      // The client router replaces the root element's attributes on every navigation.
+      document.addEventListener('astro:before-swap', (e) => {
+        e.newDocument.documentElement.dataset.body = root.dataset.body;
+      });
+
+      let img = document.getElementById('poster');
       const t = document.getElementById('telemetry');
+      const sw = t.querySelector('.body-switch');
       const sky = img.closest('.sky');
+      const nextBody = (id) => bodies[(bodies.indexOf(id) + 1) % bodies.length];
+      const spoken = (id) => (id === 'moon' ? 'the Moon' : names[id]);
+      const labelSwitch = (id) => {
+        sw.textContent = names[id].toUpperCase();
+        sw.setAttribute('aria-label', `${names[id]}. Switch to ${spoken(nextBody(id))}`);
+        sw.title = `Switch to ${spoken(nextBody(id))}`;
+      };
+      labelSwitch(body);
 
-      const showPoster = () => {
-        if (img.getAttribute('src')) return;
-        try { localStorage.setItem('falsy:poster', pick.id); } catch {}
-        document.documentElement.dataset.body = pick.body;
-        const show = () => img.classList.add('in');
-        img.addEventListener('load', show, { once: true });
-        // Tall screens get a still framed for a phone layout, so the planet sits below the text.
-        const tall = pick.portrait && innerHeight > innerWidth;
-        img.style.objectPosition = tall ? '50% 50%' : pick.focus;
-        img.sizes = '100vw';
-        img.srcset = tall ? pick.portrait.srcset : pick.srcset;
-        img.src = tall ? pick.portrait.src : pick.src;
-        if (img.complete && img.naturalWidth) show();
+      const posterFor = (id) => {
+        const last = read('falsy:poster');
+        const ofBody = choices.filter((c) => c.body === id);
+        const shown = ofBody.length ? ofBody : choices;
+        const pool = shown.length > 1 ? shown.filter((c) => c.id !== last) : shown;
+        return pool[Math.floor(Math.random() * pool.length)];
+      };
+
+      // Tall screens get a still framed for a phone layout, so the planet sits below the text.
+      const isTall = (pick) => pick.portrait && innerHeight > innerWidth;
+
+      // Points the readout, accent, and horizon at a poster; the readout keeps its switch button.
+      const describe = (pick) => {
+        write('falsy:poster', pick.id);
         sky.style.setProperty('--horizon', String(pick.horizon));
-        t.innerHTML = tall ? pick.portrait.telemetry : pick.telemetry;
+        t.innerHTML = isTall(pick) ? pick.portrait.telemetry : pick.telemetry;
+        t.prepend(sw);
+        labelSwitch(pick.body);
         t.title = pick.title;
         t.dataset.poster = pick.id;
+        root.dataset.body = pick.body;
+      };
+
+      // Loads a poster into `el` and fades it in.
+      const load = (el, pick, onShown, onError) => {
+        const show = () => {
+          el.classList.add('in');
+          onShown?.();
+        };
+        el.addEventListener('load', show, { once: true });
+        if (onError) el.addEventListener('error', onError, { once: true });
+        const tall = isTall(pick);
+        el.style.objectPosition = tall ? '50% 50%' : pick.focus;
+        el.sizes = '100vw';
+        el.srcset = tall ? pick.portrait.srcset : pick.srcset;
+        el.src = tall ? pick.portrait.src : pick.src;
+        if (el.complete && el.naturalWidth) {
+          el.removeEventListener('load', show);
+          requestAnimationFrame(show);
+        }
+      };
+
+      // Also the fallback when a live scene is lost, so it shows whichever body is current by then.
+      const showPoster = () => {
+        if (img.getAttribute('src')) return;
+        const pick = posterFor(root.dataset.body);
+        describe(pick);
+        load(img, pick);
         sky.dataset.scene = 'poster';
       };
       window.__falsyShowPoster = showPoster;
 
+      // Poster mode: a still of the other body fades in over the current one, and the readout and
+      // accent change with it. If it can't load, the current still stays.
+      const swapPoster = (to) => {
+        const pick = posterFor(to);
+        const from = root.dataset.body;
+        const old = img;
+        const fresh = img.cloneNode(false);
+        fresh.removeAttribute('id');
+        fresh.removeAttribute('src');
+        fresh.removeAttribute('srcset');
+        fresh.classList.remove('in');
+        img.after(fresh);
+        sw.setAttribute('aria-busy', 'true');
+        const done = () => sw.setAttribute('aria-busy', 'false');
+        load(
+          fresh,
+          pick,
+          () => {
+            root.classList.add('body-fade');
+            describe(pick);
+            img = fresh;
+            write('falsy:body', to);
+            document.dispatchEvent(new CustomEvent('falsy:body-switched', { detail: { from, to, mode: 'poster' } }));
+            setTimeout(() => {
+              old.remove();
+              fresh.id = 'poster';
+              root.classList.remove('body-fade');
+              done();
+            }, 1000);
+          },
+          () => {
+            fresh.remove();
+            done();
+          },
+        );
+      };
+
+      sw.addEventListener('click', () => {
+        if (sw.getAttribute('aria-busy') === 'true') return;
+        const to = nextBody(root.dataset.body);
+        if (sky.dataset.scene === 'live' && window.__falsySwitchLive) window.__falsySwitchLive(to);
+        else if (sky.dataset.scene === 'poster') swapPoster(to);
+      });
+      window.__falsyLabelSwitch = labelSwitch;
+
       if (!willTryLive) return showPoster();
       sky.dataset.scene = 'pending';
       sky.style.setProperty('--horizon', '0.3');
-      t.textContent = `Loading ${body === 'moon' ? 'lunar' : 'Mars'} terrain…`;
+      const loading = document.createElement('span');
+      loading.textContent = `Loading ${body === 'moon' ? 'lunar' : 'Mars'} terrain…`;
+      t.append(loading);
       // If the live scene hasn't taken over by now, something went wrong: fall back.
       setTimeout(() => { if (sky.dataset.scene === 'pending') showPoster(); }, 12000);
     })();
@@ -214,6 +304,49 @@ const fallback = choices[0];
 
   .telemetry :global(span) {
     white-space: nowrap;
+  }
+
+  .body-switch {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    letter-spacing: inherit;
+    color: inherit;
+    white-space: nowrap;
+    cursor: pointer;
+    text-decoration: underline dotted;
+    text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
+    text-underline-offset: 0.35em;
+  }
+
+  .body-switch::after {
+    content: ' ↻';
+    opacity: 0;
+    transition: opacity 200ms ease;
+  }
+
+  .body-switch:hover::after,
+  .body-switch:focus-visible::after,
+  .body-switch[aria-busy='true']::after {
+    opacity: 1;
+  }
+
+  .body-switch[aria-busy='true'] {
+    cursor: progress;
+    animation: switching 1.2s ease-in-out infinite;
+  }
+
+  @keyframes switching {
+    50% {
+      opacity: 0.45;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .body-switch[aria-busy='true'] {
+      animation: none;
+    }
   }
 
   @media (max-width: 640px) {
