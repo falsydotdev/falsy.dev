@@ -11,25 +11,35 @@ function shouldTrack() {
   return location.hostname === 'falsy.dev' && !navigator.webdriver;
 }
 
-// Records once per visit whether the visitor got the live orbit or a poster, and on which GPU path.
+function sceneProps(mode: 'live' | 'poster') {
+  const live = mode === 'live' ? window.__falsyLive?.state : undefined;
+  return {
+    scene: mode,
+    scene_body: live?.body ?? document.documentElement.dataset.body ?? null,
+    scene_backend: live?.backend ?? null,
+    scene_tier: live?.tier ?? null,
+    scene_poster: document.getElementById('telemetry')?.dataset.poster || null,
+  };
+}
+
+// Records once per visit whether the visitor got the live orbit or a poster, and on which GPU path,
+// then each switch between bodies from the readout.
 function reportScene(posthog: PostHog) {
   const sky = document.querySelector<HTMLElement>('#stage .sky');
   if (!sky) return;
   const send = () => {
     const mode = sky.dataset.scene;
     if (mode !== 'live' && mode !== 'poster') return false;
-    const live = mode === 'live' ? window.__falsyLive?.state : undefined;
-    const props = {
-      scene: mode,
-      scene_body: live?.body ?? document.documentElement.dataset.body ?? null,
-      scene_backend: live?.backend ?? null,
-      scene_tier: live?.tier ?? null,
-      scene_poster: document.getElementById('telemetry')?.dataset.poster ?? null,
-    };
+    const props = sceneProps(mode);
     posthog.register(props);
     posthog.capture('scene_shown', props);
     return true;
   };
+  document.addEventListener('falsy:body-switched', (e) => {
+    const { from, to, mode } = (e as CustomEvent<{ from: string; to: string; mode: 'live' | 'poster' }>).detail;
+    posthog.register(sceneProps(mode));
+    posthog.capture('body_switched', { from, to, mode });
+  });
   if (send()) return;
   const watch = new MutationObserver(() => send() && watch.disconnect());
   watch.observe(sky, { attributes: true, attributeFilter: ['data-scene'] });

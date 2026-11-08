@@ -26,7 +26,7 @@ Production builds read the tile base URL from `PUBLIC_TILES_BASE` in `.env.produ
 
 | Parameter | Effect |
 |---|---|
-| `body=mars`, `body=moon` | Show this body instead of the usual alternation |
+| `body=mars`, `body=moon` | Show this body instead of the usual alternation. The body name in the readout switches to the other one, live or as a poster. |
 | `live=1` / `live=0` | Force the live scene on or off, ignoring screen width and reduced motion |
 | `shot=dawn-dusk`, `shot=orbital-sunrise`, `shot=feature-flyover` | Pick the orbit instead of a weighted random one |
 | `t=N` | Preview at N× real time, or `t=0` to hold one moment. The readout shows `t×N` whenever it isn't 1. |
