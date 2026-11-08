@@ -49,7 +49,7 @@ interface LiveScene {
   state: { frames: number; body: string; shot: string; backend: string; tier: string; canvas: HTMLCanvasElement };
   dispose(): void;
   freeze(): HTMLCanvasElement | null;
-  surface(): HTMLCanvasElement;
+  surfaces(): HTMLCanvasElement[];
   setTelemetry(el: HTMLElement | null): void;
   holdGovernor(on: boolean): void;
   setRunning(on: boolean): void;
@@ -169,6 +169,10 @@ export async function boot() {
     });
     if (!firstSlot.scene) return lostCurrent();
     window.__falsyLive = firstSlot.scene;
+    prewarmed.add(body.id);
+    // Scroll and visibility changes during loading had no scene to reach.
+    firstSlot.scene.setThrottled(throttledNow());
+    firstSlot.scene.setRunning(document.visibilityState === 'visible');
 
     // The new body loads under the old one, which keeps moving, and they crossfade at its first frame.
     // The lowest tier and WebGL2 can't carry two scenes, so they fade from the old one's frozen frame.
@@ -184,6 +188,7 @@ export async function boot() {
       const cover = light ? old.freeze() : null;
       if (!light) old.holdGovernor(true);
 
+      let fadeTimer = 0;
       const finish = () => {
         incoming = null;
         setBusy(false);
@@ -191,6 +196,15 @@ export async function boot() {
       abortSwitch = () => {
         if (incoming !== slot) return;
         slot.scene?.dispose();
+        // Lost mid-fade, the new scene was already the current one, so the old can't come back.
+        if (current === slot) {
+          clearTimeout(fadeTimer);
+          cover?.remove();
+          old.dispose();
+          root.classList.remove('body-fade');
+          finish();
+          return lostCurrent();
+        }
         finish();
         if (light || from.dead) {
           cover?.remove();
@@ -209,11 +223,13 @@ export async function boot() {
         next.setTelemetry(telemetry);
         current = slot;
         window.__falsyLive = next;
-        const fading = cover ?? old.surface();
-        fading.style.transition = `opacity ${FADE_MS}ms ease`;
-        getComputedStyle(fading).opacity;
-        fading.style.opacity = '0';
-        setTimeout(() => {
+        for (const el of cover ? [cover] : old.surfaces()) {
+          el.style.transition = `opacity ${FADE_MS}ms ease`;
+          getComputedStyle(el).opacity;
+          el.style.opacity = '0';
+        }
+        fadeTimer = window.setTimeout(() => {
+          prewarmed.add(to.id);
           cover?.remove();
           old.dispose();
           next.holdGovernor(false);

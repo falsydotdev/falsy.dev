@@ -123,12 +123,12 @@ const fallback = choices[0];
       // Tall screens get a still framed for a phone layout, so the planet sits below the text.
       const isTall = (pick) => pick.portrait && innerHeight > innerWidth;
 
-      // Points the readout, accent, and horizon at a poster; the readout keeps its switch button.
-      const describe = (pick) => {
+      // Points the readout, accent, and horizon at a poster. The switch button is never detached, so it keeps focus.
+      const describe = (pick, tall) => {
         write('falsy:poster', pick.id);
         sky.style.setProperty('--horizon', String(pick.horizon));
-        t.innerHTML = isTall(pick) ? pick.portrait.telemetry : pick.telemetry;
-        t.prepend(sw);
+        for (const node of [...t.childNodes]) if (node !== sw) node.remove();
+        t.insertAdjacentHTML('beforeend', tall ? pick.portrait.telemetry : pick.telemetry);
         labelSwitch(pick.body);
         t.title = pick.title;
         t.dataset.poster = pick.id;
@@ -136,14 +136,13 @@ const fallback = choices[0];
       };
 
       // Loads a poster into `el` and fades it in.
-      const load = (el, pick, onShown, onError) => {
+      const load = (el, pick, tall, onShown, onError) => {
         const show = () => {
           el.classList.add('in');
           onShown?.();
         };
         el.addEventListener('load', show, { once: true });
         if (onError) el.addEventListener('error', onError, { once: true });
-        const tall = isTall(pick);
         el.style.objectPosition = tall ? '50% 50%' : pick.focus;
         el.sizes = '100vw';
         el.srcset = tall ? pick.portrait.srcset : pick.srcset;
@@ -158,8 +157,9 @@ const fallback = choices[0];
       const showPoster = () => {
         if (img.getAttribute('src')) return;
         const pick = posterFor(root.dataset.body);
-        describe(pick);
-        load(img, pick);
+        const tall = isTall(pick);
+        describe(pick, tall);
+        load(img, pick, tall);
         sky.dataset.scene = 'poster';
       };
       window.__falsyShowPoster = showPoster;
@@ -168,6 +168,9 @@ const fallback = choices[0];
       // accent change with it. If it can't load, the current still stays.
       const swapPoster = (to) => {
         const pick = posterFor(to);
+        // A body with no stills of its own can only be shown live.
+        if (pick.body !== to) return;
+        const tall = isTall(pick);
         const from = root.dataset.body;
         const old = img;
         const fresh = img.cloneNode(false);
@@ -181,9 +184,10 @@ const fallback = choices[0];
         load(
           fresh,
           pick,
+          tall,
           () => {
             root.classList.add('body-fade');
-            describe(pick);
+            describe(pick, tall);
             img = fresh;
             write('falsy:body', to);
             document.dispatchEvent(new CustomEvent('falsy:body-switched', { detail: { from, to, mode: 'poster' } }));

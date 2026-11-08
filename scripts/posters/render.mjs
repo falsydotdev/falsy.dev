@@ -48,11 +48,12 @@ if (!base) {
   });
 }
 
+// The body name is the readout's switch button, so the spans start at latitude.
 function parseTelemetry(spans) {
-  const lat = spans[1].match(/([\d.]+)°([NS])/);
-  const lon = spans[2].match(/([\d.]+)°E/);
-  const lst = spans[3].match(/(\d\d:\d\d)/);
-  const alt = spans[4].match(/(\d+) km/);
+  const lat = spans[0].match(/([\d.]+)°([NS])/);
+  const lon = spans[1].match(/([\d.]+)°E/);
+  const lst = spans[2].match(/(\d\d:\d\d)/);
+  const alt = spans[3].match(/(\d+) km/);
   if (!lat || !lon || !lst || !alt) throw new Error(`Unexpected telemetry: ${spans.join(' ')}`);
   return {
     lat: Number(lat[1]) * (lat[2] === 'S' ? -1 : 1),

@@ -7,7 +7,7 @@ import { FACES, parent, tileId } from '../tiles/cube.ts';
 import { selectTiles, tilesToFetch } from '../tiles/select.ts';
 import { TILES, HEIGHT_SIZE, SHADOW_MAP, colorPath, heightPath } from '../tiles/layout.ts';
 import { LayerArray } from './tile-atlas.js';
-import { lighting, toWorld } from './terrain.js';
+import { toWorld } from './terrain.js';
 
 const GRID = 32;
 const MAX_INSTANCES = 4096;
@@ -76,7 +76,8 @@ class Record {
  */
 export class TiledPlanet {
   /** @param {THREE.WebGPURenderer} renderer */
-  constructor(renderer, { baseUrl, meta, relief, layers, relaxBeyondKm = 500 }) {
+  constructor(renderer, { baseUrl, meta, relief, layers, lighting, relaxBeyondKm = 500 }) {
+    this.lighting = lighting;
     this.relaxBeyondKm = relaxBeyondKm > 0 ? relaxBeyondKm : Infinity;
     this.renderer = renderer;
     this.baseUrl = baseUrl;
@@ -123,6 +124,7 @@ export class TiledPlanet {
   }
 
   buildMaterial() {
+    const lighting = this.lighting;
     const R = this.radiusKm;
     const fn = uniformArray(FACES.map((f) => toWorld(f.n)), 'vec3');
     const fu = uniformArray(FACES.map((f) => toWorld(f.u)), 'vec3');
