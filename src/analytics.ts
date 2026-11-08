@@ -46,6 +46,9 @@ export function startAnalytics() {
         ui_host: 'https://us.posthog.com',
         defaults: '2026-08-30',
         capture_pageview: 'history_change',
+        // No cookies or storage, so no consent banner. PostHog derives a daily anonymous ID
+        // server-side from IP and user agent, which is why the relay forwards the visitor's IP.
+        cookieless_mode: 'always',
         disable_session_recording: true,
         disable_surveys: true,
       });
