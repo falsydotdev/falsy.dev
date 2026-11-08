@@ -11,20 +11,22 @@ npm run build     # static site in dist/
 npm run preview
 ```
 
-### Live Mars locally
+### Live scene locally
 
 ```bash
 npm install
-npm run tiles     # once: downloads the USGS mosaics (about 15 GB) and bakes the tile set (about 2 GB)
+npm run tiles                  # once for Mars: downloads the USGS mosaics (about 15 GB) and bakes the tiles (about 2 GB)
+npm run tiles -- --body moon   # once for the Moon: downloads LOLA heights and SVS colour (about 3 GB) and bakes the tiles
 npm run dev
 ```
 
-Then open http://localhost:4321. The live scene starts on desktop-width windows with WebGPU or WebGL2, and the poster shows until the first frame. Source mosaics and tiles live in `~/.cache/falsy-dev` (override with `FALSY_DATA_DIR`), outside the repo. The dev server serves them at `/data`; builds never include them. The steps run separately as `tiles:fetch`, `tiles:heights`, and `tiles:colour`; `tiles:colour -- --near 18.65,226.2,800` cuts only the level-3 tiles within 800 km of a point. `node scripts/tiles/budget.mjs` estimates download size per view by replaying real orbits through the renderer's tile selection.
+Then open http://localhost:4321. The live scene starts on desktop-width windows with WebGPU or WebGL2, and the poster shows until the first frame. Source mosaics and tiles live in `~/.cache/falsy-dev` (override with `FALSY_DATA_DIR`), outside the repo. The dev server serves them at `/data`; builds never include them. The steps run separately as `tiles:fetch`, `tiles:heights`, and `tiles:colour`, each taking `--body mars` (the default) or `--body moon`; `tiles:colour -- --near 18.65,226.2,800` cuts only the level-3 tiles within 800 km of a point. Each body's sources and how to read them are listed in `scripts/tiles/paths.mjs`; everything else about a body (radius, orbit, lighting, features) is in `src/scene/bodies.ts`. `node scripts/tiles/budget.mjs` estimates download size per view by replaying real orbits through the renderer's tile selection.
 
-Production builds read the tile base URL from `PUBLIC_TILES_BASE` in `.env.production` (the R2 bucket at `tiles.falsy.dev`), and load `<base>/<body>/<version>`, for example `mars/v1`. In development, tiles come from `/data/<body>`. `doppler run -p falsy-dev -c prd -- npm run tiles:upload` sends the tiles to R2. Secrets live in the `falsy-dev` Doppler project.
+Production builds read the tile base URL from `PUBLIC_TILES_BASE` in `.env.production` (the R2 bucket at `tiles.falsy.dev`), and load `<base>/<body>/<version>`, for example `mars/v1`. In development, tiles come from `/data/<body>`. `doppler run -p falsy-dev -c prd -- npm run tiles:upload -- --body moon` sends a body's tiles to R2. Secrets live in the `falsy-dev` Doppler project.
 
 | Parameter | Effect |
 |---|---|
+| `body=mars`, `body=moon` | Show this body instead of the usual alternation |
 | `live=1` / `live=0` | Force the live scene on or off, ignoring screen width and reduced motion |
 | `shot=dawn-dusk`, `shot=orbital-sunrise`, `shot=feature-flyover` | Pick the orbit instead of a weighted random one |
 | `t=N` | Preview at N× real time, or `t=0` to hold one moment. The readout shows `t×N` whenever it isn't 1. |

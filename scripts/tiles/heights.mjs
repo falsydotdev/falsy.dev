@@ -1,29 +1,38 @@
-// Cuts MOLA height tiles for every level. The whole 2 GB mosaic and its box-filtered
-// mips sit in shared memory, so workers sample any tile with plain bilinear lookups.
+// Cuts height tiles for every level from a body's global height mosaic. The whole mosaic
+// (about 2 GB) and its box-filtered mips sit in shared memory, so workers sample any tile with
+// plain bilinear lookups.
+//   node scripts/tiles/heights.mjs [--body mars|moon] [--shadow-only]
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
-import { open, mkdir, writeFile } from 'node:fs/promises';
+import { open, mkdir, writeFile, readFile } from 'node:fs/promises';
 import { gzipSync } from 'node:zlib';
 import { dirname, join } from 'node:path';
 import { availableParallelism } from 'node:os';
-import { SOURCES, TILE_DIR } from './paths.mjs';
+import { SOURCES, TILE_DIR, PIPELINE, bodyArg } from './paths.mjs';
+import { bodyById } from '../../src/scene/bodies.ts';
 import { tileDir, tileEdgeKm } from '../../src/scene/tiles/cube.ts';
 import { TILES, HEIGHT_SIZE, SHADOW_MAP, heightPath, heightSampleFraction, encodeHeights } from '../../src/scene/tiles/layout.ts';
 
-const NODATA = -32768;
-const RADIUS_KM = 3396.19;
-const SOURCE_M = 463.0935;
-const OUT = join(TILE_DIR, 'mars');
+const BODY = isMainThread ? bodyArg() : workerData.body;
+const SPEC = PIPELINE[BODY].heights;
+const NODATA = SPEC.nodata;
+const RADIUS_KM = bodyById(BODY).radiusKm;
+const SOURCE_M = SPEC.pixelM;
+const OUT = join(TILE_DIR, BODY);
 
-async function loadMola() {
+// Every loader returns heights in whole metres as int16, gridded from 180°W and 90°N.
+const loadHeights = () => (SPEC.format === 'pds-int16' ? loadPds() : loadGeotiff());
+
+async function loadGeotiff() {
   // Main thread only: geotiff's web-worker dependency hijacks worker threads that import it.
   const { fromFile } = await import('geotiff');
-  const tiff = await fromFile(SOURCES.mola.file);
+  const file = SOURCES[SPEC.source].file;
+  const tiff = await fromFile(file);
   const img = await tiff.getImage(0);
   const [w, h] = [img.getWidth(), img.getHeight()];
   const offsets = await img.fileDirectory.loadValue('StripOffsets');
   const sab = new SharedArrayBuffer(w * h * 2);
   const data = new Int16Array(sab);
-  const fh = await open(SOURCES.mola.file, 'r');
+  const fh = await open(file, 'r');
   const bytes = new Uint8Array(sab);
   // Strips are one row each and stored back to back, so the raster is one contiguous read.
   for (let pos = 0; pos < bytes.length; ) {
@@ -44,6 +53,45 @@ async function loadMola() {
     }
   }
   return { w, h, sab, filled };
+}
+
+// A PDS raw image with a detached label: little-endian int16 samples, DN × SCALING_FACTOR metres
+// above the reference sphere.
+async function loadPds() {
+  const label = await readFile(SOURCES[SPEC.label].file, 'utf8');
+  const field = (name) => {
+    const m = label.match(new RegExp(`^\\s*${name}\\s*=\\s*"?([^\\s"<]+)`, 'm'));
+    if (!m) throw new Error(`${name} missing from the label`);
+    return m[1];
+  };
+  if (field('SAMPLE_TYPE') !== 'LSB_INTEGER' || field('SAMPLE_BITS') !== '16') throw new Error('expected little-endian int16 samples');
+  const w = Number(field('LINE_SAMPLES'));
+  const h = Number(field('LINES'));
+  const scale = Number(field('SCALING_FACTOR'));
+  const west = Number(field('WESTERNMOST_LONGITUDE'));
+  const sab = new SharedArrayBuffer(w * h * 2);
+  const bytes = new Uint8Array(sab);
+  const fh = await open(SOURCES[SPEC.source].file, 'r');
+  for (let pos = 0; pos < bytes.length; ) {
+    const { bytesRead } = await fh.read(bytes, pos, Math.min(1 << 30, bytes.length - pos), pos);
+    if (!bytesRead) throw new Error('short read');
+    pos += bytesRead;
+  }
+  await fh.close();
+  const data = new Int16Array(sab);
+  for (let i = 0; i < data.length; i++) data[i] = Math.round(data[i] * scale);
+  // Columns that start at 0°E are rotated half a turn, so column 0 sits at 180°W like every other source.
+  if (Math.round(((west % 360) + 360) % 360) === 0) {
+    const half = w / 2;
+    const tmp = new Int16Array(half);
+    for (let y = 0; y < h; y++) {
+      const row = data.subarray(y * w, (y + 1) * w);
+      tmp.set(row.subarray(0, half));
+      row.copyWithin(0, half);
+      row.set(tmp, half);
+    }
+  }
+  return { w, h, sab, filled: 0 };
 }
 
 function buildMips(base) {
@@ -98,8 +146,8 @@ async function writeShadowMap(base) {
 
 async function main() {
   const t0 = Date.now();
-  const base = await loadMola();
-  console.log(`MOLA ${base.w}×${base.h} loaded, ${base.filled} nodata samples filled, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+  const base = await loadHeights();
+  console.log(`${SPEC.source} ${base.w}×${base.h} loaded, ${base.filled} nodata samples filled, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
   await writeShadowMap(base);
   if (process.argv.includes('--shadow-only')) process.exit(0);
   const mips = buildMips(base);
@@ -111,7 +159,7 @@ async function main() {
   let done = 0;
   await Promise.all(
     Array.from({ length: workers }, (_, wi) => new Promise((resolve, reject) => {
-      const worker = new Worker(new URL(import.meta.url), { workerData: { mips, tiles: tiles.filter((_, i) => i % workers === wi) } });
+      const worker = new Worker(new URL(import.meta.url), { workerData: { body: BODY, mips, tiles: tiles.filter((_, i) => i % workers === wi) } });
       worker.on('message', (m) => {
         ranges.min = Math.min(ranges.min, m.min);
         ranges.max = Math.max(ranges.max, m.max);
@@ -174,10 +222,9 @@ async function work() {
 
 if (isMainThread) {
   const ranges = await main();
-  const { readFile } = await import('node:fs/promises');
   const metaFile = join(OUT, 'meta.json');
   const meta = await readFile(metaFile, 'utf8').then(JSON.parse).catch(() => ({}));
-  await writeFile(metaFile, JSON.stringify({ ...meta, body: 'mars', radiusKm: RADIUS_KM, ...TILES, heightSize: HEIGHT_SIZE, heightRangeM: [ranges.min, ranges.max] }, null, 2));
+  await writeFile(metaFile, JSON.stringify({ ...meta, body: BODY, radiusKm: RADIUS_KM, ...TILES, heightSize: HEIGHT_SIZE, heightRangeM: [ranges.min, ranges.max] }, null, 2));
 } else {
   await work();
 }

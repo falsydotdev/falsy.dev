@@ -1,8 +1,9 @@
-// Downloads the USGS Mars mosaics with parallel range requests (single streams run at
+// Downloads a body's source mosaics with parallel range requests (single streams run at
 // about 3 MB/s from Australia). Resumable: finished chunks are recorded beside the file.
+//   node scripts/tiles/fetch-sources.mjs [--body mars|moon] [source]
 import { open, mkdir, readFile, writeFile, unlink } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { SOURCES, SOURCE_DIR } from './paths.mjs';
+import { SOURCES, SOURCE_DIR, PIPELINE, bodyArg } from './paths.mjs';
 
 const CHUNK = 32 * 1024 * 1024;
 const CONCURRENCY = Number(process.env.CONCURRENCY ?? 16);
@@ -61,9 +62,11 @@ async function download({ url, file }) {
 }
 
 await mkdir(SOURCE_DIR, { recursive: true });
-const only = process.argv[2];
+const spec = PIPELINE[bodyArg()];
+const wanted = [spec.heights.source, spec.heights.label, spec.colour.source].filter(Boolean);
+const only = process.argv.slice(2).find((a, i, all) => !a.startsWith('--') && all[i - 1] !== '--body');
 for (const [name, src] of Object.entries(SOURCES)) {
-  if (only && only !== name) continue;
+  if (!wanted.includes(name) || (only && only !== name)) continue;
   console.log(`${name}: ${src.url}`);
   await download(src);
 }

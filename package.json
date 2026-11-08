@@ -12,7 +12,7 @@
     "tiles:fetch": "node scripts/tiles/fetch-sources.mjs",
     "tiles:heights": "node scripts/tiles/heights.mjs",
     "tiles:colour": "node scripts/tiles/colour.mjs",
-    "tiles": "npm run tiles:fetch && npm run tiles:heights && npm run tiles:colour",
+    "tiles": "node scripts/tiles/all.mjs",
     "tiles:upload": "node scripts/tiles/upload.mjs"
   },
   "dependencies": {

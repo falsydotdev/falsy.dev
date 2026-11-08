@@ -88,6 +88,15 @@ Phases build on each other on stacked branches. Nothing launches until Phase 2 i
 
 **Done when:** loads alternate between Mars and the Moon, and both meet the Phase 2 budgets.
 
+| Step | State |
+|---|---|
+| Body config | `src/scene/bodies.ts` holds everything body-specific (radius, GM, altitude, relief, features, Sun size, limb glow, atmosphere, lighting, shot mix). Ephemeris, orbits, shots, framing, and the renderer take a body. Mars renders pixel-identical to before. |
+| 1. Tiles | Done: 131,070 colour and height tiles from NASA SVS's 2025 LROC colour map (16384 px wide, about 666 m/px) and LOLA `ldem_128` heights (237 m/px), plus the shadow map, about 1.5 GB in R2 at `moon/v1`. `--body moon` on every tile script. |
+| 2. Rendering | No scattering shell, no haze, no skylight. The terrain shadow test now runs down to the horizon dip of the tallest exaggerated peaks, so night-side slopes stay dark. The terminator pass runs 10° into daylight, since ground right at an airless terminator is almost all shadow. Sunrise starts 15 s before the Sun clears 15 km of limb mountains, with no glow. |
+| 3. Features | Twelve, including Tycho, Copernicus, Aristarchus, Tranquility Base, Tsiolkovskiy, and Shackleton, which has its own 0 to 2° Sun window. A low-Sun feature exists on over 80% of half-day steps through a lunation. |
+| 4. Rotation | A visitor's first load picks a body at random, and later loads alternate. `?body=` overrides. Three Moon posters join the six of Mars. |
+| Budget | 12 shots × 90 s at 3200×1800: 7.1 MB first view and 9.3 MB after 90 s (Mars: 6.4 and 9.0). LOLA heights carry more real detail and compress less; the softer colour compresses more. |
+
 ## Phase 4: Analytics and form
 
 1. PostHog in cookieless mode, tracking:

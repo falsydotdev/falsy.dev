@@ -1,6 +1,6 @@
 // Type-only, so the page's main bundle can read body configs without loading the ephemeris library.
 import type * as A from 'astronomy-engine';
-import { type Feature, MARS_FEATURES } from './features.ts';
+import { type Feature, MARS_FEATURES, MOON_FEATURES } from './features.ts';
 
 export type RGB = readonly [number, number, number];
 
@@ -28,6 +28,16 @@ export interface Body {
     extinction: RGB; // per-channel haze extinction relative to green
   };
   tiles: { version: string };
+  shots: {
+    weights: Record<'dawn-dusk' | 'orbital-sunrise' | 'feature-flyover', number>;
+    // How far into daylight the terminator orbit runs. Without air there's no skylight, so an
+    // orbit right on the terminator looks down on ground that is almost all in shadow.
+    dawnDuskSunDeg: number;
+    sunriseLeadS: number; // how long before the Sun clears the limb the sunrise shot starts
+    // Height of the limb the Sun has to clear. Exaggerated limb mountains hold sunrise back by
+    // most of a minute, which on an airless body would mean a long black opening.
+    sunriseLimbKm: number;
+  };
 }
 
 // GM from JPL DE440. Radius is the MOLA reference sphere.
@@ -52,8 +62,36 @@ export const MARS: Body = {
     extinction: [0.85, 1, 1.25],
   },
   tiles: { version: 'v1' },
+  shots: { weights: { 'dawn-dusk': 0.4, 'orbital-sunrise': 0.3, 'feature-flyover': 0.3 }, dawnDuskSunDeg: 0, sunriseLeadS: 60, sunriseLimbKm: 0 },
 };
 
-export const BODIES: Record<string, Body> = { mars: MARS };
+// GM from JPL DE440. Radius is the 1737.4 km sphere LOLA heights are measured from.
+export const MOON: Body = {
+  id: 'moon',
+  name: 'Moon',
+  ae: 'Moon' as A.Body,
+  gm: 4902.8,
+  radiusKm: 1737.4,
+  // About the altitude LRO mapped from.
+  altKm: 100,
+  relief: 2.5,
+  features: MOON_FEATURES,
+  sunDiameterRad: 0.0093,
+  // No air, but exaggerated mountains on the limb rise about 25 km.
+  glowKm: 15,
+  atmosphere: null,
+  light: {
+    sunColor: [1, 0.98, 0.95],
+    sunIntensity: 3.4,
+    ambient: 0,
+    skyTint: [1, 1, 1],
+    extinction: [1, 1, 1],
+  },
+  tiles: { version: 'v1' },
+  // With no glow before sunrise, a long lead would open on a black screen.
+  shots: { weights: { 'dawn-dusk': 0.35, 'orbital-sunrise': 0.2, 'feature-flyover': 0.45 }, dawnDuskSunDeg: 10, sunriseLeadS: 15, sunriseLimbKm: 15 },
+};
+
+export const BODIES: Record<string, Body> = { mars: MARS, moon: MOON };
 
 export const bodyById = (id: string | null | undefined): Body => (id && BODIES[id]) || MARS;
