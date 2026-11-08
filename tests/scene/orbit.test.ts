@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { vec } from '../../src/scene/ephemeris';
-import { MARS, circularOrbit, orbitalPeriod, orbitalSpeed, sample, stateAt } from '../../src/scene/orbit';
+import { circularOrbit, orbitalPeriod, orbitalSpeed, sample, stateAt } from '../../src/scene/orbit';
+import { MARS } from '../../src/scene/bodies';
 import { formatTelemetry } from '../../src/scene/telemetry';
 
 const EPOCH = new Date('2026-11-02T12:00:00Z');

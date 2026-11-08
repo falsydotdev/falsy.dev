@@ -21,6 +21,7 @@ function reportScene(posthog: PostHog) {
     const live = mode === 'live' ? window.__falsyLive?.state : undefined;
     const props = {
       scene: mode,
+      scene_body: live?.body ?? document.documentElement.dataset.body ?? null,
       scene_backend: live?.backend ?? null,
       scene_tier: live?.tier ?? null,
       scene_poster: document.getElementById('telemetry')?.dataset.poster ?? null,

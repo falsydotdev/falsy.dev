@@ -1,13 +1,5 @@
-import { type Vec3, vec, marsFrame, toBody, sunJ2000, latLon, localSolarTime } from './ephemeris.ts';
-
-export interface Body {
-  name: string;
-  gm: number; // km³/s²
-  radiusKm: number;
-}
-
-// GM from JPL DE440. Radius is the MOLA reference sphere the terrain uses.
-export const MARS: Body = { name: 'Mars', gm: 42828.37, radiusKm: 3396.19 };
+import { type Vec3, vec, bodyFrame, toBody, sunFrom, latLon, localSolarTime } from './ephemeris.ts';
+import type { Body } from './bodies.ts';
 
 // A circular two-body orbit in J2000 equatorial coordinates:
 // r(t) = a (cos θ e1 + sin θ e2), with θ = θ0 + n (t − epoch).
@@ -68,8 +60,8 @@ export interface CameraSample {
 
 export function sample(o: CircularOrbit, date: Date): CameraSample {
   const { r, v } = stateAt(o, date);
-  const frame = marsFrame(date);
-  const sun = sunJ2000(date);
+  const frame = bodyFrame(o.body, date);
+  const sun = sunFrom(o.body, date);
   const rBody = toBody(frame, r);
   const sunBody = toBody(frame, sun);
   const ground = latLon(rBody);

@@ -4,14 +4,18 @@
 declare global {
   interface Window {
     __falsyShowPoster?: () => void;
-    __falsyLive?: { state: { frames: number; shot: string; backend: string; tier: string; canvas: HTMLCanvasElement } };
+    __falsyLive?: { state: { frames: number; body: string; shot: string; backend: string; tier: string; canvas: HTMLCanvasElement } };
   }
 }
 
 import { isTierName } from './quality.ts';
+import { type Body, bodyById } from './bodies.ts';
 
-// In development the dev server serves locally baked tiles at /data; production builds use R2.
-const DATA_URL = import.meta.env.PUBLIC_TILES_URL ?? '/data/mars';
+// In development the dev server serves locally baked tiles at /data/<body>; production builds use R2.
+const tilesUrl = (body: Body) => {
+  const base = import.meta.env.PUBLIC_TILES_BASE;
+  return base ? `${base}/${body.id}/${body.tiles.version}` : `/data/${body.id}`;
+};
 
 // Preview-only camera overrides, clamped to sensible real-orbit ranges.
 function numberParam(params: URLSearchParams, key: string, min: number, max: number) {
@@ -44,8 +48,10 @@ export async function boot() {
   const sky = document.querySelector<HTMLElement>('#stage .sky');
   if (!sky || sky.dataset.scene !== 'pending') return;
   const fallBack = () => window.__falsyShowPoster?.();
+  const body = bodyById(params.get('body') ?? document.documentElement.dataset.body);
+  const dataUrl = tilesUrl(body);
 
-  const probe = await fetch(`${DATA_URL}/meta.json`, { method: 'HEAD' }).catch(() => null);
+  const probe = await fetch(`${dataUrl}/meta.json`, { method: 'HEAD' }).catch(() => null);
   if (!probe?.ok) return fallBack();
 
   const tParam = Number(params.get('t') ?? 1);
@@ -55,7 +61,8 @@ export async function boot() {
   try {
     const { startLiveScene } = await import('./live/scene.js');
     const live = await startLiveScene(sky, {
-      dataUrl: DATA_URL,
+      dataUrl,
+      body: body.id,
       shot: params.get('shot'),
       altKm: numberParam(params, 'alt', 120, 2000),
       tiltDeg: numberParam(params, 'tilt', -10, 60),

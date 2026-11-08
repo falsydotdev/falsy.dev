@@ -16,6 +16,7 @@ export interface FramingInput {
   aspect: number;
   text: Box;
   headerBottom: number;
+  glowKm?: number;
 }
 
 export interface Framing {
@@ -23,8 +24,8 @@ export interface Framing {
   rollDeg: number;
 }
 
-// The bright band above the limb is about three scale heights of dust (11 km each), so the
-// exclusion uses that shell rather than the bare surface.
+// The bright band above the limb, which the exclusion uses rather than the bare surface. Mars's
+// is about three scale heights of dust; each body sets its own.
 export const GLOW_KM = 35;
 const MARGIN = 0.03;
 // Where the limb should meet the right edge, as a fraction of the height from the top.
@@ -91,7 +92,7 @@ export function solveFraming(f: FramingInput): Framing {
   for (const rollDeg of ROLLS) {
     for (const tiltDeg of TILTS) {
       const framing = { tiltDeg, rollDeg };
-      const limb = limbOnScreen(f, framing);
+      const limb = limbOnScreen(f, framing, f.glowKm ?? GLOW_KM);
       if (!keepsClear(limb, f.text, f.headerBottom)) continue;
       const score = (limbHeightAt(limb, 1) - RIGHT_TARGET) ** 2 + ROLL_COST * (rollDeg / 10) ** 2;
       if (score < bestScore) {

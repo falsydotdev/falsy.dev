@@ -205,16 +205,16 @@ export class TiledPlanet {
           const lonK = lon.add(se.div(hl).mul(d).div(cosLat.mul(R)));
           const terrain = shadowHeight(latK, lonK);
           const ray = h0.add(tanE.mul(d)).sub(d.mul(d).div(2 * R));
-          const penumbra = d.mul(0.0061).add(0.15);
+          const penumbra = d.mul(lighting.sunDiameter).add(0.15);
           shadow.assign(min(shadow, clamp(ray.sub(terrain).div(penumbra).mul(0.5).add(0.5), 0, 1)));
           d.mulAssign(SHADOW_GROWTH);
         });
       });
 
       const airmass = float(1).div(max(su.add(0.035), 0.02));
-      const trans = exp(vec3(0.85, 1.0, 1.25).mul(lighting.opticalDepth).mul(airmass).negate());
+      const trans = exp(lighting.extinction.mul(lighting.opticalDepth).mul(airmass).negate());
       const direct = albedo.mul(lighting.sunColor).mul(lighting.sunIntensity).mul(ndl).mul(shadow).mul(trans);
-      const sky = albedo.mul(vec3(1, 0.72, 0.5)).mul(lighting.ambient).mul(smoothstep(-0.2, 0.25, su));
+      const sky = albedo.mul(lighting.skyTint).mul(lighting.ambient).mul(smoothstep(-0.2, 0.25, su));
       return vec4(direct.add(sky), 1);
     })();
     return mat;
