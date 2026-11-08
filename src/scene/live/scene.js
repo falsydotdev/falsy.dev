@@ -38,7 +38,7 @@ function buildShot(body, kind, now, altKm, rand, featureId) {
  * Starts the live scene of one body inside `host`.
  * @param {HTMLElement} host
  * Resolves to null when this machine should get the poster instead.
- * @param {{ dataUrl: string, body?: string, settleTimeoutMs?: number, holdGovernor?: boolean, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void, onLost?: () => void, farKm?: number, altKm?: number, tiltDeg?: number, rollDeg?: number, fovDeg?: number, tier?: import('../quality.ts').TierName, at?: Date, seed?: number, feature?: string | null, scale?: number, skip?: number, layout?: () => { text: import('../composition.ts').Box, headerBottom: number } | null }} opts
+ * @param {{ dataUrl: string, body?: string, settleTimeoutMs?: number, holdGovernor?: boolean, startTier?: import('../quality.ts').TierName, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void, onLost?: () => void, farKm?: number, altKm?: number, tiltDeg?: number, rollDeg?: number, fovDeg?: number, tier?: import('../quality.ts').TierName, at?: Date, seed?: number, feature?: string | null, scale?: number, skip?: number, layout?: () => { text: import('../composition.ts').Box, headerBottom: number } | null }} opts
  */
 // One tile per array layer; 512 layers hold a 4K view with headroom and cost about 180 MB of GPU memory.
 const WANTED_LAYERS = 512;
@@ -100,7 +100,9 @@ export async function startLiveScene(host, opts) {
   });
   const isWebGPU = renderer.backend.isWebGPUBackend;
   const hints = isWebGPU ? { backend: 'WebGPU', ...probe.info } : { backend: 'WebGL2', description: webglRenderer(renderer.backend.gl) };
-  const startTier = opts.tier ?? initialTier(hints);
+  // A switch starts at the tier the governor had already settled on for this machine.
+  const autoTier = initialTier(hints);
+  const startTier = opts.tier ?? (autoTier !== 'poster' && opts.startTier ? opts.startTier : autoTier);
   if (startTier === 'poster') {
     renderer.dispose();
     return null;
@@ -112,6 +114,7 @@ export async function startLiveScene(host, opts) {
   let planet;
   let atmosphere;
   let pipeline;
+  let layers;
   let stopped = false;
   let snapshot = null;
   let resumeStarted = 0;
@@ -165,17 +168,27 @@ export async function startLiveScene(host, opts) {
   applyBodyLight(body);
   scene.add(sunDisc, stars);
 
-  const meta = await (await fetch(`${opts.dataUrl}/meta.json`)).json();
-  if (meta.body !== body.id || Math.abs(meta.radiusKm - body.radiusKm) > 1e-6) console.warn(`Tiles at ${opts.dataUrl} are for ${meta.body}, not ${body.id}.`);
-  const layers = isWebGPU ? gpuLayers ?? 256 : Math.min(WANTED_LAYERS, renderer.backend.gl.getParameter(renderer.backend.gl.MAX_ARRAY_TEXTURE_LAYERS));
-  planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: body.relief, layers, relaxBeyondKm: opts.farKm });
-  const tiledPlanet = planet;
-  [atmosphere] = await Promise.all([
-    body.atmosphere ? createAtmosphere({ planetRadius: body.radiusKm, density: body.atmosphere.density, terrainHeight: (n) => tiledPlanet.coarseHeight(n) }) : null,
-    planet.init(),
-  ]);
-  scene.add(planet.mesh);
-  if (atmosphere) scene.add(atmosphere.mesh);
+  try {
+    await loadPlanet();
+  } catch (err) {
+    teardown();
+    throw err;
+  }
+  async function loadPlanet() {
+    const res = await fetch(`${opts.dataUrl}/meta.json`);
+    if (!res.ok) throw new Error(`No tiles at ${opts.dataUrl}`);
+    const meta = await res.json();
+    if (meta.body !== body.id || Math.abs(meta.radiusKm - body.radiusKm) > 1e-6) console.warn(`Tiles at ${opts.dataUrl} are for ${meta.body}, not ${body.id}.`);
+    layers = isWebGPU ? gpuLayers ?? 256 : Math.min(WANTED_LAYERS, renderer.backend.gl.getParameter(renderer.backend.gl.MAX_ARRAY_TEXTURE_LAYERS));
+    planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: body.relief, layers, relaxBeyondKm: opts.farKm });
+    const tiledPlanet = planet;
+    [atmosphere] = await Promise.all([
+      body.atmosphere ? createAtmosphere({ planetRadius: body.radiusKm, density: body.atmosphere.density, terrainHeight: (n) => tiledPlanet.coarseHeight(n) }) : null,
+      planet.init(),
+    ]);
+    scene.add(planet.mesh);
+    if (atmosphere) scene.add(atmosphere.mesh);
+  }
 
   pipeline = new THREE.RenderPipeline(renderer);
   const sceneColor = pass(scene, camera).getTextureNode('output');
@@ -202,6 +215,8 @@ export async function startLiveScene(host, opts) {
   const starMatrix = new THREE.Matrix4();
 
   function frame() {
+    // Lighting uniforms are shared by every scene, and two overlap during a body switch.
+    applyBodyLight(body);
     const date = simNow();
     const s = sample(shot.orbit, date);
     const f = bodyFrame(body, date);
@@ -380,9 +395,12 @@ export async function startLiveScene(host, opts) {
     body: body.id,
     canvas: renderer.domElement,
     dispose() {
-      if (stopped) return;
-      teardown();
+      if (!stopped) teardown();
       dropSnapshot();
+    },
+    /** What's on screen: the frozen last frame if there is one, else the live canvas. */
+    surface() {
+      return snapshot ?? renderer.domElement;
     },
     // Stops the scene and frees the GPU, leaving a copy of its last frame in its place for the caller to remove.
     freeze() {

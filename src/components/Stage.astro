@@ -120,16 +120,30 @@ const fallback = choices[0];
         return pool[Math.floor(Math.random() * pool.length)];
       };
 
-      // Fills `el` with a poster and fades it in once loaded; the readout keeps its switch button.
-      const paint = (el, pick, onShown) => {
+      // Tall screens get a still framed for a phone layout, so the planet sits below the text.
+      const isTall = (pick) => pick.portrait && innerHeight > innerWidth;
+
+      // Points the readout, accent, and horizon at a poster; the readout keeps its switch button.
+      const describe = (pick) => {
         write('falsy:poster', pick.id);
+        sky.style.setProperty('--horizon', String(pick.horizon));
+        t.innerHTML = isTall(pick) ? pick.portrait.telemetry : pick.telemetry;
+        t.prepend(sw);
+        labelSwitch(pick.body);
+        t.title = pick.title;
+        t.dataset.poster = pick.id;
+        root.dataset.body = pick.body;
+      };
+
+      // Loads a poster into `el` and fades it in.
+      const load = (el, pick, onShown, onError) => {
         const show = () => {
           el.classList.add('in');
           onShown?.();
         };
         el.addEventListener('load', show, { once: true });
-        // Tall screens get a still framed for a phone layout, so the planet sits below the text.
-        const tall = pick.portrait && innerHeight > innerWidth;
+        if (onError) el.addEventListener('error', onError, { once: true });
+        const tall = isTall(pick);
         el.style.objectPosition = tall ? '50% 50%' : pick.focus;
         el.sizes = '100vw';
         el.srcset = tall ? pick.portrait.srcset : pick.srcset;
@@ -138,43 +152,53 @@ const fallback = choices[0];
           el.removeEventListener('load', show);
           requestAnimationFrame(show);
         }
-        sky.style.setProperty('--horizon', String(pick.horizon));
-        t.innerHTML = tall ? pick.portrait.telemetry : pick.telemetry;
-        t.prepend(sw);
-        labelSwitch(pick.body);
-        t.title = pick.title;
-        t.dataset.poster = pick.id;
-        root.dataset.body = pick.body;
       };
 
+      // Also the fallback when a live scene is lost, so it shows whichever body is current by then.
       const showPoster = () => {
         if (img.getAttribute('src')) return;
-        paint(img, posterFor(body));
+        const pick = posterFor(root.dataset.body);
+        describe(pick);
+        load(img, pick);
         sky.dataset.scene = 'poster';
       };
       window.__falsyShowPoster = showPoster;
 
-      // Poster mode: a still of the other body fades in over the current one.
+      // Poster mode: a still of the other body fades in over the current one, and the readout and
+      // accent change with it. If it can't load, the current still stays.
       const swapPoster = (to) => {
+        const pick = posterFor(to);
+        const from = root.dataset.body;
+        const old = img;
         const fresh = img.cloneNode(false);
         fresh.removeAttribute('id');
         fresh.removeAttribute('src');
         fresh.removeAttribute('srcset');
         fresh.classList.remove('in');
         img.after(fresh);
-        const old = img;
-        const from = root.dataset.body;
-        img = fresh;
-        root.classList.add('body-fade');
-        setTimeout(() => root.classList.remove('body-fade'), 1200);
-        paint(fresh, posterFor(to), () => {
-          setTimeout(() => {
-            old.remove();
-            fresh.id = 'poster';
-          }, 1000);
-        });
-        write('falsy:body', to);
-        document.dispatchEvent(new CustomEvent('falsy:body-switched', { detail: { from, to, mode: 'poster' } }));
+        sw.setAttribute('aria-busy', 'true');
+        const done = () => sw.setAttribute('aria-busy', 'false');
+        load(
+          fresh,
+          pick,
+          () => {
+            root.classList.add('body-fade');
+            describe(pick);
+            img = fresh;
+            write('falsy:body', to);
+            document.dispatchEvent(new CustomEvent('falsy:body-switched', { detail: { from, to, mode: 'poster' } }));
+            setTimeout(() => {
+              old.remove();
+              fresh.id = 'poster';
+              root.classList.remove('body-fade');
+              done();
+            }, 1000);
+          },
+          () => {
+            fresh.remove();
+            done();
+          },
+        );
       };
 
       sw.addEventListener('click', () => {
