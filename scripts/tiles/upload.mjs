@@ -2,17 +2,18 @@
 // the environment (`doppler run -p falsy-dev -c prd -- npm run tiles:upload`) or, failing that,
 // ~/.config/falsy-dev/r2.env, and reach rclone as environment variables so no config file holds
 // them. Re-running only sends files that changed in size.
-//   node scripts/tiles/upload.mjs [version]          default v1, uploaded to mars/<version>/
-//   node scripts/tiles/upload.mjs [version] --size   count what's already in the bucket
+//   node scripts/tiles/upload.mjs [version] [--body mars|moon]   default v1, uploaded to <body>/<version>/
+//   node scripts/tiles/upload.mjs [version] --size               count what's already in the bucket
 import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { TILE_DIR } from './paths.mjs';
+import { TILE_DIR, bodyArg } from './paths.mjs';
 
 const ENV_FILE = process.env.R2_ENV_FILE ?? join(homedir(), '.config', 'falsy-dev', 'r2.env');
 const BUCKET = process.env.R2_BUCKET ?? 'falsy-tiles';
-const version = process.argv.slice(2).find((a) => !a.startsWith('--')) ?? 'v1';
+const body = bodyArg();
+const version = process.argv.slice(2).find((a, i, all) => !a.startsWith('--') && all[i - 1] !== '--body') ?? 'v1';
 
 const KEYS = ['R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_ENDPOINT'];
 const creds = KEYS.every((k) => process.env[k])
@@ -37,8 +38,8 @@ const env = {
   RCLONE_CONFIG_R2_ACL: 'private',
 };
 
-const dest = `r2:${BUCKET}/mars/${version}`;
-console.log(`${join(TILE_DIR, 'mars')} -> ${dest}`);
+const dest = `r2:${BUCKET}/${body}/${version}`;
+console.log(`${join(TILE_DIR, body)} -> ${dest}`);
 if (process.argv.includes('--size')) {
   process.exit(spawnSync('rclone', ['size', dest, '--fast-list'], { env, stdio: 'inherit' }).status ?? 1);
 }
@@ -47,7 +48,7 @@ const res = spawnSync(
   [
     '-v',
     'copy',
-    join(TILE_DIR, 'mars'),
+    join(TILE_DIR, body),
     dest,
     '--transfers', '64',
     '--checkers', '64',

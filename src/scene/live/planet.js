@@ -188,8 +188,12 @@ export class TiledPlanet {
       const ndl = max(dot(N, s), 0);
       const su = dot(n, s);
 
+      // A peak can see the Sun below the local horizon: exaggerated relief on the Moon reaches about
+      // 25 km, whose horizon dips about 10°. Below that the ground is in the planet's own shadow,
+      // which haze hides on Mars but an airless body shows as lit steep slopes.
       const shadow = float(1).toVar();
-      If(su.greaterThan(-0.08).and(ndl.greaterThan(0)).and(lighting.shadows.greaterThan(0.5)), () => {
+      If(su.lessThan(-0.2), () => shadow.assign(0));
+      If(su.greaterThanEqual(-0.2).and(ndl.greaterThan(0)).and(lighting.shadows.greaterThan(0.5)), () => {
         const east = vec3(sin(lon).negate(), 0, cos(lon).negate());
         const north = vec3(sin(lat).negate().mul(cos(lon)), cos(lat), sin(lat).mul(sin(lon)));
         const se = dot(s, east);

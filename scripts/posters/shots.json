@@ -2,7 +2,7 @@
   {
     "id": "mars-olympus",
     "label": "Olympus Mons in the morning",
-    "query": "feature=olympus-mons&at=2026-11-03T20:24:00Z&skip=100",
+    "query": "body=mars&feature=olympus-mons&at=2026-11-03T20:24:00Z&skip=100",
     "portraitQuery": "skip=0",
     "focus": "72% 50%",
     "horizon": 0.42
@@ -10,35 +10,56 @@
   {
     "id": "mars-valles",
     "label": "Valles Marineris in the morning",
-    "query": "feature=valles-marineris&at=2026-11-03T15:34:00Z&skip=60",
+    "query": "body=mars&feature=valles-marineris&at=2026-11-03T15:34:00Z&skip=60",
     "focus": "70% 50%",
     "horizon": 0.42
   },
   {
     "id": "mars-noctis",
     "label": "Noctis Labyrinthus in the morning",
-    "query": "feature=noctis-labyrinthus&at=2026-11-03T18:25:00Z&skip=60",
+    "query": "body=mars&feature=noctis-labyrinthus&at=2026-11-03T18:25:00Z&skip=60",
     "focus": "68% 50%",
     "horizon": 0.42
   },
   {
     "id": "mars-gale",
     "label": "Gale Crater in the evening",
-    "query": "feature=gale-crater&at=2026-11-03T12:16:00Z&skip=60",
+    "query": "body=mars&feature=gale-crater&at=2026-11-03T12:16:00Z&skip=60",
     "focus": "72% 50%",
     "horizon": 0.42
   },
   {
     "id": "mars-elysium",
     "label": "Elysium Mons in the evening",
-    "query": "feature=elysium-mons&at=2026-11-03T11:48:00Z&skip=60",
+    "query": "body=mars&feature=elysium-mons&at=2026-11-03T11:48:00Z&skip=60",
     "focus": "70% 50%",
     "horizon": 0.42
   },
   {
     "id": "mars-sunrise",
     "label": "Orbital sunrise over Tharsis",
-    "query": "shot=orbital-sunrise&at=2026-11-04T08:00:00Z&seed=173&skip=50",
+    "query": "body=mars&shot=orbital-sunrise&at=2026-11-04T08:00:00Z&seed=173&skip=50",
+    "focus": "70% 50%",
+    "horizon": 0.42
+  },
+  {
+    "id": "moon-tycho",
+    "label": "Tycho in the morning",
+    "query": "body=moon&feature=tycho&at=2026-11-19T05:00:00Z&skip=150",
+    "focus": "70% 50%",
+    "horizon": 0.42
+  },
+  {
+    "id": "moon-copernicus",
+    "label": "Copernicus in the morning",
+    "query": "body=moon&feature=copernicus&at=2026-11-19T17:00:00Z&skip=150",
+    "focus": "70% 50%",
+    "horizon": 0.42
+  },
+  {
+    "id": "moon-terminator",
+    "label": "Lunar highlands under a low Sun",
+    "query": "body=moon&shot=dawn-dusk&at=2026-11-20T00:00:00Z&seed=3&skip=30",
     "focus": "70% 50%",
     "horizon": 0.42
   }

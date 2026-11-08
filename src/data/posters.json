@@ -322,5 +322,167 @@
         }
       ]
     }
+  },
+  {
+    "id": "moon-tycho",
+    "label": "Tycho in the morning",
+    "focus": "70% 50%",
+    "horizon": 0.42,
+    "body": "Moon",
+    "relief": 2.5,
+    "lat": -45.3,
+    "lon": 344.4,
+    "lst": "06:44",
+    "altKm": 100,
+    "at": "2026-11-19T05:02:30.000Z",
+    "sources": [
+      {
+        "src": "/posters/moon-tycho-960.avif",
+        "width": 960,
+        "bytes": 35849
+      },
+      {
+        "src": "/posters/moon-tycho-1600.avif",
+        "width": 1600,
+        "bytes": 73711
+      },
+      {
+        "src": "/posters/moon-tycho-2560.avif",
+        "width": 2560,
+        "bytes": 141049
+      }
+    ],
+    "portrait": {
+      "lat": -45.3,
+      "lon": 344.4,
+      "lst": "06:44",
+      "altKm": 100,
+      "at": "2026-11-19T05:02:30.000Z",
+      "sources": [
+        {
+          "src": "/posters/moon-tycho-portrait-600.avif",
+          "width": 600,
+          "bytes": 48133
+        },
+        {
+          "src": "/posters/moon-tycho-portrait-800.avif",
+          "width": 800,
+          "bytes": 69520
+        },
+        {
+          "src": "/posters/moon-tycho-portrait-1170.avif",
+          "width": 1170,
+          "bytes": 116376
+        }
+      ]
+    }
+  },
+  {
+    "id": "moon-copernicus",
+    "label": "Copernicus in the morning",
+    "focus": "70% 50%",
+    "horizon": 0.42,
+    "body": "Moon",
+    "relief": 2.5,
+    "lat": 8.3,
+    "lon": 336.5,
+    "lst": "06:37",
+    "altKm": 100,
+    "at": "2026-11-19T17:02:30.000Z",
+    "sources": [
+      {
+        "src": "/posters/moon-copernicus-960.avif",
+        "width": 960,
+        "bytes": 38390
+      },
+      {
+        "src": "/posters/moon-copernicus-1600.avif",
+        "width": 1600,
+        "bytes": 77609
+      },
+      {
+        "src": "/posters/moon-copernicus-2560.avif",
+        "width": 2560,
+        "bytes": 146107
+      }
+    ],
+    "portrait": {
+      "lat": 8.3,
+      "lon": 336.5,
+      "lst": "06:37",
+      "altKm": 100,
+      "at": "2026-11-19T17:02:30.000Z",
+      "sources": [
+        {
+          "src": "/posters/moon-copernicus-portrait-600.avif",
+          "width": 600,
+          "bytes": 50040
+        },
+        {
+          "src": "/posters/moon-copernicus-portrait-800.avif",
+          "width": 800,
+          "bytes": 72768
+        },
+        {
+          "src": "/posters/moon-copernicus-portrait-1170.avif",
+          "width": 1170,
+          "bytes": 122853
+        }
+      ]
+    }
+  },
+  {
+    "id": "moon-terminator",
+    "label": "Lunar highlands under a low Sun",
+    "focus": "70% 50%",
+    "horizon": 0.42,
+    "body": "Moon",
+    "relief": 2.5,
+    "lat": 78.4,
+    "lon": 49.2,
+    "lst": "11:42",
+    "altKm": 100,
+    "at": "2026-11-20T00:00:30.000Z",
+    "sources": [
+      {
+        "src": "/posters/moon-terminator-960.avif",
+        "width": 960,
+        "bytes": 38207
+      },
+      {
+        "src": "/posters/moon-terminator-1600.avif",
+        "width": 1600,
+        "bytes": 77538
+      },
+      {
+        "src": "/posters/moon-terminator-2560.avif",
+        "width": 2560,
+        "bytes": 146085
+      }
+    ],
+    "portrait": {
+      "lat": 78.4,
+      "lon": 49.2,
+      "lst": "11:42",
+      "altKm": 100,
+      "at": "2026-11-20T00:00:30.000Z",
+      "sources": [
+        {
+          "src": "/posters/moon-terminator-portrait-600.avif",
+          "width": 600,
+          "bytes": 50874
+        },
+        {
+          "src": "/posters/moon-terminator-portrait-800.avif",
+          "width": 800,
+          "bytes": 73664
+        },
+        {
+          "src": "/posters/moon-terminator-portrait-1170.avif",
+          "width": 1170,
+          "bytes": 123458
+        }
+      ]
+    }
   }
 ]

@@ -1,5 +1,6 @@
 ---
 import posterData from '../data/posters.json';
+import { BODIES } from '../scene/bodies';
 
 interface Poster {
   id: string;
@@ -38,6 +39,8 @@ function telemetry(p: Pick<Poster, 'body' | 'lat' | 'lon' | 'lst' | 'altKm' | 'r
   return parts.map(([text, cls]) => `<span${cls ? ` class="${cls}"` : ''}>${text}</span>`).join('');
 }
 
+const DATA_CREDIT: Record<string, string> = { mars: 'MOLA elevation and Viking colour data', moon: 'LOLA elevation and LROC colour data' };
+const bodies = Object.keys(BODIES);
 const srcset = (sources: { src: string; width: number }[]) => sources.map((s) => `${s.src} ${s.width}w`).join(', ');
 const choices = posters.map((p) => ({
   id: p.id,
@@ -48,7 +51,7 @@ const choices = posters.map((p) => ({
   srcset: srcset(p.sources),
   portrait: p.portrait ? { src: p.portrait.sources[0].src, srcset: srcset(p.portrait.sources), telemetry: telemetry({ ...p, ...p.portrait }) } : null,
   telemetry: telemetry(p),
-  title: `${p.label}. A still frame rendered from MOLA elevation and Viking colour data, lit by the real Sun position at ${p.at.slice(0, 10)} ${p.at.slice(11, 16)} UTC. Relief is exaggerated ${p.relief}×.`,
+  title: `${p.label}. A still frame rendered from ${DATA_CREDIT[p.body.toLowerCase()]}, lit by the real Sun position at ${p.at.slice(0, 10)} ${p.at.slice(11, 16)} UTC. Relief is exaggerated ${p.relief}×.`,
 }));
 const fallback = choices[0];
 ---
@@ -61,7 +64,7 @@ const fallback = choices[0];
     <div class="scrim"></div>
   </div>
   <p id="telemetry" class="telemetry"></p>
-  <script is:inline define:vars={{ choices }}>
+  <script is:inline define:vars={{ choices, bodies }}>
     (() => {
       // Decide before anything paints: visitors who'll get the live scene see dark
       // space until it fades in, so a poster of somewhere else never flashes first.
@@ -75,11 +78,24 @@ const fallback = choices[0];
         try { return !!document.createElement('canvas').getContext('webgl2'); } catch { return false; }
       })();
 
-      let last = null;
-      try { last = localStorage.getItem('falsy:poster'); } catch {}
-      const pool = choices.length > 1 ? choices.filter((c) => c.id !== last) : choices;
+      // A first visit gets a random body; after that bodies alternate, so a visitor never sees
+      // the same one twice in a row. `?body=` picks one for previews and shared links.
+      const read = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
+      const asked = new URLSearchParams(location.search).get('body');
+      const lastBody = read('falsy:body');
+      let body = bodies.includes(asked) ? asked
+        : bodies.includes(lastBody) ? bodies[(bodies.indexOf(lastBody) + 1) % bodies.length]
+        : bodies[Math.floor(Math.random() * bodies.length)];
+      // A body without posters can still be shown live, but not as a still.
+      if (!willTryLive && !choices.some((c) => c.body === body)) body = choices[0].body;
+      if (!asked) try { localStorage.setItem('falsy:body', body); } catch {}
+
+      const last = read('falsy:poster');
+      const ofBody = choices.filter((c) => c.body === body);
+      const shown = ofBody.length ? ofBody : choices;
+      const pool = shown.length > 1 ? shown.filter((c) => c.id !== last) : shown;
       const pick = pool[Math.floor(Math.random() * pool.length)];
-      document.documentElement.dataset.body = pick.body ?? 'mars';
+      document.documentElement.dataset.body = body;
       const img = document.getElementById('poster');
       const t = document.getElementById('telemetry');
       const sky = img.closest('.sky');
@@ -87,6 +103,7 @@ const fallback = choices[0];
       const showPoster = () => {
         if (img.getAttribute('src')) return;
         try { localStorage.setItem('falsy:poster', pick.id); } catch {}
+        document.documentElement.dataset.body = pick.body;
         const show = () => img.classList.add('in');
         img.addEventListener('load', show, { once: true });
         // Tall screens get a still framed for a phone layout, so the planet sits below the text.
@@ -107,7 +124,7 @@ const fallback = choices[0];
       if (!willTryLive) return showPoster();
       sky.dataset.scene = 'pending';
       sky.style.setProperty('--horizon', '0.3');
-      t.textContent = 'Loading Mars terrain…';
+      t.textContent = `Loading ${body === 'moon' ? 'lunar' : 'Mars'} terrain…`;
       // If the live scene hasn't taken over by now, something went wrong: fall back.
       setTimeout(() => { if (sky.dataset.scene === 'pending') showPoster(); }, 12000);
     })();

@@ -7,6 +7,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { chromium } from 'playwright';
+import { bodyById } from '../../src/scene/bodies.ts';
 
 const { values: args } = parseArgs({
   options: {
@@ -30,7 +31,6 @@ const VIEWS = [
   },
   { key: 'portrait', viewport: { width: 390, height: 844 }, scale: 3 },
 ];
-const RELIEF = 2.5;
 const TIMEOUT = 120e3;
 
 await mkdir(outDir, { recursive: true });
@@ -115,7 +115,8 @@ try {
       await page.close();
     }
     const { query, portraitQuery, ...meta } = shot;
-    frames.push({ ...meta, body: 'Mars', relief: RELIEF, ...frame.landscape, portrait: frame.portrait });
+    const body = bodyById(new URLSearchParams(query).get('body'));
+    frames.push({ ...meta, body: body.name, relief: body.relief, ...frame.landscape, portrait: frame.portrait });
     console.log(`${shot.id}: ${((performance.now() - started) / 1000).toFixed(1)} s`);
   }
 } finally {

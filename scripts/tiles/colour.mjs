@@ -1,24 +1,27 @@
-// Cuts Viking colour tiles. Each worker takes one level-3 tile, reads its window of the
-// mosaic, samples the level-7 tiles beneath it, and builds every parent by 2×2 averaging.
-// The main thread then builds levels 0 to 2 from the level-3 results.
-//   node scripts/tiles/colour.mjs                 whole planet
+// Cuts colour tiles from a body's global colour mosaic. Each worker takes one level-3 tile, reads
+// its window of the mosaic, samples the level-7 tiles beneath it, and builds every parent by 2×2
+// averaging. The main thread then builds levels 0 to 2 from the level-3 results.
+//   node scripts/tiles/colour.mjs [--body mars|moon]                 whole body
 //   node scripts/tiles/colour.mjs --near 18.65,226.2,800   only level-3 tiles within 800 km
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 import { open, mkdir, writeFile, readFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { availableParallelism } from 'node:os';
 import { createRequire } from 'node:module';
-import { SOURCES, TILE_DIR } from './paths.mjs';
+import { SOURCES, TILE_DIR, PIPELINE, bodyArg } from './paths.mjs';
+import { bodyById } from '../../src/scene/bodies.ts';
 import { children, dirOf, tileDir, tileLatLonBounds, tileId } from '../../src/scene/tiles/cube.ts';
 import { TILES, colorPath } from '../../src/scene/tiles/layout.ts';
 
 const sharp = createRequire(import.meta.url)('sharp');
-const OUT = join(TILE_DIR, 'mars');
+const BODY = isMainThread ? bodyArg() : workerData.body;
+const SPEC = PIPELINE[BODY].colour;
+const OUT = join(TILE_DIR, BODY);
 const JOB_LEVEL = 3;
 const PX = TILES.colorPx;
 const QUALITY = 60;
-const RADIUS_KM = 3396.19;
+const RADIUS_KM = bodyById(BODY).radiusKm;
 
 async function encode(rgb, k) {
   const file = join(OUT, colorPath(k));
@@ -45,17 +48,42 @@ function downsample(kids) {
   return out;
 }
 
-// geotiff loads the web-worker package, which hijacks any worker thread that imports it,
-// so only the main thread reads the TIFF header.
-async function openViking() {
+// Workers read a window of 8-bit planar bands straight from disk: band b, row r starts at
+// base + (b·h + r)·w. A mosaic already laid out that way is read in place; any other TIFF is
+// decoded once into that layout beside the source.
+async function openSource() {
+  const file = SOURCES[SPEC.source].file;
+  if (SPEC.format === 'decode') return decodeToPlanar(file);
+  // geotiff loads the web-worker package, which hijacks any worker thread that imports it,
+  // so only the main thread reads the TIFF header.
   const { fromFile } = await import('geotiff');
-  const tiff = await fromFile(SOURCES.viking.file);
+  const tiff = await fromFile(file);
   const img = await tiff.getImage(0);
   const offsets = await img.fileDirectory.loadValue('StripOffsets');
-  return { w: img.getWidth(), h: img.getHeight(), base: offsets[0] };
+  return { file, w: img.getWidth(), h: img.getHeight(), base: offsets[0] };
 }
 
-// Planar layout with one row per strip, bands back to back: band b, row r starts at base + (b·h + r)·w.
+async function decodeToPlanar(file) {
+  const out = `${file}.planar`;
+  const img = sharp(file, { limitInputPixels: false, unlimited: true });
+  const { width: w, height: h } = await img.metadata();
+  if (existsSync(out) && statSync(out).size === w * h * 3) return { file: out, w, h, base: 0 };
+  const t0 = Date.now();
+  // toColourspace converts 16-bit sRGB to 8-bit by scaling rather than clipping.
+  const rgb = await img.removeAlpha().toColourspace('srgb').raw().toBuffer();
+  if (rgb.length !== w * h * 3) throw new Error(`decoded ${rgb.length} bytes, expected ${w * h * 3}`);
+  const planar = Buffer.alloc(rgb.length);
+  const n = w * h;
+  for (let i = 0; i < n; i++) {
+    planar[i] = rgb[3 * i];
+    planar[n + i] = rgb[3 * i + 1];
+    planar[2 * n + i] = rgb[3 * i + 2];
+  }
+  await writeFile(out, planar);
+  console.log(`decoded ${w}×${h} to ${out} in ${((Date.now() - t0) / 1000).toFixed(0)}s`);
+  return { file: out, w, h, base: 0 };
+}
+
 async function readWindow(fh, src, k) {
   const b = tileLatLonBounds(k);
   const r0 = Math.max(0, Math.floor(((90 - b.latMax) / 180) * src.h) - 2);
@@ -120,7 +148,7 @@ async function build(win, src, k) {
 async function work() {
   sharp.concurrency(1);
   const src = workerData.src;
-  const fh = await open(SOURCES.viking.file, 'r');
+  const fh = await open(src.file, 'r');
   parentPort.on('message', async (k) => {
     const win = await readWindow(fh, src, k);
     const rgb = await build(win, src, k);
@@ -149,11 +177,11 @@ async function main() {
   for (const k of jobs) if (!queue.includes(k)) results.set(tileId(k), await sharp(join(OUT, colorPath(k))).removeAlpha().raw().toBuffer());
   console.log(`${queue.length} of ${jobs.length} level-${JOB_LEVEL} jobs to cut`);
 
-  const src = await openViking();
+  const src = await openSource();
   const workers = Math.min(queue.length, Math.max(1, availableParallelism() - 2));
   await Promise.all(
     Array.from({ length: workers }, () => new Promise((resolve, reject) => {
-      const worker = new Worker(new URL(import.meta.url), { workerData: { src } });
+      const worker = new Worker(new URL(import.meta.url), { workerData: { body: BODY, src } });
       const next = () => {
         const k = queue.shift();
         if (k) worker.postMessage(k);
