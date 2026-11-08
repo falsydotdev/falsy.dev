@@ -1,6 +1,6 @@
 // Same-origin relay so ad blockers that block posthog.com don't drop events. The prefix avoids
 // words like "analytics" or "posthog" that blocklists match on.
-export const PREFIX = '/uplink';
+const PREFIX = '/uplink';
 const API_HOST = 'us.i.posthog.com';
 const ASSET_HOST = 'us-assets.i.posthog.com';
 
