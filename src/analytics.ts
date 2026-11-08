@@ -4,7 +4,7 @@ const token = import.meta.env.PUBLIC_POSTHOG_TOKEN;
 const host = import.meta.env.PUBLIC_POSTHOG_HOST;
 
 // Only the production host reports, so dev, Lighthouse CI and PR previews stay out of the data.
-// `?ph=1` turns it on anywhere, for testing a build locally.
+// `?ph=1` turns it on anywhere; test locally under `wrangler dev`, which serves the /uplink relay.
 function shouldTrack() {
   if (!token || !host) return false;
   if (new URLSearchParams(location.search).get('ph') === '1') return true;

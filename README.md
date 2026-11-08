@@ -40,7 +40,7 @@ Production builds read the tile base URL from `PUBLIC_TILES_URL` in `.env.produc
 | `tier=high`, `tier=medium`, `tier=low` | Force a quality tier and stop the automatic step-down, to compare them. `window.__falsyLive.state` shows the tier, `gpuMs`, and any tier changes. |
 | `scale=N` | Render at N device pixels per CSS pixel (0.5 to 3, never above the screen's own), overriding the tier's resolution. For comparing sharpness. |
 | `webgl` | Force the WebGL2 backend |
-| `ph=1` | Turn on PostHog analytics off the production host, to test a build locally. Headless browsers still need `navigator.webdriver` masked, or posthog-js drops their events as bots. |
+| `ph=1` | Turn on PostHog analytics off the production host. Events go through the `/uplink` relay, which only the Worker serves, so test a build with `npm run build && npx wrangler dev`, not `astro preview` or `astro dev`. Headless browsers also need `navigator.webdriver` masked, or posthog-js drops their events as bots. |
 
 ## Where things live
 
