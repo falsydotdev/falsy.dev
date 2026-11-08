@@ -21,6 +21,7 @@
     "@fontsource/instrument-serif": "^5.3.0",
     "astro": "^7.4.2",
     "astronomy-engine": "^2.1.19",
+    "posthog-js": "^1.444.0",
     "three": "^0.186.1"
   },
   "devDependencies": {

@@ -4,7 +4,7 @@
 declare global {
   interface Window {
     __falsyShowPoster?: () => void;
-    __falsyLive?: { state: { frames: number; shot: string; backend: string; canvas: HTMLCanvasElement } };
+    __falsyLive?: { state: { frames: number; shot: string; backend: string; tier: string; canvas: HTMLCanvasElement } };
   }
 }
 

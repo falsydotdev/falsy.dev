@@ -40,6 +40,7 @@ Production builds read the tile base URL from `PUBLIC_TILES_URL` in `.env.produc
 | `tier=high`, `tier=medium`, `tier=low` | Force a quality tier and stop the automatic step-down, to compare them. `window.__falsyLive.state` shows the tier, `gpuMs`, and any tier changes. |
 | `scale=N` | Render at N device pixels per CSS pixel (0.5 to 3, never above the screen's own), overriding the tier's resolution. For comparing sharpness. |
 | `webgl` | Force the WebGL2 backend |
+| `ph=1` | Turn on PostHog analytics off the production host, to test a build locally. Headless browsers still need `navigator.webdriver` masked, or posthog-js drops their events as bots. |
 
 ## Where things live
 
@@ -71,3 +72,5 @@ Shots are defined in `scripts/posters/shots.json` as live-scene URL parameters w
 Cloudflare Workers Builds deploys the Worker (`wrangler.jsonc`, static assets in `dist`) on every push to `main`: the Cloudflare project `falsy-dev` is connected to this repo, with build command `npm run build` and deploy command `npx wrangler deploy`. GitHub Actions only runs checks (type check, tests, build, Lighthouse) and needs no Cloudflare credentials.
 
 Tiles are served from the R2 bucket `falsy-tiles` at `tiles.falsy.dev`; see "Live Mars locally" for uploads. Secrets live in the Doppler project `falsy-dev`.
+
+Analytics go to the PostHog project `falsy.dev` (US Cloud). `src/analytics.ts` loads posthog-js after the page is idle, and only on `falsy.dev`, so dev, Lighthouse CI, and PR previews send nothing. The project token is in `.env.production`: it's public by design, since it can only send events and ships in the page anyway. Besides pageviews and clicks, a `scene_shown` event records whether each visitor got the live orbit or a poster, with the GPU backend and quality tier.
