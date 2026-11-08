@@ -1,6 +1,6 @@
 // Estimates tile downloads for real orbits: runs the renderer's tile selection and fetch
 // policy along an orbit and sums the sizes of the baked tiles it would request.
-//   node scripts/tiles/budget.mjs [--seconds 90] [--height 1440] [--shots 12]
+//   node scripts/tiles/budget.mjs [--body mars] [--seconds 90] [--height 1440] [--shots 12]
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import { TILE_DIR } from './paths.mjs';
@@ -8,7 +8,8 @@ import { selectTiles, tilesToFetch } from '../../src/scene/tiles/select.ts';
 import { tileId } from '../../src/scene/tiles/cube.ts';
 import { TILES, SHADOW_MAP, colorPath, heightPath } from '../../src/scene/tiles/layout.ts';
 import { orbitCameraPose } from '../../src/scene/camera.ts';
-import { marsFrame, vec } from '../../src/scene/ephemeris.ts';
+import { bodyFrame, vec } from '../../src/scene/ephemeris.ts';
+import { bodyById } from '../../src/scene/bodies.ts';
 import { sample } from '../../src/scene/orbit.ts';
 import { dawnDusk, featureFlyover, orbitalSunrise } from '../../src/scene/shots.ts';
 
@@ -21,8 +22,10 @@ const HEIGHT_PX = arg('height', 1440);
 const SHOTS = arg('shots', 12);
 const ASPECT = 16 / 9;
 const FOV = 50;
-const RELIEF = 2.5;
-const BASE = join(TILE_DIR, 'mars');
+const bodyArg = process.argv.indexOf('--body');
+const BODY = bodyById(bodyArg > 0 ? process.argv[bodyArg + 1] : 'mars');
+const RELIEF = BODY.relief;
+const BASE = join(TILE_DIR, BODY.id);
 const meta = JSON.parse(await import('node:fs/promises').then((fs) => fs.readFile(join(BASE, 'meta.json'), 'utf8')));
 const heightRangeKm = meta.heightRangeM.map((m) => (m / 1000) * RELIEF);
 
@@ -48,7 +51,7 @@ function run(shot, { tiltDeg, maxTexelPx, relaxBeyondKm }) {
   for (let t = 0; t <= SECONDS; t += 1) {
     const date = new Date(shot.orbit.epoch.getTime() + t * 1000);
     const s = sample(shot.orbit, date);
-    const f = marsFrame(date);
+    const f = bodyFrame(BODY, date);
     const vBody = [vec.dot(s.v, f.x), vec.dot(s.v, f.y), vec.dot(s.v, f.z)];
     const pose = orbitCameraPose(s.rBody, vBody, meta.radiusKm, tiltDeg);
     const selected = selectTiles(
@@ -75,7 +78,7 @@ const now = new Date();
 const shots = [];
 for (let i = 0; i < SHOTS; i++) {
   const at = new Date(now.getTime() + i * 2.1 * 3600e3);
-  const opts = { altKm: 200, rand: () => (i * 0.618) % 1 };
+  const opts = { body: BODY, rand: () => (i * 0.618) % 1 };
   shots.push(i % 3 === 0 ? dawnDusk(at, opts) : i % 3 === 1 ? orbitalSunrise(at, opts) : featureFlyover(at, opts) ?? dawnDusk(at, opts));
 }
 

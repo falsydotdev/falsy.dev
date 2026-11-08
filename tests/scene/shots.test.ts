@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { DEG, vec, bodyVector, sunJ2000, sunElevationAt, fromBody, marsFrame } from '../../src/scene/ephemeris';
+import { DEG, vec, bodyVector, sunFrom, sunElevationAt as elevationOn, fromBody, bodyFrame } from '../../src/scene/ephemeris';
 import { orbitCameraPose, project } from '../../src/scene/camera';
-import { MARS, orbitalPeriod, sample } from '../../src/scene/orbit';
+import { orbitalPeriod, sample } from '../../src/scene/orbit';
+import { MARS } from '../../src/scene/bodies';
 import { MARS_FEATURES } from '../../src/scene/features';
+
+const sunJ2000 = (d: Date) => sunFrom(MARS, d);
+const marsFrame = (d: Date) => bodyFrame(MARS, d);
+const sunElevationAt = (d: Date, lat: number, lon: number) => elevationOn(MARS, d, lat, lon);
 import { cameraRight, chooseShot, dawnDusk, featureFlyover, orbitalSunrise, seededRandom } from '../../src/scene/shots';
 
 describe('repeatable shots', () => {

@@ -1,34 +1,32 @@
 import * as THREE from 'three/webgpu';
 import { pass } from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
-import { toWorld, RADIUS_KM, lighting } from './terrain.js';
+import { toWorld, lighting, applyBodyLight } from './terrain.js';
 import { TiledPlanet } from './planet.js';
 import { orbitCameraPose } from '../camera.ts';
 import { createAtmosphere } from './atmosphere.js';
 import { createStars } from './stars.js';
-import { marsFrame, vec } from '../ephemeris';
+import { bodyFrame, vec } from '../ephemeris';
 import { sample } from '../orbit';
 import { chooseShot, dawnDusk, orbitalSunrise, featureFlyover, seededRandom } from '../shots';
-import { MARS_FEATURES } from '../features.ts';
+import { bodyById } from '../bodies.ts';
 import { telemetryParts } from '../telemetry';
 import { Governor, initialTier, renderPixelRatio, tier as tierByName } from '../quality.ts';
 import { solveFraming } from '../composition.ts';
 
 const DEG = Math.PI / 180;
-const RELIEF = 2.5;
-const HAZE = 0.2;
-// Camera defaults. Tilt (degrees below the horizon beyond the geometric dip) and roll come from
-// the framing solver for each viewport unless a preview URL sets them.
-export const CAMERA_DEFAULTS = { altKm: 200, fovDeg: 50 };
+// Camera defaults. Altitude comes from the body. Tilt (degrees below the horizon beyond the
+// geometric dip) and roll come from the framing solver for each viewport unless a preview URL sets them.
+export const CAMERA_DEFAULTS = { fovDeg: 50 };
 // Where the hero text sits when the page has none to measure, as viewport fractions.
 const DEFAULT_TEXT_BOX = { left: 0.06, right: 0.55, top: 0.12, bottom: 0.42 };
 const DEFAULT_HEADER_BOTTOM = 0.07;
 // Telemetry items hidden on narrow screens, matching the poster readout.
 const WIDE_FROM = 4;
 
-function buildShot(kind, now, altKm, rand, featureId) {
-  const o = { altKm, rand };
-  const feature = MARS_FEATURES.find((f) => f.id === featureId);
+function buildShot(body, kind, now, altKm, rand, featureId) {
+  const o = { body, altKm, rand };
+  const feature = body.features.find((f) => f.id === featureId);
   if (feature) return featureFlyover(now, { ...o, features: [feature], anySun: true });
   if (kind === 'dawn-dusk') return dawnDusk(now, o);
   if (kind === 'orbital-sunrise') return orbitalSunrise(now, o);
@@ -37,10 +35,10 @@ function buildShot(kind, now, altKm, rand, featureId) {
 }
 
 /**
- * Starts the live Mars scene inside `host`.
+ * Starts the live scene of one body inside `host`.
  * @param {HTMLElement} host
  * Resolves to null when this machine should get the poster instead.
- * @param {{ dataUrl: string, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void, onLost?: () => void, farKm?: number, altKm?: number, tiltDeg?: number, rollDeg?: number, fovDeg?: number, tier?: import('../quality.ts').TierName, at?: Date, seed?: number, feature?: string | null, scale?: number, skip?: number, layout?: () => { text: import('../composition.ts').Box, headerBottom: number } | null }} opts
+ * @param {{ dataUrl: string, body?: string, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void, onLost?: () => void, farKm?: number, altKm?: number, tiltDeg?: number, rollDeg?: number, fovDeg?: number, tier?: import('../quality.ts').TierName, at?: Date, seed?: number, feature?: string | null, scale?: number, skip?: number, layout?: () => { text: import('../composition.ts').Box, headerBottom: number } | null }} opts
  */
 // One tile per array layer; 512 layers hold a 4K view with headroom and cost about 180 MB of GPU memory.
 const WANTED_LAYERS = 512;
@@ -73,10 +71,11 @@ function webglRenderer(gl) {
 
 export async function startLiveScene(host, opts) {
   const timeScale = opts.timeScale ?? 1;
-  const cam = { altKm: opts.altKm ?? CAMERA_DEFAULTS.altKm, fovDeg: opts.fovDeg ?? CAMERA_DEFAULTS.fovDeg, tiltDeg: 0, rollDeg: 0 };
+  const body = bodyById(opts.body);
+  const cam = { altKm: opts.altKm ?? body.altKm, fovDeg: opts.fovDeg ?? CAMERA_DEFAULTS.fovDeg, tiltDeg: 0, rollDeg: 0 };
   const frameView = () => {
     const page = opts.layout?.() ?? { text: DEFAULT_TEXT_BOX, headerBottom: DEFAULT_HEADER_BOTTOM };
-    const solved = solveFraming({ radiusKm: RADIUS_KM, altKm: cam.altKm, fovDeg: cam.fovDeg, aspect: innerWidth / innerHeight, ...page });
+    const solved = solveFraming({ radiusKm: body.radiusKm, glowKm: body.glowKm, altKm: cam.altKm, fovDeg: cam.fovDeg, aspect: innerWidth / innerHeight, ...page });
     cam.tiltDeg = opts.tiltDeg ?? solved.tiltDeg;
     cam.rollDeg = opts.rollDeg ?? solved.rollDeg;
   };
@@ -161,20 +160,22 @@ export async function startLiveScene(host, opts) {
   scene.background = new THREE.Color(0x000000);
   const camera = new THREE.PerspectiveCamera(cam.fovDeg, innerWidth / innerHeight, 0.05, 5e5);
 
-  const sunDisc = new THREE.Mesh(new THREE.SphereGeometry(600, 32, 16), new THREE.MeshBasicNodeMaterial({ color: new THREE.Color(60, 55, 48) }));
+  const sunDisc = new THREE.Mesh(new THREE.SphereGeometry(body.sunDiameterRad * 1e5, 32, 16), new THREE.MeshBasicNodeMaterial({ color: new THREE.Color(60, 55, 48) }));
   const stars = createStars();
-  lighting.opticalDepth.value = HAZE * 0.7;
+  applyBodyLight(body);
   scene.add(sunDisc, stars);
 
   const meta = await (await fetch(`${opts.dataUrl}/meta.json`)).json();
+  if (meta.body !== body.id || Math.abs(meta.radiusKm - body.radiusKm) > 1e-6) console.warn(`Tiles at ${opts.dataUrl} are for ${meta.body}, not ${body.id}.`);
   const layers = isWebGPU ? gpuLayers ?? 256 : Math.min(WANTED_LAYERS, renderer.backend.gl.getParameter(renderer.backend.gl.MAX_ARRAY_TEXTURE_LAYERS));
-  planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: RELIEF, layers, relaxBeyondKm: opts.farKm });
+  planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: body.relief, layers, relaxBeyondKm: opts.farKm });
   const tiledPlanet = planet;
   [atmosphere] = await Promise.all([
-    createAtmosphere({ planetRadius: RADIUS_KM, density: HAZE, terrainHeight: (n) => tiledPlanet.coarseHeight(n) }),
+    body.atmosphere ? createAtmosphere({ planetRadius: body.radiusKm, density: body.atmosphere.density, terrainHeight: (n) => tiledPlanet.coarseHeight(n) }) : null,
     planet.init(),
   ]);
-  scene.add(planet.mesh, atmosphere.mesh);
+  scene.add(planet.mesh);
+  if (atmosphere) scene.add(atmosphere.mesh);
 
   pipeline = new THREE.RenderPipeline(renderer);
   const sceneColor = pass(scene, camera).getTextureNode('output');
@@ -197,15 +198,15 @@ export async function startLiveScene(host, opts) {
   // `skip` starts the clock part-way into the shot, for stills of a chosen moment.
   const simNow = () => new Date(simStart + (opts.skip ?? 0) * 1000 + (Date.now() - wallStart) * timeScale);
   const rand = opts.seed === undefined ? Math.random : seededRandom(opts.seed);
-  const shot = buildShot(opts.shot, new Date(simStart), cam.altKm, rand, opts.feature);
+  const shot = buildShot(body, opts.shot, new Date(simStart), cam.altKm, rand, opts.feature);
   const starMatrix = new THREE.Matrix4();
 
   function frame() {
     const date = simNow();
     const s = sample(shot.orbit, date);
-    const f = marsFrame(date);
+    const f = bodyFrame(body, date);
     const vBody = [vec.dot(s.v, f.x), vec.dot(s.v, f.y), vec.dot(s.v, f.z)];
-    const pose = orbitCameraPose(s.rBody, vBody, RADIUS_KM, cam.tiltDeg, cam.rollDeg);
+    const pose = orbitCameraPose(s.rBody, vBody, body.radiusKm, cam.tiltDeg, cam.rollDeg);
 
     camera.position.copy(toWorld(s.rBody));
     camera.up.copy(toWorld(pose.up));
@@ -214,9 +215,11 @@ export async function startLiveScene(host, opts) {
 
     const sunW = toWorld(s.sunBody);
     sunDisc.position.copy(sunW).multiplyScalar(1e5);
-    atmosphere.uniforms.sunDir.value.copy(sunW);
     lighting.sunDir.value.copy(sunW);
-    atmosphere.update(camera);
+    if (atmosphere) {
+      atmosphere.uniforms.sunDir.value.copy(sunW);
+      atmosphere.update(camera);
+    }
     starMatrix.set(f.x[0], f.x[1], f.x[2], 0, f.z[0], f.z[1], f.z[2], 0, -f.y[0], -f.y[1], -f.y[2], 0, 0, 0, 0, 1);
     stars.matrix.copy(starMatrix);
     stars.matrixWorldNeedsUpdate = true;
@@ -227,7 +230,7 @@ export async function startLiveScene(host, opts) {
   function updateTelemetry(s, t) {
     if (!opts.telemetry || t - lastTelemetry < 500) return;
     lastTelemetry = t;
-    const parts = telemetryParts(s, { body: 'Mars', relief: RELIEF });
+    const parts = telemetryParts(s, { body: body.name, relief: body.relief });
     if (timeScale !== 1) parts.push(`t×${timeScale}`);
     opts.telemetry.replaceChildren(
       ...parts.map((text, i) => {
@@ -239,7 +242,7 @@ export async function startLiveScene(host, opts) {
     );
     opts.telemetry.dataset.poster = '';
     opts.telemetry.dataset.shot = shot.kind;
-    opts.telemetry.title = `Live: ${shot.kind.replace('-', ' ')}${shot.feature ? ` over ${shot.feature.name}` : ''}. Lit by the Sun's real position now, from a real ${Math.round(s.altKm)} km orbit. Relief is exaggerated ${RELIEF}×.`;
+    opts.telemetry.title = `Live: ${shot.kind.replace('-', ' ')}${shot.feature ? ` over ${shot.feature.name}` : ''}. Lit by the Sun's real position now, from a real ${Math.round(s.altKm)} km orbit. Relief is exaggerated ${body.relief}×.`;
   }
 
   let running = true;
@@ -251,7 +254,7 @@ export async function startLiveScene(host, opts) {
   const gpuTiming = isWebGPU;
   const governor = opts.tier ? null : new Governor(tier.name, gpuTiming ? GPU_LIMITS : CADENCE_LIMITS);
   const state = {
-    frames: 0, shot: shot.kind, backend: hints.backend, gpu: hints.vendor ?? hints.description, canvas: renderer.domElement, layers, tiles: planet.stats, firstFrameMs: 0,
+    frames: 0, body: body.id, shot: shot.kind, backend: hints.backend, gpu: hints.vendor ?? hints.description, canvas: renderer.domElement, layers, tiles: planet.stats, firstFrameMs: 0,
     tier: tier.name, timing: governor ? (gpuTiming ? 'gpu' : 'cadence') : 'forced', gpuMs: 0, gpuLog: [], load: 0, tierChanges: [],
     framing: cam,
   };

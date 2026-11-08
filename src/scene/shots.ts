@@ -1,6 +1,7 @@
-import { type Vec3, DEG, vec, marsFrame, fromBody, sunJ2000, bodyVector, sunElevationAt } from './ephemeris.ts';
-import { type Body, type CircularOrbit, MARS, circularOrbit } from './orbit.ts';
-import { type Feature, MARS_FEATURES } from './features.ts';
+import { type Vec3, DEG, vec, bodyFrame, fromBody, sunFrom, bodyVector, sunElevationAt } from './ephemeris.ts';
+import { type CircularOrbit, circularOrbit } from './orbit.ts';
+import { type Body, MARS } from './bodies.ts';
+import type { Feature } from './features.ts';
 
 export type ShotKind = 'dawn-dusk' | 'orbital-sunrise' | 'feature-flyover';
 
@@ -18,7 +19,11 @@ export interface ShotOptions {
   rand?: () => number;
 }
 
-const DEFAULTS = { body: MARS, altKm: 200 };
+function resolve(opts: ShotOptions) {
+  const body = opts.body ?? MARS;
+  return { body, altKm: opts.altKm ?? body.altKm };
+}
+
 const SUNRISE_LEAD_S = 60;
 const FLYOVER_LEAD_S = 180;
 const LOW_SUN = { min: 5, max: 25 };
@@ -44,20 +49,20 @@ export const cameraRight = (r: Vec3, v: Vec3) => vec.norm(vec.cross(v, r));
 // the terminator. It isn't a J2-precessing sun-synchronous orbit, but over a visit
 // of minutes the two are indistinguishable. It runs so the dayside is on the right.
 export function dawnDusk(now: Date, opts: ShotOptions = {}): Shot {
-  const { body, altKm } = { ...DEFAULTS, ...opts };
+  const { body, altKm } = resolve(opts);
   const rand = opts.rand ?? Math.random;
-  const sun = sunJ2000(now);
-  const [u, w] = perpendicularBasis(sun, marsFrame(now).z);
+  const sun = sunFrom(body, now);
+  const [u, w] = perpendicularBasis(sun, bodyFrame(body, now).z);
   return { kind: 'dawn-dusk', orbit: circularOrbit(body, now, altKm, u, vec.scale(w, -1), rand() * 2 * Math.PI) };
 }
 
 // An orbit tipped a little off the Sun line, starting on the night side shortly before the
 // camera leaves the planet's shadow. The tip puts the sunrise right of centre.
 export function orbitalSunrise(now: Date, opts: ShotOptions = {}): Shot {
-  const { body, altKm } = { ...DEFAULTS, ...opts };
+  const { body, altKm } = resolve(opts);
   const rand = opts.rand ?? Math.random;
-  const sun = sunJ2000(now);
-  const [p, q] = perpendicularBasis(sun, marsFrame(now).z);
+  const sun = sunFrom(body, now);
+  const [p, q] = perpendicularBasis(sun, bodyFrame(body, now).z);
   const phi = rand() * 2 * Math.PI;
   const u = vec.add(vec.scale(p, Math.cos(phi)), vec.scale(q, Math.sin(phi)));
   const tip = SUNRISE_RIGHT_DEG * DEG;
@@ -71,9 +76,9 @@ export function orbitalSunrise(now: Date, opts: ShotOptions = {}): Shot {
   return { kind: 'orbital-sunrise', orbit, keyMoment: new Date(now.getTime() + SUNRISE_LEAD_S * 1000) };
 }
 
-export function lowSunFeatures(when: Date, features: Feature[] = MARS_FEATURES) {
+export function lowSunFeatures(body: Body, when: Date, features: Feature[] = body.features) {
   return features.filter((f) => {
-    const elevation = sunElevationAt(when, f.lat, f.lon);
+    const elevation = sunElevationAt(body, when, f.lat, f.lon);
     return elevation >= LOW_SUN.min && elevation <= LOW_SUN.max;
   });
 }
@@ -82,14 +87,14 @@ export function lowSunFeatures(when: Date, features: Feature[] = MARS_FEATURES) 
 // feature off to the right. It travels along the local terminator so the Sun stays to the
 // right too. `anySun` drops the low-Sun filter, for previewing one feature at any time of day.
 export function featureFlyover(now: Date, opts: ShotOptions & { features?: Feature[]; anySun?: boolean } = {}): Shot | null {
-  const { body, altKm } = { ...DEFAULTS, ...opts };
+  const { body, altKm } = resolve(opts);
   const rand = opts.rand ?? Math.random;
   const pass = new Date(now.getTime() + FLYOVER_LEAD_S * 1000);
-  const candidates = opts.anySun ? (opts.features ?? MARS_FEATURES) : lowSunFeatures(pass, opts.features);
+  const candidates = opts.anySun ? (opts.features ?? body.features) : lowSunFeatures(body, pass, opts.features);
   if (candidates.length === 0) return null;
   const feature = candidates[Math.floor(rand() * candidates.length)];
-  const f = fromBody(marsFrame(pass), bodyVector(feature.lat, feature.lon));
-  const along = vec.norm(vec.cross(f, sunJ2000(pass)));
+  const f = fromBody(bodyFrame(body, pass), bodyVector(feature.lat, feature.lon));
+  const along = vec.norm(vec.cross(f, sunFrom(body, pass)));
   const offset = FLYOVER_OFFSET_KM / body.radiusKm;
   const track = vec.sub(vec.scale(f, Math.cos(offset)), vec.scale(cameraRight(f, along), Math.sin(offset)));
   const probe = circularOrbit(body, now, altKm, track, along, 0);
