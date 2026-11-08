@@ -4,7 +4,7 @@ const token = import.meta.env.PUBLIC_POSTHOG_TOKEN;
 const host = import.meta.env.PUBLIC_POSTHOG_HOST;
 
 // Only the production host reports, so dev, Lighthouse CI and PR previews stay out of the data.
-// `?ph=1` turns it on anywhere, for testing a build locally.
+// `?ph=1` turns it on anywhere; test locally under `wrangler dev`, which serves the /uplink relay.
 function shouldTrack() {
   if (!token || !host) return false;
   if (new URLSearchParams(location.search).get('ph') === '1') return true;
@@ -46,6 +46,9 @@ export function startAnalytics() {
         ui_host: 'https://us.posthog.com',
         defaults: '2026-08-30',
         capture_pageview: 'history_change',
+        // No cookies or storage, so no consent banner. PostHog derives a daily anonymous ID
+        // server-side from IP and user agent, which is why the relay forwards the visitor's IP.
+        cookieless_mode: 'always',
         disable_session_recording: true,
         disable_surveys: true,
       });
