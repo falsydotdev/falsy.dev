@@ -88,8 +88,9 @@ export const MOON: Body = {
     extinction: [1, 1, 1],
   },
   tiles: { version: 'v1' },
-  // With no glow before sunrise, a long lead would open on a black screen.
-  shots: { weights: { 'dawn-dusk': 0.35, 'orbital-sunrise': 0.2, 'feature-flyover': 0.45 }, dawnDuskSunDeg: 10, sunriseLeadS: 15, sunriseLimbKm: 15 },
+  // An airless sunrise opens on a black limb and lights only a sliver for minutes, so it's left
+  // out of the mix; `?shot=orbital-sunrise` still shows it. A long lead would open on black.
+  shots: { weights: { 'dawn-dusk': 0.4, 'orbital-sunrise': 0, 'feature-flyover': 0.6 }, dawnDuskSunDeg: 10, sunriseLeadS: 15, sunriseLimbKm: 15 },
 };
 
 export const BODIES: Record<string, Body> = { mars: MARS, moon: MOON };

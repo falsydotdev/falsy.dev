@@ -19,5 +19,5 @@ export const site = {
   name: 'falsy.dev',
   url: 'https://falsy.dev',
   title: `${person.name} · falsy.dev`,
-  description: `I'm not a trained developer, but I spend most days building software with AI. Here are my projects, my consulting work through ${consultancy.name}, and a view of Mars rendered from real data.`,
+  description: `I'm not a trained developer, but I spend most days building software with AI. Here are my projects, my consulting work through ${consultancy.name}, and a view of Mars or the Moon rendered from real data.`,
 };

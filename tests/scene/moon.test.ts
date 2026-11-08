@@ -67,9 +67,10 @@ describe('Moon', () => {
     expect(inShadow(stateAt(orbit, after).r, sunFrom(MOON, after), limb)).toBe(false);
   });
 
-  it('builds every shot kind at the Moon default altitude', () => {
-    for (let i = 0; i < 12; i++) {
-      const shot = chooseShot(new Date(START.getTime() + i * 3 * DAY), { body: MOON, rand: seededRandom(i) });
+  it('never picks a sunrise, and builds every shot at the Moon default altitude', () => {
+    for (let i = 0; i < 40; i++) {
+      const shot = chooseShot(new Date(START.getTime() + i * 0.7 * DAY), { body: MOON, rand: seededRandom(i) });
+      expect(shot.kind).not.toBe('orbital-sunrise');
       expect(shot.orbit.body.id).toBe('moon');
       expect(shot.orbit.a).toBeCloseTo(MOON.radiusKm + 100, 6);
     }

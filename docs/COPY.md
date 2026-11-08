@@ -22,7 +22,7 @@ Phase 1 ships with poster stills, not the live scene, so two lines that claim "l
 ## Meta
 
 - **Title:** Justin Powell · falsy.dev
-- **Description:** I'm not a trained developer, but I spend most days building software with AI. Here are my projects, my consulting work through RevOps Rocks, and a view of Mars rendered from real data.
+- **Description:** I'm not a trained developer, but I spend most days building software with AI. Here are my projects, my consulting work through RevOps Rocks, and a view of Mars or the Moon rendered from real data.
 
 ## Hero
 
@@ -126,14 +126,14 @@ It checks more than 50,000 sources for new roles.
 ### falsy.dev
 
 - **Card label:** PRJ-04 / THIS SITE
-- **Card line:** This site, and the live Mars orbit behind it, rendered from real NASA data.
+- **Card line:** This site, and the live orbit of Mars or the Moon behind it, rendered from real NASA data.
 - **Tags:** astro · three.js · webgpu · cloudflare
 
 **Detail page**
 
-The background is a live render of Mars from a real orbit about 200 km up. The Sun is where it actually is right now, so the lighting and time of day match the real planet. The readout at the bottom shows where you are.
+The background is a live render of Mars or the Moon from a real orbit, about 200 km up over Mars and 100 km over the Moon. The Sun is where it actually is right now, so the lighting and time of day match the real planet. The readout at the bottom shows where you are.
 
-The terrain comes from NASA's Mars Global Surveyor elevation data and the Viking orbiter colour mosaic. I cut both into about 130,000 small tiles, and the page streams only the ones in view, usually a few megabytes. Relief is exaggerated 2.5× so the mountains stand out from this height.
+The terrain comes from NASA data: Mars Global Surveyor elevation and the Viking colour mosaic for Mars, and Lunar Reconnaissance Orbiter elevation and colour for the Moon. I cut each into about 130,000 small tiles, and the page streams only the ones in view, usually a few megabytes. Relief is exaggerated 2.5× so the mountains stand out from this height.
 
 It checks how fast your graphics card is and turns the quality down if it needs to. On phones, or with reduced motion turned on, you get a still image instead.
 
@@ -150,7 +150,7 @@ I studied physics for four years, first at the University of Arizona and then at
 
 In JavaScript, a `falsy` value acts false without actually being false. That's kind of how I feel when I talk about being a “developer”. (Approved 2026-11-03.)
 
-The planet behind this page is Mars, rendered from real NASA and USGS data. On a computer, you're watching it live from a real orbit about 200 km up, moving as fast as a spacecraft would, with the Sun where it really is right now. On a phone, you get a still from the same renderer. The mountains are stretched 2.5 times taller so they show up from that height. I built it because I love space and physics, and I wanted my site to show the kind of work I do. (Updated 2026-11-04 to be accurate for both the live view and the stills.)
+Behind this page is Mars or the Moon, rendered from real NASA and USGS data. On a computer, you're watching it live from a real orbit, about 200 km up over Mars and 100 km over the Moon, moving as fast as a spacecraft would, with the Sun where it really is right now. On a phone, you get a still from the same renderer. The mountains are stretched 2.5 times taller so they show up from that height. I built it because I love space and physics, and I wanted my site to show the kind of work I do. (Updated 2026-11-04 to be accurate for both the live view and the stills, and 2026-11-08 for the Moon.)
 
 **Credits (footer):** Terrain from USGS Astrogeology: MOLA elevation and the Viking MDIM 2.1 colour mosaic. Moon data from NASA's Scientific Visualization Studio.
 
