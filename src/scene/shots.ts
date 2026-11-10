@@ -152,8 +152,8 @@ export function earthrise(now: Date, opts: ShotOptions & { rightDeg?: number } =
   const rand = opts.rand ?? Math.random;
   const key = new Date(now.getTime() + EARTHRISE_LEAD_S * 1000);
   const sun = sunFrom(body, key);
-  if (earthLitFraction(key, sun) < EARTHRISE_MIN_LIT) return null;
   const earth = vec.norm(earthFromMoon(key));
+  if (earthLitFraction(key, sun, earth) < EARTHRISE_MIN_LIT) return null;
   const [p, q] = perpendicularBasis(earth, bodyFrame(body, key).z);
   const tip = (opts.rightDeg ?? 12) * DEG;
   const a = body.radiusKm + altKm;

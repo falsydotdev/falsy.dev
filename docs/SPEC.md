@@ -109,7 +109,7 @@ The camera rides a real low orbit at real orbital speed. For Mars at 200 km (the
 
 The Sun's disc is drawn at its true apparent size (0.35° from Mars, 0.53° from the Moon), centred on the camera so it sits where the light on the terrain comes from, with a glare halo that reads without bloom.
 
-A real orbit spends about half its time over the night side. Once a shot is 10 minutes past its key moment and the ground under the camera falls dark, the scene crossfades to a new shot built from the current time. That covers long visits and tabs left in the background.
+A real orbit spends about half its time over the night side. Once a shot is 2 minutes past its key moment (10 for a sunrise, which opens in shadow) and the ground ahead of the camera falls dark, the scene crossfades to a new shot built from the current time. That covers long visits and tabs left in the background.
 
 Choosing the orbit and where the camera starts on it is a camera choice. The clock is never shifted.
 

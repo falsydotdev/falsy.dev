@@ -87,11 +87,11 @@ try {
       page.on('pageerror', (e) => console.error('page error:', e.message));
       await page.goto(`${base}/?${params}&t=0&tier=high&live=1&scale=${view.scale.toFixed(4)}`);
       await page.waitForSelector('.sky.is-live', { timeout: TIMEOUT });
-      // Wait for every visible tile at full detail, then a few more frames for the fade-in.
+      // Wait for every visible tile at full detail and Earth's texture, then a few more frames for the fade-in.
       await page.waitForFunction(
         () => {
           const s = window.__falsyLive?.state;
-          return s && s.tiles.pending === 0 && s.tiles.inFlight === 0 && s.frames > 30;
+          return s && s.tiles.pending === 0 && s.tiles.inFlight === 0 && s.frames > 30 && s.earth !== 'loading';
         },
         null,
         { timeout: TIMEOUT, polling: 250 },

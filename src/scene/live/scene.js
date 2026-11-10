@@ -139,6 +139,8 @@ export async function startLiveScene(host, opts) {
     camera.updateProjectionMatrix();
     renderer.setPixelRatio(pixelRatio(tier));
     renderer.setSize(innerWidth, innerHeight);
+    // Earthrise's orbit puts Earth where this screen shape can see it; a new shape needs a new orbit.
+    if (shot?.kind === 'earthrise' && Math.abs(Math.log(camera.aspect / shotAspect)) > 0.2) reshootPending = true;
   };
   let sun = null;
   let earth = null;
@@ -238,6 +240,8 @@ export async function startLiveScene(host, opts) {
     camera.updateProjectionMatrix();
   };
   let shotBuilt = new Date(simStart);
+  let shotAspect = innerWidth / innerHeight;
+  let reshootPending = false;
   let shot = nextShot(shotBuilt);
   applyLens();
   // A view pinned by the URL (posters, previews) stays put even after it goes dark.
@@ -257,7 +261,7 @@ export async function startLiveScene(host, opts) {
     planet.update(pose, { fovYRad: cam.fovDeg * DEG, aspect: camera.aspect, viewportHeightPx: renderer.domElement.height });
 
     const sunW = toWorld(s.sunBody);
-    sun.update(camera, sunW, earth?.update(camera, f, s.r, sunW, date));
+    sun.update(camera, sunW, earth?.update(camera, f, sunW, date));
     lighting.sunDir.value.copy(sunW);
     if (atmosphere) {
       atmosphere.uniforms.sunDir.value.copy(sunW);
@@ -304,7 +308,7 @@ export async function startLiveScene(host, opts) {
   // While two scenes overlap in a body switch, each sees the other's GPU time as its own load.
   let governorHeld = opts.holdGovernor ?? false;
   const state = {
-    frames: 0, body: body.id, shot: shot.kind, backend: hints.backend, gpu: hints.vendor ?? hints.description, canvas: renderer.domElement, layers, tiles: planet.stats, firstFrameMs: 0,
+    frames: 0, body: body.id, shot: shot.kind, get earth() { return earth?.status ?? 'none'; }, backend: hints.backend, gpu: hints.vendor ?? hints.description, canvas: renderer.domElement, layers, tiles: planet.stats, firstFrameMs: 0,
     tier: tier.name, timing: governor ? (gpuTiming ? 'gpu' : 'cadence') : 'forced', gpuMs: 0, gpuLog: [], load: 0, tierChanges: [],
     framing: cam,
   };
@@ -407,7 +411,9 @@ export async function startLiveScene(host, opts) {
     if (stopped) return;
     // A long visit, or a tab left in the background, ends up over the night side. Crossfade to a
     // new shot from here, waiting until the new view's tiles are in.
-    if (!first && !pinned && !governorHeld && wantsReshoot(shot, shotBuilt, s.date)) {
+    if (!first && !pinned && !governorHeld && (reshootPending || wantsReshoot(shot, shotBuilt, s.date))) {
+      reshootPending = false;
+      shotAspect = innerWidth / innerHeight;
       if (!resumeStarted) takeSnapshot();
       resumeStarted = performance.now();
       shotBuilt = s.date;
