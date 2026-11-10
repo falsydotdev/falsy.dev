@@ -6,7 +6,7 @@ const year = new Date().getFullYear();
 <footer class="site-footer">
   <div class="inner glass">
     <p class="credits">
-      Mars terrain from USGS Astrogeology: MOLA elevation and the Viking MDIM 2.1 colour mosaic. Moon terrain from NASA/GSFC/Arizona State University: LOLA elevation, and LROC colour by NASA's Scientific Visualization Studio.
+      Mars terrain from USGS Astrogeology: MOLA elevation and the Viking MDIM 2.1 colour mosaic. Moon terrain from NASA/GSFC/Arizona State University: LOLA elevation, and LROC colour by NASA's Scientific Visualization Studio. Earth from NASA's Blue Marble, by the Scientific Visualization Studio.
     </p>
     <p class="meta">
       <span>© {year} {person.name}</span>
@@ -51,5 +51,21 @@ const year = new Date().getFullYear();
 
   .meta a:hover {
     text-decoration: underline;
+  }
+
+  /* Wide screens: links stack on the right, so the credits keep a readable line length without leaving the box half empty. */
+  @media (min-width: 52rem) {
+    .inner {
+      grid-template-columns: minmax(0, 65ch) auto;
+      justify-content: space-between;
+      align-items: end;
+      column-gap: 48px;
+    }
+
+    .meta {
+      flex-direction: column;
+      align-items: flex-end;
+      text-align: right;
+    }
   }
 </style>
