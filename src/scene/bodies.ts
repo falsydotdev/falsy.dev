@@ -37,6 +37,9 @@ export interface Body {
     // Height of the limb the Sun has to clear. Exaggerated limb mountains hold sunrise back by
     // most of a minute, which on an airless body would mean a long black opening.
     sunriseLimbKm: number;
+    // Sun elevation under the camera below which the view is close to black, measured from renders.
+    // Haze keeps Mars lit past its terminator; the bare Moon goes dark before it.
+    darkBelowDeg: number;
   };
 }
 
@@ -62,7 +65,7 @@ export const MARS: Body = {
     extinction: [0.85, 1, 1.25],
   },
   tiles: { version: 'v1' },
-  shots: { weights: { 'dawn-dusk': 0.4, 'orbital-sunrise': 0.3, 'feature-flyover': 0.3 }, dawnDuskSunDeg: 0, sunriseLeadS: 60, sunriseLimbKm: 0 },
+  shots: { weights: { 'dawn-dusk': 0.4, 'orbital-sunrise': 0.3, 'feature-flyover': 0.3 }, dawnDuskSunDeg: 0, sunriseLeadS: 60, sunriseLimbKm: 0, darkBelowDeg: -4 },
 };
 
 // GM from JPL DE440. Radius is the 1737.4 km sphere LOLA heights are measured from.
@@ -90,7 +93,7 @@ export const MOON: Body = {
   tiles: { version: 'v1' },
   // An airless sunrise opens on a black limb and lights only a sliver for minutes, so it's left
   // out of the mix; `?shot=orbital-sunrise` still shows it. A long lead would open on black.
-  shots: { weights: { 'dawn-dusk': 0.4, 'orbital-sunrise': 0, 'feature-flyover': 0.6 }, dawnDuskSunDeg: 10, sunriseLeadS: 15, sunriseLimbKm: 15 },
+  shots: { weights: { 'dawn-dusk': 0.4, 'orbital-sunrise': 0, 'feature-flyover': 0.6 }, dawnDuskSunDeg: 10, sunriseLeadS: 15, sunriseLimbKm: 15, darkBelowDeg: 5 },
 };
 
 export const BODIES: Record<string, Body> = { mars: MARS, moon: MOON };

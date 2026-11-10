@@ -120,6 +120,16 @@ export function seededRandom(seed: number) {
   };
 }
 
+// A shot runs at least this long past its key moment. A sunrise opens with the ground below
+// still in shadow while the Sun climbs ahead, and has to play out.
+const RESHOOT_AFTER_S = 600;
+
+/** Whether the orbit has carried the camera, long after its shot's moment, over ground too dark to see. */
+export function wantsReshoot(shot: Shot, builtAt: Date, s: { date: Date; rBody: Vec3; sunBody: Vec3 }) {
+  if (s.date.getTime() < (shot.keyMoment ?? builtAt).getTime() + RESHOOT_AFTER_S * 1000) return false;
+  return Math.asin(vec.dot(vec.norm(s.rBody), s.sunBody)) / DEG < shot.orbit.body.shots.darkBelowDeg;
+}
+
 export function chooseShot(now: Date, opts: ShotOptions & { features?: Feature[] } = {}): Shot {
   const rand = opts.rand ?? Math.random;
   const weights = Object.entries(resolve(opts).body.shots.weights) as [ShotKind, number][];

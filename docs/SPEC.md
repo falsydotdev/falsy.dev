@@ -106,6 +106,8 @@ The camera rides a real low orbit at real orbital speed. For Mars at 200 km (the
 - **Orbital sunrise:** an orbit that crosses the terminator. The camera starts about a minute before orbital sunrise, on the night side, with the Sun behind the planet. The atmosphere's rim glows, and light shafts fan through the dust before the Sun breaks the limb. Bodies without an atmosphere, like the Moon, get a hard-edged sunrise with no glow, which opens on a black limb, so the Moon leaves it out of its shot mix (decided 2026-11-08); `?shot=orbital-sunrise` still shows it.
 - **Feature flyover:** an orbit whose ground track passes over a named feature from the body's list (for example, Olympus Mons, Valles Marineris, Gale Crater, or Tycho) that currently has a low Sun. If no listed feature is well lit, it falls back to a dawn-dusk orbit.
 
+A real orbit spends about half its time over the night side. Once a shot is 10 minutes past its key moment and the ground under the camera falls dark, the scene crossfades to a new shot built from the current time. That covers long visits and tabs left in the background.
+
 Choosing the orbit and where the camera starts on it is a camera choice. The clock is never shifted.
 
 Composition rules:

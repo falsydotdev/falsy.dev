@@ -34,6 +34,4 @@ export const MOON_FEATURES: Feature[] = [
   { id: 'mare-orientale', name: 'Mare Orientale', lat: -19.87, lon: 265.33 },
   { id: 'tsiolkovskiy', name: 'Tsiolkovskiy', lat: -20.4, lon: 129.1 },
   { id: 'daedalus', name: 'Daedalus', lat: -5.9, lon: 179.4 },
-  // At the south pole the Sun never climbs more than a degree or two, so the crater rim is lit at grazing angles.
-  { id: 'shackleton', name: 'Shackleton', lat: -89.67, lon: 129.78, sun: { min: 0, max: 2 } },
 ];
