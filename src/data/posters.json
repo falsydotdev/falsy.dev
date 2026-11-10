@@ -484,5 +484,59 @@
         }
       ]
     }
+  },
+  {
+    "id": "moon-earthrise",
+    "label": "Earth rising over the Moon's horizon",
+    "focus": "70% 50%",
+    "horizon": 0.42,
+    "body": "Moon",
+    "relief": 2.5,
+    "lat": 58.3,
+    "lon": 245.6,
+    "lst": "09:01",
+    "altKm": 100,
+    "at": "2026-11-30T04:01:00.000Z",
+    "sources": [
+      {
+        "src": "/posters/moon-earthrise-960.avif",
+        "width": 960,
+        "bytes": 29646
+      },
+      {
+        "src": "/posters/moon-earthrise-1600.avif",
+        "width": 1600,
+        "bytes": 56961
+      },
+      {
+        "src": "/posters/moon-earthrise-2560.avif",
+        "width": 2560,
+        "bytes": 100953
+      }
+    ],
+    "portrait": {
+      "lat": 55.6,
+      "lon": 248,
+      "lst": "09:11",
+      "altKm": 100,
+      "at": "2026-11-30T04:01:00.000Z",
+      "sources": [
+        {
+          "src": "/posters/moon-earthrise-portrait-600.avif",
+          "width": 600,
+          "bytes": 26135
+        },
+        {
+          "src": "/posters/moon-earthrise-portrait-800.avif",
+          "width": 800,
+          "bytes": 35754
+        },
+        {
+          "src": "/posters/moon-earthrise-portrait-1170.avif",
+          "width": 1170,
+          "bytes": 55068
+        }
+      ]
+    }
   }
 ]

@@ -15,6 +15,7 @@ export interface Body {
   features: Feature[];
   // The Sun's apparent diameter: the disc's drawn size, and the width of terrain shadow penumbrae.
   sunDiameterRad: number;
+  showsEarth: boolean; // Earth hangs in this body's sky and is drawn there
   // Height of the bright shell above the limb that framing keeps clear of the text. 0 without air.
   glowKm: number;
   // Dust density for the scattering shell and the surface haze; null for an airless body.
@@ -28,7 +29,7 @@ export interface Body {
   };
   tiles: { version: string };
   shots: {
-    weights: Record<'dawn-dusk' | 'orbital-sunrise' | 'feature-flyover', number>;
+    weights: Partial<Record<'dawn-dusk' | 'orbital-sunrise' | 'feature-flyover' | 'earthrise', number>>;
     // How far into daylight the terminator orbit runs. Without air there's no skylight, so an
     // orbit right on the terminator looks down on ground that is almost all in shadow.
     dawnDuskSunDeg: number;
@@ -53,6 +54,7 @@ export const MARS: Body = {
   relief: 2.5,
   features: MARS_FEATURES,
   sunDiameterRad: 0.0061,
+  showsEarth: false,
   // About three scale heights of dust, 11 km each.
   glowKm: 35,
   atmosphere: { density: 0.2 },
@@ -79,6 +81,7 @@ export const MOON: Body = {
   relief: 2.5,
   features: MOON_FEATURES,
   sunDiameterRad: 0.0093,
+  showsEarth: true,
   // No air, but exaggerated mountains on the limb rise about 25 km.
   glowKm: 15,
   atmosphere: null,
@@ -92,7 +95,7 @@ export const MOON: Body = {
   tiles: { version: 'v1' },
   // An airless sunrise opens on a black limb and lights only a sliver for minutes, so it's left
   // out of the mix; `?shot=orbital-sunrise` still shows it. A long lead would open on black.
-  shots: { weights: { 'dawn-dusk': 0.4, 'orbital-sunrise': 0, 'feature-flyover': 0.6 }, dawnDuskSunDeg: 10, sunriseLeadS: 15, sunriseLimbKm: 15, darkBelowDeg: 4 },
+  shots: { weights: { 'dawn-dusk': 0.4, 'orbital-sunrise': 0, 'feature-flyover': 0.3, earthrise: 0.3 }, dawnDuskSunDeg: 10, sunriseLeadS: 15, sunriseLimbKm: 15, darkBelowDeg: 4 },
 };
 
 export const BODIES: Record<string, Body> = { mars: MARS, moon: MOON };

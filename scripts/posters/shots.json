@@ -62,5 +62,12 @@
     "query": "body=moon&shot=dawn-dusk&at=2026-11-20T00:00:00Z&seed=3&skip=30",
     "focus": "70% 50%",
     "horizon": 0.42
+  },
+  {
+    "id": "moon-earthrise",
+    "label": "Earth rising over the Moon's horizon",
+    "query": "body=moon&shot=earthrise&at=2026-11-30T04:00:00Z&seed=1&skip=60",
+    "focus": "70% 50%",
+    "horizon": 0.42
   }
 ]

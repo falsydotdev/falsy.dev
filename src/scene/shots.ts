@@ -1,15 +1,16 @@
-import { type Vec3, DEG, vec, bodyFrame, fromBody, sunFrom, bodyVector, sunElevationAt } from './ephemeris.ts';
+import { type Vec3, DEG, vec, bodyFrame, fromBody, sunFrom, bodyVector, sunElevationAt, earthFromMoon, earthLitFraction } from './ephemeris.ts';
 import { type CircularOrbit, circularOrbit, stateAt } from './orbit.ts';
 import { type Body, MARS } from './bodies.ts';
 import type { Feature } from './features.ts';
 
-export type ShotKind = 'dawn-dusk' | 'orbital-sunrise' | 'feature-flyover';
+export type ShotKind = 'dawn-dusk' | 'orbital-sunrise' | 'feature-flyover' | 'earthrise';
 
 export interface Shot {
   kind: ShotKind;
   orbit: CircularOrbit;
   feature?: Feature;
-  // When the moment the shot is built around happens: shadow exit, or the pass over the feature.
+  // When the moment the shot is built around happens: shadow exit, the pass over the feature, or
+  // Earth's centre clearing the limb.
   keyMoment?: Date;
 }
 
@@ -122,6 +123,72 @@ export function featureFlyover(now: Date, opts: ShotOptions & { features?: Featu
   return { kind: 'feature-flyover', orbit, feature, keyMoment: pass };
 }
 
+// A narrower lens for shots built around something small and far, as Apollo 8 used for Earthrise.
+// Every other shot uses the scene's default.
+export const SHOT_FOV_DEG: Partial<Record<ShotKind, number>> = { earthrise: 28 };
+
+const EARTHRISE_LEAD_S = 20;
+// Earth is only worth a shot when enough of it is lit, and the ground it rises over is too.
+const EARTHRISE_MIN_LIT = 1 / 3;
+const EARTHRISE_GROUND_SUN = { min: 8, max: 30 };
+const EARTHRISE_MIN_LIT_S = 240;
+// How far along the orbit the ground in view lies. Earthrise's narrow lens sees mostly far ground
+// toward the horizon (19° ahead at 100 km); 15° keeps swaps on a lit frame in renders.
+const LOOK_AHEAD_DEG = 8;
+const EARTHRISE_LOOK_AHEAD_DEG = 15;
+const lookAheadDeg = (kind: ShotKind) => (kind === 'earthrise' ? EARTHRISE_LOOK_AHEAD_DEG : LOOK_AHEAD_DEG);
+const LIT_SCAN_S = 1800;
+
+/** The Sun's elevation on the ground `aheadDeg` of orbit in front of the camera. `sun` fixes its direction. */
+export function sunAhead(orbit: CircularOrbit, date: Date, aheadDeg = LOOK_AHEAD_DEG, sun?: Vec3) {
+  const ahead = new Date(date.getTime() + ((aheadDeg * DEG) / orbit.n) * 1000);
+  return Math.asin(vec.dot(vec.norm(stateAt(orbit, ahead).r), sun ?? sunFrom(orbit.body, ahead))) / DEG;
+}
+
+/** An orbit that brings Earth up over the limb, right of the track, over lit ground. Null when none qualifies. */
+export function earthrise(now: Date, opts: ShotOptions & { rightDeg?: number } = {}): Shot | null {
+  const { body, altKm } = resolve(opts);
+  if (!body.showsEarth) return null;
+  const rand = opts.rand ?? Math.random;
+  const key = new Date(now.getTime() + EARTHRISE_LEAD_S * 1000);
+  const sun = sunFrom(body, key);
+  const earth = vec.norm(earthFromMoon(key));
+  if (earthLitFraction(key, sun, earth) < EARTHRISE_MIN_LIT) return null;
+  const [p, q] = perpendicularBasis(earth, bodyFrame(body, key).z);
+  const tip = (opts.rightDeg ?? 12) * DEG;
+  const a = body.radiusKm + altKm;
+  // Earth's centre clears limb mountains this high when it sits this far below the bare horizon.
+  const dip = Math.acos((body.radiusKm + body.shots.sunriseLimbKm) / a);
+  const thetaRise = -Math.acos(-Math.sin(dip) / Math.cos(tip));
+  // Seen from the Moon the Sun moves under half a degree an hour, so a fixed direction will do.
+  const litFor = (o: CircularOrbit) => {
+    for (let t = 0; t < LIT_SCAN_S; t += 30) {
+      if (sunAhead(o, new Date(key.getTime() + t * 1000), EARTHRISE_LOOK_AHEAD_DEG, sun) < body.shots.darkBelowDeg) return t;
+    }
+    return LIT_SCAN_S;
+  };
+  const candidates: { orbit: CircularOrbit; lit: number }[] = [];
+  for (let i = 0; i < 72; i++) {
+    const phi = (i / 72) * 2 * Math.PI;
+    const u = vec.add(vec.scale(p, Math.cos(phi)), vec.scale(q, Math.sin(phi)));
+    // Tipping the plane toward earth × u puts Earth on the camera's right.
+    const e1 = vec.add(vec.scale(earth, Math.cos(tip)), vec.scale(vec.cross(earth, u), Math.sin(tip)));
+    const probe = circularOrbit(body, key, altKm, e1, u, thetaRise);
+    const { r, v } = stateAt(probe, key);
+    if (vec.dot(sun, cameraRight(r, v)) <= 0) continue;
+    const sunUp = sunAhead(probe, key, EARTHRISE_LOOK_AHEAD_DEG, sun);
+    if (sunUp < EARTHRISE_GROUND_SUN.min || sunUp > EARTHRISE_GROUND_SUN.max) continue;
+    const orbit = { ...probe, epoch: now, theta0: thetaRise - probe.n * EARTHRISE_LEAD_S };
+    const lit = litFor(orbit);
+    if (lit >= EARTHRISE_MIN_LIT_S) candidates.push({ orbit, lit });
+  }
+  if (candidates.length === 0) return null;
+  // Toward a nearly full Earth the ground ahead is night, so favour the orbits that stay lit longest.
+  const best = Math.max(...candidates.map((c) => c.lit));
+  const longest = candidates.filter((c) => c.lit >= best * 0.75);
+  return { kind: 'earthrise', orbit: longest[Math.floor(rand() * longest.length)].orbit, keyMoment: key };
+}
+
 /** A repeatable stand-in for Math.random (mulberry32). */
 export function seededRandom(seed: number) {
   let a = seed >>> 0;
@@ -134,19 +201,16 @@ export function seededRandom(seed: number) {
   };
 }
 
-// A shot runs at least this long past its key moment. A sunrise opens with the ground below
-// still in shadow while the Sun climbs ahead, and has to play out.
-const RESHOOT_AFTER_S = 600;
-// The camera looks well ahead of the ground below it, so darkness is judged this far along the orbit.
-const RESHOOT_LOOK_AHEAD_DEG = 8;
+// How long a shot runs past its key moment before it can be replaced. A sunrise opens with the
+// ground below still in shadow while the Sun climbs ahead, so it gets longer to play out.
+const RESHOOT_AFTER_S = 120;
+const RESHOOT_AFTER_SUNRISE_S = 600;
 
 /** Whether the orbit has carried the camera, long after its shot's moment, toward ground too dark to see. */
 export function wantsReshoot(shot: Shot, builtAt: Date, date: Date) {
-  if (date.getTime() < (shot.keyMoment ?? builtAt).getTime() + RESHOOT_AFTER_S * 1000) return false;
-  const { orbit } = shot;
-  const ahead = new Date(date.getTime() + ((RESHOOT_LOOK_AHEAD_DEG * DEG) / orbit.n) * 1000);
-  const sunDeg = Math.asin(vec.dot(vec.norm(stateAt(orbit, ahead).r), sunFrom(orbit.body, ahead))) / DEG;
-  return sunDeg < orbit.body.shots.darkBelowDeg;
+  const grace = shot.kind === 'orbital-sunrise' ? RESHOOT_AFTER_SUNRISE_S : RESHOOT_AFTER_S;
+  if (date.getTime() < (shot.keyMoment ?? builtAt).getTime() + grace * 1000) return false;
+  return sunAhead(shot.orbit, date, lookAheadDeg(shot.kind)) < shot.orbit.body.shots.darkBelowDeg;
 }
 
 export function chooseShot(now: Date, opts: ShotOptions & { features?: Feature[] } = {}): Shot {
@@ -155,6 +219,7 @@ export function chooseShot(now: Date, opts: ShotOptions & { features?: Feature[]
   let roll = rand();
   const kind = weights.find(([, w]) => (roll -= w) < 0)?.[0] ?? 'dawn-dusk';
   if (kind === 'orbital-sunrise') return orbitalSunrise(now, opts);
+  if (kind === 'earthrise') return earthrise(now, opts) ?? featureFlyover(now, opts) ?? dawnDusk(now, opts);
   if (kind === 'feature-flyover') return featureFlyover(now, opts) ?? dawnDusk(now, opts);
   return dawnDusk(now, opts);
 }

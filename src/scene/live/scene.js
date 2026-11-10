@@ -7,9 +7,10 @@ import { orbitCameraPose } from '../camera.ts';
 import { createAtmosphere } from './atmosphere.js';
 import { createStars } from './stars.js';
 import { createSun } from './sun.js';
+import { createEarth } from './earth.js';
 import { bodyFrame, vec } from '../ephemeris';
 import { sample } from '../orbit';
-import { chooseShot, dawnDusk, orbitalSunrise, featureFlyover, seededRandom, wantsReshoot } from '../shots';
+import { chooseShot, dawnDusk, earthrise, orbitalSunrise, featureFlyover, seededRandom, wantsReshoot, SHOT_FOV_DEG } from '../shots';
 import { bodyById } from '../bodies.ts';
 import { telemetryParts } from '../telemetry';
 import { Governor, initialTier, renderPixelRatio, tier as tierByName } from '../quality.ts';
@@ -25,12 +26,16 @@ const DEFAULT_HEADER_BOTTOM = 0.07;
 // Telemetry items hidden on narrow screens, matching the poster readout.
 const WIDE_FROM = 4;
 
-function buildShot(body, kind, now, altKm, rand, featureId) {
-  const o = { body, altKm, rand };
+// Earth rises this far right of centre: clear of the text in a wide view, still on a phone screen.
+const earthRightDeg = (fovDeg, aspect) => Math.min(15, Math.max(4, 0.45 * Math.atan(Math.tan((fovDeg * DEG) / 2) * aspect) / DEG));
+
+function buildShot(body, kind, now, altKm, rand, featureId, rightDeg) {
+  const o = { body, altKm, rand, rightDeg };
   const feature = body.features.find((f) => f.id === featureId);
   if (feature) return featureFlyover(now, { ...o, features: [feature], anySun: true });
   if (kind === 'dawn-dusk') return dawnDusk(now, o);
   if (kind === 'orbital-sunrise') return orbitalSunrise(now, o);
+  if (kind === 'earthrise') return earthrise(now, o) ?? featureFlyover(now, o) ?? dawnDusk(now, o);
   if (kind === 'feature-flyover') return featureFlyover(now, o) ?? dawnDusk(now, o);
   return chooseShot(now, o);
 }
@@ -134,8 +139,11 @@ export async function startLiveScene(host, opts) {
     camera.updateProjectionMatrix();
     renderer.setPixelRatio(pixelRatio(tier));
     renderer.setSize(innerWidth, innerHeight);
+    // Earthrise's orbit puts Earth where this screen shape can see it; a new shape needs a new orbit.
+    if (shot?.kind === 'earthrise' && Math.abs(Math.log(camera.aspect / shotAspect)) > 0.2) reshootPending = true;
   };
   let sun = null;
+  let earth = null;
   const teardown = () => {
     stopped = true;
     renderer.setAnimationLoop(null);
@@ -144,6 +152,7 @@ export async function startLiveScene(host, opts) {
     planet?.dispose();
     atmosphere?.dispose();
     sun?.dispose();
+    earth?.dispose();
     pipeline?.dispose();
     renderer.dispose();
     renderer.domElement.remove();
@@ -169,6 +178,10 @@ export async function startLiveScene(host, opts) {
   sun = createSun(body);
   const stars = createStars();
   const lighting = createLighting(body);
+  if (body.showsEarth) {
+    earth = createEarth({ url: '/textures/earth.webp', lighting });
+    scene.add(earth.object);
+  }
   scene.add(sun.object, stars);
 
   try {
@@ -192,6 +205,7 @@ export async function startLiveScene(host, opts) {
       planet.init(),
     ]);
     scene.add(planet.mesh);
+    sun.useTerrain((n) => tiledPlanet.coarseHeight(n));
     if (atmosphere) scene.add(atmosphere.mesh);
   }
 
@@ -216,8 +230,20 @@ export async function startLiveScene(host, opts) {
   // `skip` starts the clock part-way into the shot, for stills of a chosen moment.
   const simNow = () => new Date(simStart + (opts.skip ?? 0) * 1000 + (Date.now() - wallStart) * timeScale);
   const rand = opts.seed === undefined ? Math.random : seededRandom(opts.seed);
+  const lensFor = (kind) => opts.fovDeg ?? SHOT_FOV_DEG[kind] ?? CAMERA_DEFAULTS.fovDeg;
+  const nextShot = (at) => buildShot(body, opts.shot, at, cam.altKm, rand, opts.feature, earthRightDeg(lensFor('earthrise'), innerWidth / innerHeight));
+  // Each shot brings its own lens. The change happens before the first frame shows, or under a crossfade.
+  const applyLens = () => {
+    cam.fovDeg = lensFor(shot.kind);
+    frameView();
+    camera.fov = cam.fovDeg;
+    camera.updateProjectionMatrix();
+  };
   let shotBuilt = new Date(simStart);
-  let shot = buildShot(body, opts.shot, shotBuilt, cam.altKm, rand, opts.feature);
+  let shotAspect = innerWidth / innerHeight;
+  let reshootPending = false;
+  let shot = nextShot(shotBuilt);
+  applyLens();
   // A view pinned by the URL (posters, previews) stays put even after it goes dark.
   const pinned = Boolean(opts.at || opts.seed !== undefined || opts.skip || opts.feature);
   const starMatrix = new THREE.Matrix4();
@@ -235,7 +261,7 @@ export async function startLiveScene(host, opts) {
     planet.update(pose, { fovYRad: cam.fovDeg * DEG, aspect: camera.aspect, viewportHeightPx: renderer.domElement.height });
 
     const sunW = toWorld(s.sunBody);
-    sun.update(camera, sunW);
+    sun.update(camera, sunW, earth?.update(camera, f, sunW, date));
     lighting.sunDir.value.copy(sunW);
     if (atmosphere) {
       atmosphere.uniforms.sunDir.value.copy(sunW);
@@ -282,7 +308,7 @@ export async function startLiveScene(host, opts) {
   // While two scenes overlap in a body switch, each sees the other's GPU time as its own load.
   let governorHeld = opts.holdGovernor ?? false;
   const state = {
-    frames: 0, body: body.id, shot: shot.kind, backend: hints.backend, gpu: hints.vendor ?? hints.description, canvas: renderer.domElement, layers, tiles: planet.stats, firstFrameMs: 0,
+    frames: 0, body: body.id, shot: shot.kind, get earth() { return earth?.status ?? 'none'; }, backend: hints.backend, gpu: hints.vendor ?? hints.description, canvas: renderer.domElement, layers, tiles: planet.stats, firstFrameMs: 0,
     tier: tier.name, timing: governor ? (gpuTiming ? 'gpu' : 'cadence') : 'forced', gpuMs: 0, gpuLog: [], load: 0, tierChanges: [],
     framing: cam,
   };
@@ -385,11 +411,14 @@ export async function startLiveScene(host, opts) {
     if (stopped) return;
     // A long visit, or a tab left in the background, ends up over the night side. Crossfade to a
     // new shot from here, waiting until the new view's tiles are in.
-    if (!first && !pinned && !governorHeld && wantsReshoot(shot, shotBuilt, s.date)) {
+    if (!first && !pinned && !governorHeld && (reshootPending || wantsReshoot(shot, shotBuilt, s.date))) {
+      reshootPending = false;
+      shotAspect = innerWidth / innerHeight;
       if (!resumeStarted) takeSnapshot();
       resumeStarted = performance.now();
       shotBuilt = s.date;
-      shot = buildShot(body, opts.shot, shotBuilt, cam.altKm, rand, opts.feature);
+      shot = nextShot(shotBuilt);
+      applyLens();
       state.shot = shot.kind;
       return;
     }

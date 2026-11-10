@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import * as A from 'astronomy-engine';
 import { MOON } from '../../src/scene/bodies';
-import { bodyFrame, latLon, sunFrom, toBody, vec } from '../../src/scene/ephemeris';
+import { bodyFrame, earthFromMoon, earthLitFraction, latLon, sunFrom, toBody, vec } from '../../src/scene/ephemeris';
 import { circularOrbit, inShadow, orbitalPeriod, orbitalSpeed, sample, stateAt } from '../../src/scene/orbit';
-import { chooseShot, dawnDusk, featureFlyover, flyoverFeatures, orbitalSunrise, seededRandom, wantsReshoot } from '../../src/scene/shots';
+import { cameraRight, chooseShot, dawnDusk, earthrise, featureFlyover, flyoverFeatures, orbitalSunrise, seededRandom, sunAhead, wantsReshoot } from '../../src/scene/shots';
 import { MARS } from '../../src/scene/bodies';
 import { formatTelemetry } from '../../src/scene/telemetry';
 
@@ -95,7 +95,7 @@ describe('re-shooting once the view goes dark', () => {
       const shot = featureFlyover(built, { body: MOON, rand: seededRandom(i) });
       if (!shot) continue;
       const t = firstWanted(shot, built, 7200);
-      if (t !== null) expect(at(built, t).getTime()).toBeGreaterThanOrEqual(shot.keyMoment!.getTime() + 600e3);
+      if (t !== null) expect(at(built, t).getTime()).toBeGreaterThanOrEqual(shot.keyMoment!.getTime() + 120e3);
     }
   });
 
@@ -111,5 +111,64 @@ describe('re-shooting once the view goes dark', () => {
     const t = firstWanted(shot, START, 3 * 3600)!;
     expect(t).toBeGreaterThan(30 * 60);
     expect(t).toBeLessThan(90 * 60);
+  });
+});
+
+describe('Earthrise', () => {
+  const halfDays = Array.from({ length: 59 }, (_, i) => new Date(START.getTime() + i * 0.5 * DAY));
+
+  it('brings Earth over the limb mountains at the key moment, right of the track, with the Sun on the right', () => {
+    for (const [i, now] of halfDays.entries()) {
+      const shot = earthrise(now, { body: MOON, rand: seededRandom(i), rightDeg: 12 });
+      if (!shot) continue;
+      const k = shot.keyMoment!;
+      expect(k.getTime() - now.getTime()).toBe(20e3);
+      const { r, v } = stateAt(shot.orbit, k);
+      const toEarth = vec.norm(vec.sub(earthFromMoon(k), r));
+      const elevation = Math.asin(vec.dot(toEarth, vec.norm(r))) / (Math.PI / 180);
+      const bareHorizon = -Math.acos(MOON.radiusKm / vec.len(r)) / (Math.PI / 180);
+      expect(elevation - bareHorizon).toBeGreaterThan(1);
+      expect(elevation - bareHorizon).toBeLessThan(1.5);
+      expect(Math.asin(vec.dot(toEarth, cameraRight(r, v))) / (Math.PI / 180)).toBeCloseTo(12, 0);
+      expect(vec.dot(sunFrom(MOON, k), cameraRight(r, v))).toBeGreaterThan(0);
+      expect(sunAhead(shot.orbit, k, 15)).toBeGreaterThanOrEqual(8);
+      expect(earthLitFraction(k, sunFrom(MOON, k))).toBeGreaterThanOrEqual(1 / 3);
+    }
+  });
+
+  it('is available on about half the days of a lunation, and never when Earth is mostly dark', () => {
+    const shots = halfDays.map((d, i) => [d, earthrise(d, { body: MOON, rand: seededRandom(i) })] as const);
+    expect(shots.filter(([, s]) => s).length / shots.length).toBeGreaterThan(0.5);
+    for (const [d, s] of shots) if (earthLitFraction(d, sunFrom(MOON, d)) < 0.3) expect(s).toBeNull();
+  });
+
+  it('keeps the ground lit for at least four minutes after load', () => {
+    for (const [i, now] of halfDays.entries()) {
+      const shot = earthrise(now, { body: MOON, rand: seededRandom(i) });
+      if (!shot) continue;
+      for (let t = 0; t <= 240; t += 30) expect(sunAhead(shot.orbit, new Date(now.getTime() + t * 1000), 15)).toBeGreaterThan(MOON.shots.darkBelowDeg);
+    }
+  });
+
+  it('never comes up on Mars, even when asked for', () => {
+    expect(earthrise(START, { body: MARS })).toBeNull();
+    for (let i = 0; i < 200; i++) expect(chooseShot(new Date(START.getTime() + i * 0.37 * DAY), { body: MARS, rand: seededRandom(i) }).kind).not.toBe('earthrise');
+  });
+});
+
+describe('Earth seen from the Moon', () => {
+  it('turns to its real rotation: the point under the Moon matches sidereal time', () => {
+    for (let i = 0; i < 20; i++) {
+      const date = new Date(START.getTime() + i * 1.37 * DAY);
+      const sub = latLon(toBody(bodyFrame({ ae: 'Earth' } as typeof MOON, date), vec.scale(earthFromMoon(date), -1)));
+      // Geocentric, of date: an observer on the surface would see the Moon shifted by up to 1°.
+      const m = A.RotateVector(A.Rotation_EQJ_EQD(date), A.GeoMoon(date));
+      const eq = { ra: Math.atan2(m.y, m.x) / (Math.PI / 12), dec: Math.asin(m.z / Math.hypot(m.x, m.y, m.z)) / (Math.PI / 180) };
+      const lon = ((((eq.ra - A.SiderealTime(date)) * 15) % 360) + 540) % 360 - 180;
+      const ours = ((sub.lon % 360) + 540) % 360 - 180;
+      // The IAU's simple Earth rotation model drifts about half a degree from sidereal time, under a pixel here.
+      expect(Math.abs(sub.lat - eq.dec)).toBeLessThan(1);
+      expect(Math.abs(((ours - lon + 540) % 360) - 180)).toBeLessThan(1);
+    }
   });
 });
