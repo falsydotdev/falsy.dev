@@ -3,7 +3,7 @@ import * as A from 'astronomy-engine';
 import { MOON } from '../../src/scene/bodies';
 import { bodyFrame, latLon, sunFrom, toBody, vec } from '../../src/scene/ephemeris';
 import { circularOrbit, inShadow, orbitalPeriod, orbitalSpeed, sample, stateAt } from '../../src/scene/orbit';
-import { chooseShot, dawnDusk, featureFlyover, lowSunFeatures, orbitalSunrise, seededRandom, wantsReshoot } from '../../src/scene/shots';
+import { chooseShot, dawnDusk, featureFlyover, flyoverFeatures, orbitalSunrise, seededRandom, wantsReshoot } from '../../src/scene/shots';
 import { MARS } from '../../src/scene/bodies';
 import { formatTelemetry } from '../../src/scene/telemetry';
 
@@ -32,10 +32,10 @@ describe('Moon', () => {
   });
 
   // The rest of the time a flyover falls back to the terminator pass.
-  it('has a feature under a low Sun on most days of a lunation', () => {
+  it('has a flyover with lit ground under the camera on over half the days of a lunation', () => {
     const days = Array.from({ length: 59 }, (_, i) => new Date(START.getTime() + i * 0.5 * DAY));
-    const covered = days.filter((d) => lowSunFeatures(MOON, d).length > 0).length;
-    expect(covered / days.length).toBeGreaterThan(0.6);
+    const covered = days.filter((d) => flyoverFeatures(MOON, d).length > 0).length;
+    expect(covered / days.length).toBeGreaterThan(0.55);
   });
 
   it('runs the terminator pass under a low daylight Sun, with the dayside on the right', () => {
@@ -75,7 +75,7 @@ describe('Moon', () => {
 describe('re-shooting once the view goes dark', () => {
   const at = (from: Date, s: number) => new Date(from.getTime() + s * 1000);
   const firstWanted = (shot: ReturnType<typeof chooseShot>, built: Date, untilS: number) => {
-    for (let t = 0; t <= untilS; t += 30) if (wantsReshoot(shot, built, sample(shot.orbit, at(built, t)))) return t;
+    for (let t = 0; t <= untilS; t += 30) if (wantsReshoot(shot, built, at(built, t))) return t;
     return null;
   };
 

@@ -382,7 +382,7 @@ export async function startLiveScene(host, opts) {
     if (stopped) return;
     // A long visit, or a tab left in the background, ends up over the night side. Crossfade to a
     // new shot from here, waiting until the new view's tiles are in.
-    if (!first && !pinned && wantsReshoot(shot, shotBuilt, s)) {
+    if (!first && !pinned && !governorHeld && wantsReshoot(shot, shotBuilt, s.date)) {
       if (!resumeStarted) takeSnapshot();
       resumeStarted = performance.now();
       shotBuilt = s.date;
