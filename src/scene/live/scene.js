@@ -7,9 +7,10 @@ import { orbitCameraPose } from '../camera.ts';
 import { createAtmosphere } from './atmosphere.js';
 import { createStars } from './stars.js';
 import { createSun } from './sun.js';
-import { bodyFrame, vec } from '../ephemeris';
+import { createEarth } from './earth.js';
+import { bodyFrame, earthFromMoon, vec } from '../ephemeris';
 import { sample } from '../orbit';
-import { chooseShot, dawnDusk, orbitalSunrise, featureFlyover, seededRandom, wantsReshoot } from '../shots';
+import { chooseShot, dawnDusk, earthrise, orbitalSunrise, featureFlyover, seededRandom, wantsReshoot } from '../shots';
 import { bodyById } from '../bodies.ts';
 import { telemetryParts } from '../telemetry';
 import { Governor, initialTier, renderPixelRatio, tier as tierByName } from '../quality.ts';
@@ -25,12 +26,16 @@ const DEFAULT_HEADER_BOTTOM = 0.07;
 // Telemetry items hidden on narrow screens, matching the poster readout.
 const WIDE_FROM = 4;
 
-function buildShot(body, kind, now, altKm, rand, featureId) {
-  const o = { body, altKm, rand };
+// Earth rises this far right of centre: clear of the text in a wide view, still on a phone screen.
+const earthRightDeg = (fovDeg, aspect) => Math.min(15, Math.max(4, 0.45 * Math.atan(Math.tan((fovDeg * DEG) / 2) * aspect) / DEG));
+
+function buildShot(body, kind, now, altKm, rand, featureId, rightDeg) {
+  const o = { body, altKm, rand, rightDeg };
   const feature = body.features.find((f) => f.id === featureId);
   if (feature) return featureFlyover(now, { ...o, features: [feature], anySun: true });
   if (kind === 'dawn-dusk') return dawnDusk(now, o);
   if (kind === 'orbital-sunrise') return orbitalSunrise(now, o);
+  if (kind === 'earthrise') return earthrise(now, o) ?? dawnDusk(now, o);
   if (kind === 'feature-flyover') return featureFlyover(now, o) ?? dawnDusk(now, o);
   return chooseShot(now, o);
 }
@@ -136,6 +141,7 @@ export async function startLiveScene(host, opts) {
     renderer.setSize(innerWidth, innerHeight);
   };
   let sun = null;
+  let earth = null;
   const teardown = () => {
     stopped = true;
     renderer.setAnimationLoop(null);
@@ -144,6 +150,7 @@ export async function startLiveScene(host, opts) {
     planet?.dispose();
     atmosphere?.dispose();
     sun?.dispose();
+    earth?.dispose();
     pipeline?.dispose();
     renderer.dispose();
     renderer.domElement.remove();
@@ -169,6 +176,10 @@ export async function startLiveScene(host, opts) {
   sun = createSun(body);
   const stars = createStars();
   const lighting = createLighting(body);
+  if (body.showsEarth) {
+    earth = createEarth({ url: '/textures/earth.webp', lighting });
+    scene.add(earth.object);
+  }
   scene.add(sun.object, stars);
 
   try {
@@ -217,7 +228,7 @@ export async function startLiveScene(host, opts) {
   const simNow = () => new Date(simStart + (opts.skip ?? 0) * 1000 + (Date.now() - wallStart) * timeScale);
   const rand = opts.seed === undefined ? Math.random : seededRandom(opts.seed);
   let shotBuilt = new Date(simStart);
-  let shot = buildShot(body, opts.shot, shotBuilt, cam.altKm, rand, opts.feature);
+  let shot = buildShot(body, opts.shot, shotBuilt, cam.altKm, rand, opts.feature, earthRightDeg(cam.fovDeg, innerWidth / innerHeight));
   // A view pinned by the URL (posters, previews) stays put even after it goes dark.
   const pinned = Boolean(opts.at || opts.seed !== undefined || opts.skip || opts.feature);
   const starMatrix = new THREE.Matrix4();
@@ -236,6 +247,7 @@ export async function startLiveScene(host, opts) {
 
     const sunW = toWorld(s.sunBody);
     sun.update(camera, sunW);
+    earth?.update(camera, f, earthFromMoon(date), s.r, sunW, date);
     lighting.sunDir.value.copy(sunW);
     if (atmosphere) {
       atmosphere.uniforms.sunDir.value.copy(sunW);
@@ -389,7 +401,7 @@ export async function startLiveScene(host, opts) {
       if (!resumeStarted) takeSnapshot();
       resumeStarted = performance.now();
       shotBuilt = s.date;
-      shot = buildShot(body, opts.shot, shotBuilt, cam.altKm, rand, opts.feature);
+      shot = buildShot(body, opts.shot, shotBuilt, cam.altKm, rand, opts.feature, earthRightDeg(cam.fovDeg, innerWidth / innerHeight));
       state.shot = shot.kind;
       return;
     }

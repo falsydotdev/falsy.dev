@@ -15,6 +15,7 @@ export interface Body {
   features: Feature[];
   // The Sun's apparent diameter: the disc's drawn size, and the width of terrain shadow penumbrae.
   sunDiameterRad: number;
+  showsEarth: boolean; // Earth hangs in this body's sky and is drawn there
   // Height of the bright shell above the limb that framing keeps clear of the text. 0 without air.
   glowKm: number;
   // Dust density for the scattering shell and the surface haze; null for an airless body.
@@ -53,6 +54,7 @@ export const MARS: Body = {
   relief: 2.5,
   features: MARS_FEATURES,
   sunDiameterRad: 0.0061,
+  showsEarth: false,
   // About three scale heights of dust, 11 km each.
   glowKm: 35,
   atmosphere: { density: 0.2 },
@@ -79,6 +81,7 @@ export const MOON: Body = {
   relief: 2.5,
   features: MOON_FEATURES,
   sunDiameterRad: 0.0093,
+  showsEarth: true,
   // No air, but exaggerated mountains on the limb rise about 25 km.
   glowKm: 15,
   atmosphere: null,

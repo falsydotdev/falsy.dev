@@ -154,3 +154,20 @@ describe('Earthrise', () => {
     for (let i = 0; i < 200; i++) expect(chooseShot(new Date(START.getTime() + i * 0.37 * DAY), { body: MARS, rand: seededRandom(i) }).kind).not.toBe('earthrise');
   });
 });
+
+describe('Earth seen from the Moon', () => {
+  it('turns to its real rotation: the point under the Moon matches sidereal time', () => {
+    for (let i = 0; i < 20; i++) {
+      const date = new Date(START.getTime() + i * 1.37 * DAY);
+      const sub = latLon(toBody(bodyFrame({ ae: 'Earth' } as typeof MOON, date), vec.scale(earthFromMoon(date), -1)));
+      // Geocentric, of date: an observer on the surface would see the Moon shifted by up to 1°.
+      const m = A.RotateVector(A.Rotation_EQJ_EQD(date), A.GeoMoon(date));
+      const eq = { ra: Math.atan2(m.y, m.x) / (Math.PI / 12), dec: Math.asin(m.z / Math.hypot(m.x, m.y, m.z)) / (Math.PI / 180) };
+      const lon = ((((eq.ra - A.SiderealTime(date)) * 15) % 360) + 540) % 360 - 180;
+      const ours = ((sub.lon % 360) + 540) % 360 - 180;
+      // The IAU's simple Earth rotation model drifts about half a degree from sidereal time, under a pixel here.
+      expect(Math.abs(sub.lat - eq.dec)).toBeLessThan(1);
+      expect(Math.abs(((ours - lon + 540) % 360) - 180)).toBeLessThan(1);
+    }
+  });
+});
