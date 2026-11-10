@@ -8,7 +8,7 @@ import { createAtmosphere } from './atmosphere.js';
 import { createStars } from './stars.js';
 import { createSun } from './sun.js';
 import { createEarth } from './earth.js';
-import { bodyFrame, earthFromMoon, vec } from '../ephemeris';
+import { bodyFrame, vec } from '../ephemeris';
 import { sample } from '../orbit';
 import { chooseShot, dawnDusk, earthrise, orbitalSunrise, featureFlyover, seededRandom, wantsReshoot, SHOT_FOV_DEG } from '../shots';
 import { bodyById } from '../bodies.ts';
@@ -35,7 +35,7 @@ function buildShot(body, kind, now, altKm, rand, featureId, rightDeg) {
   if (feature) return featureFlyover(now, { ...o, features: [feature], anySun: true });
   if (kind === 'dawn-dusk') return dawnDusk(now, o);
   if (kind === 'orbital-sunrise') return orbitalSunrise(now, o);
-  if (kind === 'earthrise') return earthrise(now, o) ?? dawnDusk(now, o);
+  if (kind === 'earthrise') return earthrise(now, o) ?? featureFlyover(now, o) ?? dawnDusk(now, o);
   if (kind === 'feature-flyover') return featureFlyover(now, o) ?? dawnDusk(now, o);
   return chooseShot(now, o);
 }
@@ -203,6 +203,7 @@ export async function startLiveScene(host, opts) {
       planet.init(),
     ]);
     scene.add(planet.mesh);
+    sun.useTerrain((n) => tiledPlanet.coarseHeight(n));
     if (atmosphere) scene.add(atmosphere.mesh);
   }
 
@@ -256,8 +257,7 @@ export async function startLiveScene(host, opts) {
     planet.update(pose, { fovYRad: cam.fovDeg * DEG, aspect: camera.aspect, viewportHeightPx: renderer.domElement.height });
 
     const sunW = toWorld(s.sunBody);
-    sun.update(camera, sunW);
-    earth?.update(camera, f, earthFromMoon(date), s.r, sunW, date);
+    sun.update(camera, sunW, earth?.update(camera, f, s.r, sunW, date));
     lighting.sunDir.value.copy(sunW);
     if (atmosphere) {
       atmosphere.uniforms.sunDir.value.copy(sunW);

@@ -132,25 +132,23 @@ const EARTHRISE_LEAD_S = 20;
 const EARTHRISE_MIN_LIT = 1 / 3;
 const EARTHRISE_GROUND_SUN = { min: 8, max: 30 };
 const EARTHRISE_MIN_LIT_S = 240;
-// How far along the orbit the ground in view lies. Earthrise's narrow lens sees mostly the far
-// ground near the horizon, about 19° ahead.
+// How far along the orbit the ground in view lies. Earthrise's narrow lens sees mostly far ground
+// toward the horizon (19° ahead at 100 km); 15° keeps swaps on a lit frame in renders.
 const LOOK_AHEAD_DEG = 8;
 const EARTHRISE_LOOK_AHEAD_DEG = 15;
 const lookAheadDeg = (kind: ShotKind) => (kind === 'earthrise' ? EARTHRISE_LOOK_AHEAD_DEG : LOOK_AHEAD_DEG);
-// Seen from the Moon the Sun moves under half a degree an hour, so a fixed direction will do.
 const LIT_SCAN_S = 1800;
 
-/** The Sun's elevation on the ground `aheadDeg` of orbit in front of the camera. */
-export function sunAhead(orbit: CircularOrbit, date: Date, aheadDeg = LOOK_AHEAD_DEG) {
+/** The Sun's elevation on the ground `aheadDeg` of orbit in front of the camera. `sun` fixes its direction. */
+export function sunAhead(orbit: CircularOrbit, date: Date, aheadDeg = LOOK_AHEAD_DEG, sun?: Vec3) {
   const ahead = new Date(date.getTime() + ((aheadDeg * DEG) / orbit.n) * 1000);
-  return Math.asin(vec.dot(vec.norm(stateAt(orbit, ahead).r), sunFrom(orbit.body, ahead))) / DEG;
+  return Math.asin(vec.dot(vec.norm(stateAt(orbit, ahead).r), sun ?? sunFrom(orbit.body, ahead))) / DEG;
 }
 
-// An orbit that brings Earth up over the limb a few seconds after load, `rightDeg` right of the
-// direction of travel, over sunlit ground with the Sun on the right. Null when no orbit
-// qualifies: too little of Earth is lit, or no lit ground lies under the rise.
+/** An orbit that brings Earth up over the limb, right of the track, over lit ground. Null when none qualifies. */
 export function earthrise(now: Date, opts: ShotOptions & { rightDeg?: number } = {}): Shot | null {
   const { body, altKm } = resolve(opts);
+  if (!body.showsEarth) return null;
   const rand = opts.rand ?? Math.random;
   const key = new Date(now.getTime() + EARTHRISE_LEAD_S * 1000);
   const sun = sunFrom(body, key);
@@ -162,11 +160,10 @@ export function earthrise(now: Date, opts: ShotOptions & { rightDeg?: number } =
   // Earth's centre clears limb mountains this high when it sits this far below the bare horizon.
   const dip = Math.acos((body.radiusKm + body.shots.sunriseLimbKm) / a);
   const thetaRise = -Math.acos(-Math.sin(dip) / Math.cos(tip));
-  const ahead = (EARTHRISE_LOOK_AHEAD_DEG * DEG) / Math.sqrt(body.gm / a ** 3);
+  // Seen from the Moon the Sun moves under half a degree an hour, so a fixed direction will do.
   const litFor = (o: CircularOrbit) => {
     for (let t = 0; t < LIT_SCAN_S; t += 30) {
-      const pos = stateAt(o, new Date(key.getTime() + (t + ahead) * 1000)).r;
-      if (Math.asin(vec.dot(vec.norm(pos), sun)) / DEG < body.shots.darkBelowDeg) return t;
+      if (sunAhead(o, new Date(key.getTime() + t * 1000), EARTHRISE_LOOK_AHEAD_DEG, sun) < body.shots.darkBelowDeg) return t;
     }
     return LIT_SCAN_S;
   };
@@ -174,19 +171,16 @@ export function earthrise(now: Date, opts: ShotOptions & { rightDeg?: number } =
   for (let i = 0; i < 72; i++) {
     const phi = (i / 72) * 2 * Math.PI;
     const u = vec.add(vec.scale(p, Math.cos(phi)), vec.scale(q, Math.sin(phi)));
-    const w = vec.cross(earth, u);
-    for (const side of [1, -1]) {
-      const e1 = vec.add(vec.scale(earth, Math.cos(tip)), vec.scale(w, side * Math.sin(tip)));
-      const probe = circularOrbit(body, key, altKm, e1, u, thetaRise);
-      const { r, v } = stateAt(probe, key);
-      const right = cameraRight(r, v);
-      if (vec.dot(earth, right) <= 0 || vec.dot(sun, right) <= 0) continue;
-      const sunUp = sunAhead(probe, key, EARTHRISE_LOOK_AHEAD_DEG);
-      if (sunUp < EARTHRISE_GROUND_SUN.min || sunUp > EARTHRISE_GROUND_SUN.max) continue;
-      const orbit = { ...probe, epoch: now, theta0: thetaRise - probe.n * EARTHRISE_LEAD_S };
-      const lit = litFor(orbit);
-      if (lit >= EARTHRISE_MIN_LIT_S) candidates.push({ orbit, lit });
-    }
+    // Tipping the plane toward earth × u puts Earth on the camera's right.
+    const e1 = vec.add(vec.scale(earth, Math.cos(tip)), vec.scale(vec.cross(earth, u), Math.sin(tip)));
+    const probe = circularOrbit(body, key, altKm, e1, u, thetaRise);
+    const { r, v } = stateAt(probe, key);
+    if (vec.dot(sun, cameraRight(r, v)) <= 0) continue;
+    const sunUp = sunAhead(probe, key, EARTHRISE_LOOK_AHEAD_DEG, sun);
+    if (sunUp < EARTHRISE_GROUND_SUN.min || sunUp > EARTHRISE_GROUND_SUN.max) continue;
+    const orbit = { ...probe, epoch: now, theta0: thetaRise - probe.n * EARTHRISE_LEAD_S };
+    const lit = litFor(orbit);
+    if (lit >= EARTHRISE_MIN_LIT_S) candidates.push({ orbit, lit });
   }
   if (candidates.length === 0) return null;
   // Toward a nearly full Earth the ground ahead is night, so favour the orbits that stay lit longest.

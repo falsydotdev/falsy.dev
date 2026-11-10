@@ -150,7 +150,8 @@ describe('Earthrise', () => {
     }
   });
 
-  it('never comes up on Mars', () => {
+  it('never comes up on Mars, even when asked for', () => {
+    expect(earthrise(START, { body: MARS })).toBeNull();
     for (let i = 0; i < 200; i++) expect(chooseShot(new Date(START.getTime() + i * 0.37 * DAY), { body: MARS, rand: seededRandom(i) }).kind).not.toBe('earthrise');
   });
 });
