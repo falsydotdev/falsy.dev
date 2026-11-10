@@ -6,6 +6,7 @@ import { TiledPlanet } from './planet.js';
 import { orbitCameraPose } from '../camera.ts';
 import { createAtmosphere } from './atmosphere.js';
 import { createStars } from './stars.js';
+import { createSun } from './sun.js';
 import { bodyFrame, vec } from '../ephemeris';
 import { sample } from '../orbit';
 import { chooseShot, dawnDusk, orbitalSunrise, featureFlyover, seededRandom, wantsReshoot } from '../shots';
@@ -134,6 +135,7 @@ export async function startLiveScene(host, opts) {
     renderer.setPixelRatio(pixelRatio(tier));
     renderer.setSize(innerWidth, innerHeight);
   };
+  let sun = null;
   const teardown = () => {
     stopped = true;
     renderer.setAnimationLoop(null);
@@ -141,6 +143,7 @@ export async function startLiveScene(host, opts) {
     clearTimeout(reframe);
     planet?.dispose();
     atmosphere?.dispose();
+    sun?.dispose();
     pipeline?.dispose();
     renderer.dispose();
     renderer.domElement.remove();
@@ -163,10 +166,10 @@ export async function startLiveScene(host, opts) {
   scene.background = new THREE.Color(0x000000);
   const camera = new THREE.PerspectiveCamera(cam.fovDeg, innerWidth / innerHeight, 0.05, 5e5);
 
-  const sunDisc = new THREE.Mesh(new THREE.SphereGeometry(body.sunDiameterRad * 1e5, 32, 16), new THREE.MeshBasicNodeMaterial({ color: new THREE.Color(60, 55, 48) }));
+  sun = createSun(body);
   const stars = createStars();
   const lighting = createLighting(body);
-  scene.add(sunDisc, stars);
+  scene.add(sun.object, stars);
 
   try {
     await loadPlanet();
@@ -232,7 +235,7 @@ export async function startLiveScene(host, opts) {
     planet.update(pose, { fovYRad: cam.fovDeg * DEG, aspect: camera.aspect, viewportHeightPx: renderer.domElement.height });
 
     const sunW = toWorld(s.sunBody);
-    sunDisc.position.copy(sunW).multiplyScalar(1e5);
+    sun.update(camera, sunW);
     lighting.sunDir.value.copy(sunW);
     if (atmosphere) {
       atmosphere.uniforms.sunDir.value.copy(sunW);

@@ -13,8 +13,7 @@ export interface Body {
   altKm: number; // default orbit altitude
   relief: number; // vertical exaggeration
   features: Feature[];
-  // The Sun's apparent diameter, which sets terrain shadow penumbrae. The disc is drawn twice
-  // this size so it still reads on screen.
+  // The Sun's apparent diameter: the disc's drawn size, and the width of terrain shadow penumbrae.
   sunDiameterRad: number;
   // Height of the bright shell above the limb that framing keeps clear of the text. 0 without air.
   glowKm: number;
