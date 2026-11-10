@@ -1,5 +1,5 @@
 import { type Vec3, DEG, vec, bodyFrame, fromBody, sunFrom, bodyVector, sunElevationAt } from './ephemeris.ts';
-import { type CircularOrbit, circularOrbit } from './orbit.ts';
+import { type CircularOrbit, circularOrbit, stateAt } from './orbit.ts';
 import { type Body, MARS } from './bodies.ts';
 import type { Feature } from './features.ts';
 
@@ -30,6 +30,7 @@ const LOW_SUN = { min: 5, max: 25 };
 // the Sun lights the right-hand terrain, a flyover passes its feature on the right, and the
 // sunrise breaks right of centre.
 const FLYOVER_OFFSET_KM = 100;
+const FLYOVER_LIT_MARGIN_DEG = 2;
 const SUNRISE_RIGHT_DEG = 15;
 
 // Two unit vectors that, with `axis`, make a right-handed orthonormal basis. The
@@ -89,6 +90,22 @@ export function lowSunFeatures(body: Body, when: Date, features: Feature[] = bod
   });
 }
 
+// Where the camera passes the feature, and its Sun elevation there.
+function flyoverTrack(body: Body, pass: Date, feature: Feature) {
+  const f = fromBody(bodyFrame(body, pass), bodyVector(feature.lat, feature.lon));
+  const sun = sunFrom(body, pass);
+  const along = vec.norm(vec.cross(f, sun));
+  const offset = FLYOVER_OFFSET_KM / body.radiusKm;
+  const track = vec.sub(vec.scale(f, Math.cos(offset)), vec.scale(cameraRight(f, along), Math.sin(offset)));
+  return { track, along, sunDeg: Math.asin(vec.dot(track, sun)) / DEG };
+}
+
+/** Low-Sun features whose flyover keeps the ground under the camera lit. */
+export function flyoverFeatures(body: Body, pass: Date, features: Feature[] = body.features) {
+  // The track runs on the night side of the feature, so on the Moon it can be dark while the feature is lit.
+  return lowSunFeatures(body, pass, features).filter((f) => flyoverTrack(body, pass, f).sunDeg >= body.shots.darkBelowDeg + FLYOVER_LIT_MARGIN_DEG);
+}
+
 // An orbit whose ground track passes a low-Sun feature a few minutes after load, with the
 // feature off to the right. It travels along the local terminator so the Sun stays to the
 // right too. `anySun` drops the low-Sun filter, for previewing one feature at any time of day.
@@ -96,13 +113,10 @@ export function featureFlyover(now: Date, opts: ShotOptions & { features?: Featu
   const { body, altKm } = resolve(opts);
   const rand = opts.rand ?? Math.random;
   const pass = new Date(now.getTime() + FLYOVER_LEAD_S * 1000);
-  const candidates = opts.anySun ? (opts.features ?? body.features) : lowSunFeatures(body, pass, opts.features);
+  const candidates = opts.anySun ? (opts.features ?? body.features) : flyoverFeatures(body, pass, opts.features);
   if (candidates.length === 0) return null;
   const feature = candidates[Math.floor(rand() * candidates.length)];
-  const f = fromBody(bodyFrame(body, pass), bodyVector(feature.lat, feature.lon));
-  const along = vec.norm(vec.cross(f, sunFrom(body, pass)));
-  const offset = FLYOVER_OFFSET_KM / body.radiusKm;
-  const track = vec.sub(vec.scale(f, Math.cos(offset)), vec.scale(cameraRight(f, along), Math.sin(offset)));
+  const { track, along } = flyoverTrack(body, pass, feature);
   const probe = circularOrbit(body, now, altKm, track, along, 0);
   const orbit = { ...probe, theta0: -probe.n * FLYOVER_LEAD_S };
   return { kind: 'feature-flyover', orbit, feature, keyMoment: pass };
@@ -118,6 +132,21 @@ export function seededRandom(seed: number) {
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+// A shot runs at least this long past its key moment. A sunrise opens with the ground below
+// still in shadow while the Sun climbs ahead, and has to play out.
+const RESHOOT_AFTER_S = 600;
+// The camera looks well ahead of the ground below it, so darkness is judged this far along the orbit.
+const RESHOOT_LOOK_AHEAD_DEG = 8;
+
+/** Whether the orbit has carried the camera, long after its shot's moment, toward ground too dark to see. */
+export function wantsReshoot(shot: Shot, builtAt: Date, date: Date) {
+  if (date.getTime() < (shot.keyMoment ?? builtAt).getTime() + RESHOOT_AFTER_S * 1000) return false;
+  const { orbit } = shot;
+  const ahead = new Date(date.getTime() + ((RESHOOT_LOOK_AHEAD_DEG * DEG) / orbit.n) * 1000);
+  const sunDeg = Math.asin(vec.dot(vec.norm(stateAt(orbit, ahead).r), sunFrom(orbit.body, ahead))) / DEG;
+  return sunDeg < orbit.body.shots.darkBelowDeg;
 }
 
 export function chooseShot(now: Date, opts: ShotOptions & { features?: Feature[] } = {}): Shot {

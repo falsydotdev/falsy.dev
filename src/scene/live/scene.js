@@ -8,7 +8,7 @@ import { createAtmosphere } from './atmosphere.js';
 import { createStars } from './stars.js';
 import { bodyFrame, vec } from '../ephemeris';
 import { sample } from '../orbit';
-import { chooseShot, dawnDusk, orbitalSunrise, featureFlyover, seededRandom } from '../shots';
+import { chooseShot, dawnDusk, orbitalSunrise, featureFlyover, seededRandom, wantsReshoot } from '../shots';
 import { bodyById } from '../bodies.ts';
 import { telemetryParts } from '../telemetry';
 import { Governor, initialTier, renderPixelRatio, tier as tierByName } from '../quality.ts';
@@ -213,7 +213,10 @@ export async function startLiveScene(host, opts) {
   // `skip` starts the clock part-way into the shot, for stills of a chosen moment.
   const simNow = () => new Date(simStart + (opts.skip ?? 0) * 1000 + (Date.now() - wallStart) * timeScale);
   const rand = opts.seed === undefined ? Math.random : seededRandom(opts.seed);
-  const shot = buildShot(body, opts.shot, new Date(simStart), cam.altKm, rand, opts.feature);
+  let shotBuilt = new Date(simStart);
+  let shot = buildShot(body, opts.shot, shotBuilt, cam.altKm, rand, opts.feature);
+  // A view pinned by the URL (posters, previews) stays put even after it goes dark.
+  const pinned = Boolean(opts.at || opts.seed !== undefined || opts.skip || opts.feature);
   const starMatrix = new THREE.Matrix4();
 
   function frame() {
@@ -377,6 +380,16 @@ export async function startLiveScene(host, opts) {
     updateTelemetry(s, t);
     measure(interval);
     if (stopped) return;
+    // A long visit, or a tab left in the background, ends up over the night side. Crossfade to a
+    // new shot from here, waiting until the new view's tiles are in.
+    if (!first && !pinned && !governorHeld && wantsReshoot(shot, shotBuilt, s.date)) {
+      if (!resumeStarted) takeSnapshot();
+      resumeStarted = performance.now();
+      shotBuilt = s.date;
+      shot = buildShot(body, opts.shot, shotBuilt, cam.altKm, rand, opts.feature);
+      state.shot = shot.kind;
+      return;
+    }
     if (resumeStarted && (planet.settled() || performance.now() - resumeStarted > RESUME_SETTLE_TIMEOUT_MS)) {
       resumeStarted = 0;
       fadeSnapshot();
