@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { pass } from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
-import { toWorld, lighting, applyBodyLight } from './terrain.js';
+import { toWorld, createLighting } from './terrain.js';
 import { TiledPlanet } from './planet.js';
 import { orbitCameraPose } from '../camera.ts';
 import { createAtmosphere } from './atmosphere.js';
@@ -165,7 +165,7 @@ export async function startLiveScene(host, opts) {
 
   const sunDisc = new THREE.Mesh(new THREE.SphereGeometry(body.sunDiameterRad * 1e5, 32, 16), new THREE.MeshBasicNodeMaterial({ color: new THREE.Color(60, 55, 48) }));
   const stars = createStars();
-  applyBodyLight(body);
+  const lighting = createLighting(body);
   scene.add(sunDisc, stars);
 
   try {
@@ -174,13 +174,15 @@ export async function startLiveScene(host, opts) {
     teardown();
     throw err;
   }
+  // The device can be lost while tiles load; teardown has run, so nothing more may start.
+  if (stopped) throw new Error('GPU device lost while the scene was loading');
   async function loadPlanet() {
     const res = await fetch(`${opts.dataUrl}/meta.json`);
     if (!res.ok) throw new Error(`No tiles at ${opts.dataUrl}`);
     const meta = await res.json();
     if (meta.body !== body.id || Math.abs(meta.radiusKm - body.radiusKm) > 1e-6) console.warn(`Tiles at ${opts.dataUrl} are for ${meta.body}, not ${body.id}.`);
     layers = isWebGPU ? gpuLayers ?? 256 : Math.min(WANTED_LAYERS, renderer.backend.gl.getParameter(renderer.backend.gl.MAX_ARRAY_TEXTURE_LAYERS));
-    planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: body.relief, layers, relaxBeyondKm: opts.farKm });
+    planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: body.relief, layers, lighting, relaxBeyondKm: opts.farKm });
     const tiledPlanet = planet;
     [atmosphere] = await Promise.all([
       body.atmosphere ? createAtmosphere({ planetRadius: body.radiusKm, density: body.atmosphere.density, terrainHeight: (n) => tiledPlanet.coarseHeight(n) }) : null,
@@ -215,8 +217,6 @@ export async function startLiveScene(host, opts) {
   const starMatrix = new THREE.Matrix4();
 
   function frame() {
-    // Lighting uniforms are shared by every scene, and two overlap during a body switch.
-    applyBodyLight(body);
     const date = simNow();
     const s = sample(shot.orbit, date);
     const f = bodyFrame(body, date);
@@ -392,15 +392,13 @@ export async function startLiveScene(host, opts) {
 
   return {
     state,
-    body: body.id,
-    canvas: renderer.domElement,
     dispose() {
       if (!stopped) teardown();
       dropSnapshot();
     },
-    /** What's on screen: the frozen last frame if there is one, else the live canvas. */
-    surface() {
-      return snapshot ?? renderer.domElement;
+    /** Everything this scene has on screen: the live canvas, and a frozen frame over it if there is one. */
+    surfaces() {
+      return [renderer.domElement, snapshot].filter((el) => el?.isConnected);
     },
     // Stops the scene and frees the GPU, leaving a copy of its last frame in its place for the caller to remove.
     freeze() {
