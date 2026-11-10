@@ -28,7 +28,7 @@ export interface Body {
   };
   tiles: { version: string };
   shots: {
-    weights: Record<'dawn-dusk' | 'orbital-sunrise' | 'feature-flyover', number>;
+    weights: Record<'dawn-dusk' | 'orbital-sunrise' | 'feature-flyover' | 'earthrise', number>;
     // How far into daylight the terminator orbit runs. Without air there's no skylight, so an
     // orbit right on the terminator looks down on ground that is almost all in shadow.
     dawnDuskSunDeg: number;
@@ -64,7 +64,7 @@ export const MARS: Body = {
     extinction: [0.85, 1, 1.25],
   },
   tiles: { version: 'v1' },
-  shots: { weights: { 'dawn-dusk': 0.4, 'orbital-sunrise': 0.3, 'feature-flyover': 0.3 }, dawnDuskSunDeg: 0, sunriseLeadS: 60, sunriseLimbKm: 0, darkBelowDeg: -4 },
+  shots: { weights: { 'dawn-dusk': 0.4, 'orbital-sunrise': 0.3, 'feature-flyover': 0.3, earthrise: 0 }, dawnDuskSunDeg: 0, sunriseLeadS: 60, sunriseLimbKm: 0, darkBelowDeg: -4 },
 };
 
 // GM from JPL DE440. Radius is the 1737.4 km sphere LOLA heights are measured from.
@@ -92,7 +92,7 @@ export const MOON: Body = {
   tiles: { version: 'v1' },
   // An airless sunrise opens on a black limb and lights only a sliver for minutes, so it's left
   // out of the mix; `?shot=orbital-sunrise` still shows it. A long lead would open on black.
-  shots: { weights: { 'dawn-dusk': 0.4, 'orbital-sunrise': 0, 'feature-flyover': 0.6 }, dawnDuskSunDeg: 10, sunriseLeadS: 15, sunriseLimbKm: 15, darkBelowDeg: 4 },
+  shots: { weights: { 'dawn-dusk': 0.4, 'orbital-sunrise': 0, 'feature-flyover': 0.3, earthrise: 0.3 }, dawnDuskSunDeg: 10, sunriseLeadS: 15, sunriseLimbKm: 15, darkBelowDeg: 4 },
 };
 
 export const BODIES: Record<string, Body> = { mars: MARS, moon: MOON };

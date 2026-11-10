@@ -44,6 +44,19 @@ export function sunFrom(body: Body, date: Date): Vec3 {
   return vec.norm([-h.x, -h.y, -h.z]);
 }
 
+const AU_KM = 149597870.7;
+
+/** Vector from the Moon's centre to Earth's, J2000 equatorial, km. */
+export function earthFromMoon(date: Date): Vec3 {
+  const g = A.GeoMoon(date);
+  return [-g.x * AU_KM, -g.y * AU_KM, -g.z * AU_KM];
+}
+
+/** Fraction of Earth's disc that is sunlit, seen from the Moon. */
+export function earthLitFraction(date: Date, sun: Vec3) {
+  return (1 - vec.dot(vec.norm(earthFromMoon(date)), sun)) / 2;
+}
+
 export function latLon(v: Vec3) {
   const n = vec.norm(v);
   return { lat: Math.asin(n[2]) / DEG, lon: (((Math.atan2(n[1], n[0]) / DEG) % 360) + 360) % 360 };
