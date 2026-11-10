@@ -123,11 +123,20 @@ export function featureFlyover(now: Date, opts: ShotOptions & { features?: Featu
   return { kind: 'feature-flyover', orbit, feature, keyMoment: pass };
 }
 
+// A narrower lens for shots built around something small and far, as Apollo 8 used for Earthrise.
+// Every other shot uses the scene's default.
+export const SHOT_FOV_DEG: Partial<Record<ShotKind, number>> = { earthrise: 28 };
+
 const EARTHRISE_LEAD_S = 20;
 // Earth is only worth a shot when enough of it is lit, and the ground it rises over is too.
 const EARTHRISE_MIN_LIT = 1 / 3;
 const EARTHRISE_GROUND_SUN = { min: 8, max: 30 };
+const EARTHRISE_MIN_LIT_S = 240;
+// How far along the orbit the ground in view lies. Earthrise's narrow lens sees mostly the far
+// ground near the horizon, about 19° ahead.
 const LOOK_AHEAD_DEG = 8;
+const EARTHRISE_LOOK_AHEAD_DEG = 15;
+const lookAheadDeg = (kind: ShotKind) => (kind === 'earthrise' ? EARTHRISE_LOOK_AHEAD_DEG : LOOK_AHEAD_DEG);
 // Seen from the Moon the Sun moves under half a degree an hour, so a fixed direction will do.
 const LIT_SCAN_S = 1800;
 
@@ -153,7 +162,7 @@ export function earthrise(now: Date, opts: ShotOptions & { rightDeg?: number } =
   // Earth's centre clears limb mountains this high when it sits this far below the bare horizon.
   const dip = Math.acos((body.radiusKm + body.shots.sunriseLimbKm) / a);
   const thetaRise = -Math.acos(-Math.sin(dip) / Math.cos(tip));
-  const ahead = (LOOK_AHEAD_DEG * DEG) / Math.sqrt(body.gm / a ** 3);
+  const ahead = (EARTHRISE_LOOK_AHEAD_DEG * DEG) / Math.sqrt(body.gm / a ** 3);
   const litFor = (o: CircularOrbit) => {
     for (let t = 0; t < LIT_SCAN_S; t += 30) {
       const pos = stateAt(o, new Date(key.getTime() + (t + ahead) * 1000)).r;
@@ -172,10 +181,11 @@ export function earthrise(now: Date, opts: ShotOptions & { rightDeg?: number } =
       const { r, v } = stateAt(probe, key);
       const right = cameraRight(r, v);
       if (vec.dot(earth, right) <= 0 || vec.dot(sun, right) <= 0) continue;
-      const lit = sunAhead(probe, key);
-      if (lit < EARTHRISE_GROUND_SUN.min || lit > EARTHRISE_GROUND_SUN.max) continue;
+      const sunUp = sunAhead(probe, key, EARTHRISE_LOOK_AHEAD_DEG);
+      if (sunUp < EARTHRISE_GROUND_SUN.min || sunUp > EARTHRISE_GROUND_SUN.max) continue;
       const orbit = { ...probe, epoch: now, theta0: thetaRise - probe.n * EARTHRISE_LEAD_S };
-      candidates.push({ orbit, lit: litFor(orbit) });
+      const lit = litFor(orbit);
+      if (lit >= EARTHRISE_MIN_LIT_S) candidates.push({ orbit, lit });
     }
   }
   if (candidates.length === 0) return null;
@@ -206,7 +216,7 @@ const RESHOOT_AFTER_SUNRISE_S = 600;
 export function wantsReshoot(shot: Shot, builtAt: Date, date: Date) {
   const grace = shot.kind === 'orbital-sunrise' ? RESHOOT_AFTER_SUNRISE_S : RESHOOT_AFTER_S;
   if (date.getTime() < (shot.keyMoment ?? builtAt).getTime() + grace * 1000) return false;
-  return sunAhead(shot.orbit, date) < shot.orbit.body.shots.darkBelowDeg;
+  return sunAhead(shot.orbit, date, lookAheadDeg(shot.kind)) < shot.orbit.body.shots.darkBelowDeg;
 }
 
 export function chooseShot(now: Date, opts: ShotOptions & { features?: Feature[] } = {}): Shot {

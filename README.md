@@ -60,7 +60,7 @@ Production builds read the tile base URL from `PUBLIC_TILES_BASE` in `.env.produ
 
 ## Posters
 
-The posters are a fixed set of six stills, committed in `public/posters`. They show on phones, with reduced motion or Data Saver, and whenever the live scene can't run. Each is rendered by the live scene itself on a machine with a GPU, so it needs the local tiles:
+The posters are a fixed set of stills, committed in `public/posters`. They show on phones, with reduced motion or Data Saver, and whenever the live scene can't run. Each is rendered by the live scene itself on a machine with a GPU, so it needs the local tiles:
 
 ```bash
 node scripts/posters/render.mjs            # starts astro dev; or --url http://localhost:4321, --only <id>

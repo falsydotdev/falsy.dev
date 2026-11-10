@@ -131,7 +131,7 @@ describe('Earthrise', () => {
       expect(elevation - bareHorizon).toBeLessThan(1.5);
       expect(Math.asin(vec.dot(toEarth, cameraRight(r, v))) / (Math.PI / 180)).toBeCloseTo(12, 0);
       expect(vec.dot(sunFrom(MOON, k), cameraRight(r, v))).toBeGreaterThan(0);
-      expect(sunAhead(shot.orbit, k)).toBeGreaterThanOrEqual(8);
+      expect(sunAhead(shot.orbit, k, 15)).toBeGreaterThanOrEqual(8);
       expect(earthLitFraction(k, sunFrom(MOON, k))).toBeGreaterThanOrEqual(1 / 3);
     }
   });
@@ -146,7 +146,7 @@ describe('Earthrise', () => {
     for (const [i, now] of halfDays.entries()) {
       const shot = earthrise(now, { body: MOON, rand: seededRandom(i) });
       if (!shot) continue;
-      for (let t = 0; t <= 240; t += 30) expect(sunAhead(shot.orbit, new Date(now.getTime() + t * 1000))).toBeGreaterThan(MOON.shots.darkBelowDeg);
+      for (let t = 0; t <= 240; t += 30) expect(sunAhead(shot.orbit, new Date(now.getTime() + t * 1000), 15)).toBeGreaterThan(MOON.shots.darkBelowDeg);
     }
   });
 

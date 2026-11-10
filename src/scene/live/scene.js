@@ -10,7 +10,7 @@ import { createSun } from './sun.js';
 import { createEarth } from './earth.js';
 import { bodyFrame, earthFromMoon, vec } from '../ephemeris';
 import { sample } from '../orbit';
-import { chooseShot, dawnDusk, earthrise, orbitalSunrise, featureFlyover, seededRandom, wantsReshoot } from '../shots';
+import { chooseShot, dawnDusk, earthrise, orbitalSunrise, featureFlyover, seededRandom, wantsReshoot, SHOT_FOV_DEG } from '../shots';
 import { bodyById } from '../bodies.ts';
 import { telemetryParts } from '../telemetry';
 import { Governor, initialTier, renderPixelRatio, tier as tierByName } from '../quality.ts';
@@ -227,8 +227,18 @@ export async function startLiveScene(host, opts) {
   // `skip` starts the clock part-way into the shot, for stills of a chosen moment.
   const simNow = () => new Date(simStart + (opts.skip ?? 0) * 1000 + (Date.now() - wallStart) * timeScale);
   const rand = opts.seed === undefined ? Math.random : seededRandom(opts.seed);
+  const lensFor = (kind) => opts.fovDeg ?? SHOT_FOV_DEG[kind] ?? CAMERA_DEFAULTS.fovDeg;
+  const nextShot = (at) => buildShot(body, opts.shot, at, cam.altKm, rand, opts.feature, earthRightDeg(lensFor('earthrise'), innerWidth / innerHeight));
+  // Each shot brings its own lens. The change happens before the first frame shows, or under a crossfade.
+  const applyLens = () => {
+    cam.fovDeg = lensFor(shot.kind);
+    frameView();
+    camera.fov = cam.fovDeg;
+    camera.updateProjectionMatrix();
+  };
   let shotBuilt = new Date(simStart);
-  let shot = buildShot(body, opts.shot, shotBuilt, cam.altKm, rand, opts.feature, earthRightDeg(cam.fovDeg, innerWidth / innerHeight));
+  let shot = nextShot(shotBuilt);
+  applyLens();
   // A view pinned by the URL (posters, previews) stays put even after it goes dark.
   const pinned = Boolean(opts.at || opts.seed !== undefined || opts.skip || opts.feature);
   const starMatrix = new THREE.Matrix4();
@@ -401,7 +411,8 @@ export async function startLiveScene(host, opts) {
       if (!resumeStarted) takeSnapshot();
       resumeStarted = performance.now();
       shotBuilt = s.date;
-      shot = buildShot(body, opts.shot, shotBuilt, cam.altKm, rand, opts.feature, earthRightDeg(cam.fovDeg, innerWidth / innerHeight));
+      shot = nextShot(shotBuilt);
+      applyLens();
       state.shot = shot.kind;
       return;
     }
