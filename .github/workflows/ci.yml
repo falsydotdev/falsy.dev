@@ -26,6 +26,7 @@ jobs:
       - run: npx astro check
       - run: npm test
       - run: npx astro build
+      - run: node scripts/check-html-size.mjs
       - uses: actions/upload-artifact@v4
         with:
           name: dist

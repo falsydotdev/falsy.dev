@@ -59,7 +59,7 @@ const fallback = choices[0];
 
 <div id="stage" transition:persist="stage">
   <div class="sky" aria-hidden="true">
-    <img id="poster" alt="" decoding="async" />
+    <img id="poster" alt="" decoding="async" fetchpriority="low" />
     <noscript><img class="in" src={fallback.src} srcset={fallback.srcset} sizes="100vw" alt="" style={`object-position:${fallback.focus}`} /></noscript>
     <div class="grid"></div>
     <div class="scrim"></div>
