@@ -21,6 +21,7 @@ const SETTLED_FRACTION = 0.95;
 // session that keeps flying over new ground doesn't accumulate them.
 const RECORD_TTL_FRAMES = 600;
 const WORKERS = 4;
+const MAX_RETRIES = 2;
 // The march samples a 10 km map, so 12 steps cast the same shadows as 44. Each step strides
 // 1.62× further, reaching the same ~560 km.
 const SHADOW_STEPS = 12;
@@ -98,7 +99,8 @@ export class TiledPlanet {
     // Before the scene first shows, fallback tiles are cut to a few shared coarse ones and load ahead
     // of the detail (see tilesToFetch). The scene clears this at its first fade-in.
     this.lean = true;
-    // Set by the scene when a load is slow, so tiles that won't finish in time have parents to draw from.
+    // Set by the scene when a load is slow: tiles that won't finish in time get parents to draw from,
+    // and detail stops waiting for coarse tiles, in case one of those has stalled.
     this.leanParents = false;
     /** @type {'loading' | 'ready' | 'failed'} */
     this.shadow = 'loading';
@@ -283,8 +285,13 @@ export class TiledPlanet {
     this.request({ kind, url, priority: base ? 'high' : 'auto' }).then((out) => {
       this.inFlight--;
       this.inFlightBase -= base;
-      this.stats.bytes += out.bytes;
-      this.stats[kind === 'color' ? 'colorBytes' : 'heightBytes'] += out.bytes;
+      this.stats.bytes += out.bytes ?? 0;
+      this.stats[kind === 'color' ? 'colorBytes' : 'heightBytes'] += out.bytes ?? 0;
+      // A dropped connection deserves another go; a tile that isn't there doesn't.
+      if (out.error && (slot.failures = (slot.failures ?? 0) + 1) <= MAX_RETRIES) {
+        slot.state = 'idle';
+        return;
+      }
       if (out.error || out.missing) {
         slot.state = 'missing';
         return;
@@ -368,7 +375,7 @@ export class TiledPlanet {
       const dist = new Map(selected.map((s) => [s.id, s.distanceKm]));
       idle.sort((a, b) => a.key.level - b.key.level || (dist.get(a.id) ?? 0) - (dist.get(b.id) ?? 0));
       // Coarse tiles are every tile's fallback. On a slow first load they must not share bandwidth with the detail.
-      const baseOnly = this.lean && (idle[0].key.level <= LEAN_FALLBACK_LEVEL || this.inFlightBase > 0);
+      const baseOnly = this.lean && !this.leanParents && (idle[0].key.level <= LEAN_FALLBACK_LEVEL || this.inFlightBase > 0);
       for (const r of idle) {
         if (this.inFlight >= MAX_IN_FLIGHT || (baseOnly && r.key.level > LEAN_FALLBACK_LEVEL)) break;
         if (r.color.state === 'idle') this.fetchTile(r, 'color');

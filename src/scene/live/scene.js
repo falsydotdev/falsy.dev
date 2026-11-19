@@ -44,11 +44,12 @@ function buildShot(body, kind, now, altKm, rand, featureId, rightDeg) {
  * Starts the live scene of one body inside `host`.
  * @param {HTMLElement} host
  * Resolves to null when this machine should get the poster instead.
- * @param {{ dataUrl: string, meta: unknown, body?: string, settleTimeoutMs?: number, holdGovernor?: boolean, startTier?: import('../quality.ts').TierName, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void, onLost?: () => void, farKm?: number, altKm?: number, tiltDeg?: number, rollDeg?: number, fovDeg?: number, tier?: import('../quality.ts').TierName, at?: Date, seed?: number, feature?: string | null, scale?: number, skip?: number, layout?: () => { text: import('../composition.ts').Box, headerBottom: number } | null }} opts
+ * @param {{ dataUrl: string, meta: unknown, lean?: boolean, showByMs?: number, body?: string, settleTimeoutMs?: number, holdGovernor?: boolean, startTier?: import('../quality.ts').TierName, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void, onLost?: () => void, farKm?: number, altKm?: number, tiltDeg?: number, rollDeg?: number, fovDeg?: number, tier?: import('../quality.ts').TierName, at?: Date, seed?: number, feature?: string | null, scale?: number, skip?: number, layout?: () => { text: import('../composition.ts').Box, headerBottom: number } | null }} opts
  */
 // One tile per array layer; 512 layers hold a 4K view with headroom and cost about 180 MB of GPU memory.
 const WANTED_LAYERS = 512;
-// Show the scene once every visible tile has its own texels, or after this long regardless.
+// Show the scene once every visible tile has its own texels. After this long an unfinished view will do,
+// on the conditions in the frame loop; at twice this it shows regardless.
 const SETTLE_TIMEOUT_MS = 6000;
 // After a background tab returns, the orbit and Sun have moved on. Past this gap, the last frame
 // stays up while the new view loads underneath, then crossfades away.
@@ -201,6 +202,7 @@ export async function startLiveScene(host, opts) {
     layers = isWebGPU ? gpuLayers ?? 256 : Math.min(WANTED_LAYERS, renderer.backend.gl.getParameter(renderer.backend.gl.MAX_ARRAY_TEXTURE_LAYERS));
     planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: body.relief, layers, lighting, relaxBeyondKm: opts.farKm });
     const tiledPlanet = planet;
+    planet.lean = opts.lean ?? true;
     // Tiles stream while the shadow map downloads; the first fade-in waits for it, within the limit set in the loop.
     planet.init();
     atmosphere = body.atmosphere ? await createAtmosphere({ planetRadius: body.radiusKm, density: body.atmosphere.density, terrainHeight: (n) => tiledPlanet.coarseHeight(n) }) : null;
@@ -430,11 +432,13 @@ export async function startLiveScene(host, opts) {
     const settleMs = opts.settleTimeoutMs ?? SETTLE_TIMEOUT_MS;
     // A load heading for the timeout needs parents to fall back on, or unfinished ground shows level 4.
     if (first && loadMs > settleMs / 2) planet.leanParents = true;
-    // Past the timeout an unfinished view shows once it has the shadow map and fallback texels everywhere.
-    // Half as long again and it needs only something to draw everywhere; at twice the timeout it shows regardless.
+    // Past the timeout an unfinished view shows once it has the shadow map and good enough fallbacks.
+    // Later, or when the page is about to give up and show a poster, anything drawable will do.
     const shadowIn = planet.shadow !== 'loading';
-    const late = loadMs > settleMs * 2 || (loadMs > settleMs * 1.5 && planet.drawable());
-    if (first && ((shadowIn && (planet.settled() || (loadMs > settleMs && planet.covered()))) || late)) {
+    const enough = opts.lean === false ? planet.drawable() : planet.covered();
+    const urgent = loadMs > settleMs * 1.5 || performance.now() > (opts.showByMs ?? Infinity);
+    const late = loadMs > settleMs * 2 || (loadMs > settleMs && urgent && planet.drawable());
+    if (first && ((shadowIn && (planet.settled() || (loadMs > settleMs && enough))) || late)) {
       first = false;
       planet.lean = false;
       state.firstFrameMs = Math.round(performance.now() - started);
