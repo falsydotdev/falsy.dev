@@ -93,11 +93,13 @@ describe('tiles to fetch', () => {
     expect(tilesToFetch([], { pinnedLevel: 2 })).toHaveLength(6 + 24 + 96);
   });
 
-  it('loads only the selected tiles and level 0 when lean', () => {
+  it('loads the selected tiles, level 0, and coarse shared ancestors when lean', () => {
     const keys = tilesToFetch(tiles, { lean: true });
     const selected = new Set(tiles.map((t) => t.id));
     expect(keys.filter((k) => k.level === 0)).toHaveLength(6);
-    for (const k of keys) expect(k.level === 0 || selected.has(tileId(k))).toBe(true);
+    for (const k of keys) expect(k.level <= 4 || selected.has(tileId(k))).toBe(true);
+    const coarse = (k: TileKey | null): TileKey | null => (k && k.level > 4 ? coarse(parent(k)) : k);
+    for (const t of tiles) if (t.key.level > 0) expect(fetchIds(keys).has(tileId(coarse(parent(t.key))!))).toBe(true);
     for (const t of tiles) expect(fetchIds(keys).has(t.id)).toBe(true);
     expect(keys.length).toBeLessThan(tilesToFetch(tiles).length);
   });

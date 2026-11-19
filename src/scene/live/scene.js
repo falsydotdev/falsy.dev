@@ -426,7 +426,7 @@ export async function startLiveScene(host, opts) {
       fadeSnapshot();
     }
     // A load heading for the timeout needs parents to fall back on, or unfinished ground shows level 0.
-    if (first && performance.now() - started > (opts.settleTimeoutMs ?? SETTLE_TIMEOUT_MS) / 2) planet.lean = false;
+    if (first && shadowDoneAt && performance.now() - Math.max(started, shadowDoneAt) > (opts.settleTimeoutMs ?? SETTLE_TIMEOUT_MS) / 2) planet.lean = false;
     // The timeout only stands in for tiles. Without the shadow map, shadows and the Sun's halo would pop in.
     if (first && shadowDoneAt && (planet.settled() || performance.now() - Math.max(started, shadowDoneAt) > (opts.settleTimeoutMs ?? SETTLE_TIMEOUT_MS))) {
       first = false;
