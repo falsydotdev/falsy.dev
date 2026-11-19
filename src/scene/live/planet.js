@@ -11,8 +11,9 @@ import { toWorld } from './terrain.js';
 
 const GRID = 32;
 const MAX_INSTANCES = 4096;
-// HTTP/2 multiplexes these over one connection; fewer would leave a high-latency link idle.
-const MAX_IN_FLIGHT = 32;
+// Most tiles miss the edge cache, so each costs a round trip to storage, not bandwidth. The tile
+// host allows 256 HTTP/2 streams; 64 keeps a cold load latency-bound for far less time.
+const MAX_IN_FLIGHT = 64;
 // Over a network the camera keeps moving while tiles arrive, so a few edge tiles are always
 // in flight; they draw from their parent meanwhile.
 const SETTLED_FRACTION = 0.95;
