@@ -67,7 +67,8 @@ interface Slot {
 }
 
 const FADE_MS = 1000;
-// A switch fades in once the new view has its coarse tiles; fine detail streams in after, as on any load.
+// A switch fades in once the new view has its coarse tiles and shadow map, or at up to twice this
+// without them; fine detail streams in after, as on any load.
 const SWITCH_SETTLE_MS = 2500;
 const PREWARM_LEVELS = 2;
 const BODY_IDS = Object.keys(BODIES);

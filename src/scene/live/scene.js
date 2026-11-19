@@ -201,7 +201,7 @@ export async function startLiveScene(host, opts) {
     layers = isWebGPU ? gpuLayers ?? 256 : Math.min(WANTED_LAYERS, renderer.backend.gl.getParameter(renderer.backend.gl.MAX_ARRAY_TEXTURE_LAYERS));
     planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: body.relief, layers, lighting, relaxBeyondKm: opts.farKm });
     const tiledPlanet = planet;
-    // Tiles stream while the shadow map downloads; the first fade-in waits for it, up to the settle timeout.
+    // Tiles stream while the shadow map downloads; the first fade-in waits for it, within the limit set in the loop.
     planet.init();
     atmosphere = body.atmosphere ? await createAtmosphere({ planetRadius: body.radiusKm, density: body.atmosphere.density, terrainHeight: (n) => tiledPlanet.coarseHeight(n) }) : null;
     scene.add(planet.mesh);
@@ -429,11 +429,12 @@ export async function startLiveScene(host, opts) {
     }
     const settleMs = opts.settleTimeoutMs ?? SETTLE_TIMEOUT_MS;
     // A load heading for the timeout needs parents to fall back on, or unfinished ground shows level 4.
-    if (first && loadMs > settleMs / 2) planet.lean = false;
-    // Without the shadow map, shadows and the Sun's halo would pop in, so the fade-in waits for it,
-    // though not forever. The timeout shows an unfinished view only once every tile has something to draw.
-    const shadowIn = planet.shadow !== 'loading' || loadMs > settleMs * 2;
-    if (first && shadowIn && (planet.settled() || (loadMs > settleMs && planet.covered()))) {
+    if (first && loadMs > settleMs / 2) planet.leanParents = true;
+    // Past the timeout an unfinished view shows once it has the shadow map and fallback texels everywhere.
+    // Half as long again and it needs only something to draw everywhere; at twice the timeout it shows regardless.
+    const shadowIn = planet.shadow !== 'loading';
+    const late = loadMs > settleMs * 2 || (loadMs > settleMs * 1.5 && planet.drawable());
+    if (first && ((shadowIn && (planet.settled() || (loadMs > settleMs && planet.covered()))) || late)) {
       first = false;
       planet.lean = false;
       state.firstFrameMs = Math.round(performance.now() - started);

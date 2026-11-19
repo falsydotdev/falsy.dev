@@ -106,10 +106,11 @@ export function selectTiles(cam: CameraPose, opts: SelectOptions): Selected[] {
 export const LEAN_FALLBACK_LEVEL = 4;
 
 /**
- * Tiles to download for a selection. Parents and levels up to `pinnedLevel` are fallbacks for tiles
- * still loading; `lean` trims them to level 0 and each tile's ancestor at `LEAN_FALLBACK_LEVEL`.
+ * Tiles to download for a selection. Parents and levels up to `pinnedLevel` are fallbacks for tiles still loading.
+ * `lean` pins only level 0 and swaps each parent for the nearest ancestor at or below `LEAN_FALLBACK_LEVEL`;
+ * `parents` adds the direct parents back on top of that.
  */
-export function tilesToFetch(selected: Selected[], { pinnedLevel = 1, lean = false } = {}): TileKey[] {
+export function tilesToFetch(selected: Selected[], { pinnedLevel = 1, lean = false, parents = !lean } = {}): TileKey[] {
   const out = new Map<string, TileKey>();
   for (let level = 0; level <= (lean ? 0 : pinnedLevel); level++) {
     const n = 2 ** level;
@@ -118,6 +119,7 @@ export function tilesToFetch(selected: Selected[], { pinnedLevel = 1, lean = fal
   for (const s of selected) {
     out.set(s.id, s.key);
     let p = parent(s.key);
+    if (p && parents) out.set(tileId(p), p);
     while (lean && p && p.level > LEAN_FALLBACK_LEVEL) p = parent(p);
     if (p) out.set(tileId(p), p);
   }

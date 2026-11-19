@@ -95,9 +95,11 @@ export class TiledPlanet {
     // Counts GPU uploads, so frame timing can skip frames that include them.
     this.writes = 0;
     this.texelBias = 1;
-    // Before the scene first shows, fallback tiles are cut to a few shared coarse ones (see
-    // tilesToFetch). The scene clears this at its first fade-in, or half-way to its settle timeout.
+    // Before the scene first shows, fallback tiles are cut to a few shared coarse ones and load ahead
+    // of the detail (see tilesToFetch). The scene clears this at its first fade-in.
     this.lean = true;
+    // Set by the scene when a load is slow, so tiles that won't finish in time have parents to draw from.
+    this.leanParents = false;
     /** @type {'loading' | 'ready' | 'failed'} */
     this.shadow = 'loading';
     this.stats = { records: 0, requests: 0, bytes: 0, colorBytes: 0, heightBytes: 0, selected: 0, drawn: 0, pending: 0, texelBias: 1 };
@@ -357,7 +359,7 @@ export class TiledPlanet {
     }
     this.stats.texelBias = opts.maxTexelPx;
 
-    const wanted = tilesToFetch(selected, { lean: this.lean }).map((k) => this.record(k));
+    const wanted = tilesToFetch(selected, { lean: this.lean, parents: !this.lean || this.leanParents }).map((k) => this.record(k));
     for (const r of wanted) r.lastUsed = this.frame;
     const idle = wanted.filter((r) => r.color.state === 'idle' || r.height.state === 'idle');
     this.stats.pending = idle.length;
@@ -365,8 +367,8 @@ export class TiledPlanet {
     if (this.inFlight < MAX_IN_FLIGHT && idle.length) {
       const dist = new Map(selected.map((s) => [s.id, s.distanceKm]));
       idle.sort((a, b) => a.key.level - b.key.level || (dist.get(a.id) ?? 0) - (dist.get(b.id) ?? 0));
-      // Coarse tiles are every tile's fallback. On a slow link they must not share bandwidth with the detail.
-      const baseOnly = idle[0].key.level <= LEAN_FALLBACK_LEVEL || this.inFlightBase > 0;
+      // Coarse tiles are every tile's fallback. On a slow first load they must not share bandwidth with the detail.
+      const baseOnly = this.lean && (idle[0].key.level <= LEAN_FALLBACK_LEVEL || this.inFlightBase > 0);
       for (const r of idle) {
         if (this.inFlight >= MAX_IN_FLIGHT || (baseOnly && r.key.level > LEAN_FALLBACK_LEVEL)) break;
         if (r.color.state === 'idle') this.fetchTile(r, 'color');
@@ -386,7 +388,8 @@ export class TiledPlanet {
       const h = this.source(rec, 'height');
       if (!c || !h) continue;
       // A scale of 1/2^d means the texels come from d levels up.
-      if (s.key.level + Math.log2(Math.min(c[1], h[1])) < Math.min(s.key.level, LEAN_FALLBACK_LEVEL)) rough++;
+      const gone = rec?.color.state === 'missing' || rec?.height.state === 'missing';
+      if (!gone && s.key.level + Math.log2(Math.min(c[1], h[1])) < Math.min(s.key.level, LEAN_FALLBACK_LEVEL)) rough++;
       const size = 2 / 2 ** s.key.level;
       T.set([s.key.face, -1 + s.key.x * size, -1 + s.key.y * size, size], n * 4);
       C.set(c, n * 4);
@@ -416,9 +419,14 @@ export class TiledPlanet {
     this.stats.records = this.records.size;
   }
 
+  /** True once every selected tile has texels to draw, however coarse. */
+  drawable() {
+    return this.stats.selected > 0 && this.stats.drawn === this.stats.selected;
+  }
+
   /** True once every selected tile draws texels no coarser than the lean fallback level. */
   covered() {
-    return this.stats.selected > 0 && this.stats.drawn === this.stats.selected && this.rough === 0;
+    return this.drawable() && this.rough === 0;
   }
 
   /** True once nearly every selected tile draws from its own texels. */
