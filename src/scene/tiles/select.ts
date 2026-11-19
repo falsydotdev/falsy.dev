@@ -104,18 +104,19 @@ export function selectTiles(cam: CameraPose, opts: SelectOptions): Selected[] {
 
 /**
  * Tiles to download for a selection: each selected tile plus its parent, so a tile that is
- * still loading can borrow texels from at most one level up. Levels below `pinnedLevel`
- * are always loaded.
+ * still loading can borrow texels from at most one level up. Levels up to `pinnedLevel`
+ * are always loaded. `lean` skips everything that isn't drawn except level 0, the fallback
+ * of last resort.
  */
-export function tilesToFetch(selected: Selected[], pinnedLevel = 1): TileKey[] {
+export function tilesToFetch(selected: Selected[], { pinnedLevel = 1, lean = false } = {}): TileKey[] {
   const out = new Map<string, TileKey>();
-  for (let level = 0; level <= pinnedLevel; level++) {
+  for (let level = 0; level <= (lean ? 0 : pinnedLevel); level++) {
     const n = 2 ** level;
     for (let face = 0; face < 6; face++) for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) out.set(tileId({ face, level, x, y }), { face, level, x, y });
   }
   for (const s of selected) {
     out.set(s.id, s.key);
-    const p = parent(s.key);
+    const p = lean ? null : parent(s.key);
     if (p) out.set(tileId(p), p);
   }
   return [...out.values()];

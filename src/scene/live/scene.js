@@ -44,7 +44,7 @@ function buildShot(body, kind, now, altKm, rand, featureId, rightDeg) {
  * Starts the live scene of one body inside `host`.
  * @param {HTMLElement} host
  * Resolves to null when this machine should get the poster instead.
- * @param {{ dataUrl: string, body?: string, settleTimeoutMs?: number, holdGovernor?: boolean, startTier?: import('../quality.ts').TierName, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void, onLost?: () => void, farKm?: number, altKm?: number, tiltDeg?: number, rollDeg?: number, fovDeg?: number, tier?: import('../quality.ts').TierName, at?: Date, seed?: number, feature?: string | null, scale?: number, skip?: number, layout?: () => { text: import('../composition.ts').Box, headerBottom: number } | null }} opts
+ * @param {{ dataUrl: string, meta: unknown, body?: string, settleTimeoutMs?: number, holdGovernor?: boolean, startTier?: import('../quality.ts').TierName, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void, onLost?: () => void, farKm?: number, altKm?: number, tiltDeg?: number, rollDeg?: number, fovDeg?: number, tier?: import('../quality.ts').TierName, at?: Date, seed?: number, feature?: string | null, scale?: number, skip?: number, layout?: () => { text: import('../composition.ts').Box, headerBottom: number } | null }} opts
  */
 // One tile per array layer; 512 layers hold a 4K view with headroom and cost about 180 MB of GPU memory.
 const WANTED_LAYERS = 512;
@@ -121,6 +121,7 @@ export async function startLiveScene(host, opts) {
   let atmosphere;
   let pipeline;
   let layers;
+  let shadowDoneAt = 0;
   let stopped = false;
   let snapshot = null;
   let resumeStarted = 0;
@@ -193,17 +194,15 @@ export async function startLiveScene(host, opts) {
   // The device can be lost while tiles load; teardown has run, so nothing more may start.
   if (stopped) throw new Error('GPU device lost while the scene was loading');
   async function loadPlanet() {
-    const res = await fetch(`${opts.dataUrl}/meta.json`);
-    if (!res.ok) throw new Error(`No tiles at ${opts.dataUrl}`);
-    const meta = await res.json();
+    const meta = await opts.meta;
+    if (!meta) throw new Error(`No tiles at ${opts.dataUrl}`);
     if (meta.body !== body.id || Math.abs(meta.radiusKm - body.radiusKm) > 1e-6) console.warn(`Tiles at ${opts.dataUrl} are for ${meta.body}, not ${body.id}.`);
     layers = isWebGPU ? gpuLayers ?? 256 : Math.min(WANTED_LAYERS, renderer.backend.gl.getParameter(renderer.backend.gl.MAX_ARRAY_TEXTURE_LAYERS));
     planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: body.relief, layers, lighting, relaxBeyondKm: opts.farKm });
     const tiledPlanet = planet;
-    [atmosphere] = await Promise.all([
-      body.atmosphere ? createAtmosphere({ planetRadius: body.radiusKm, density: body.atmosphere.density, terrainHeight: (n) => tiledPlanet.coarseHeight(n) }) : null,
-      planet.init(),
-    ]);
+    // Tiles stream while the shadow map downloads; the first fade-in waits for it (see the loop).
+    planet.init().then(() => (shadowDoneAt = performance.now()));
+    atmosphere = body.atmosphere ? await createAtmosphere({ planetRadius: body.radiusKm, density: body.atmosphere.density, terrainHeight: (n) => tiledPlanet.coarseHeight(n) }) : null;
     scene.add(planet.mesh);
     sun.useTerrain((n) => tiledPlanet.coarseHeight(n));
     if (atmosphere) scene.add(atmosphere.mesh);
@@ -426,8 +425,10 @@ export async function startLiveScene(host, opts) {
       resumeStarted = 0;
       fadeSnapshot();
     }
-    if (first && (planet.settled() || performance.now() - started > (opts.settleTimeoutMs ?? SETTLE_TIMEOUT_MS))) {
+    // The timeout only stands in for tiles. Without the shadow map, shadows and the Sun's halo would pop in.
+    if (first && shadowDoneAt && (planet.settled() || performance.now() - Math.max(started, shadowDoneAt) > (opts.settleTimeoutMs ?? SETTLE_TIMEOUT_MS))) {
       first = false;
+      planet.lean = false;
       state.firstFrameMs = Math.round(performance.now() - started);
       opts.onFirstFrame?.();
     }

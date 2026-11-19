@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { orbitCameraPose } from '../../src/scene/camera';
 import { vec, type Vec3 } from '../../src/scene/ephemeris';
-import { dirOf, tileAt, tileId, parent } from '../../src/scene/tiles/cube';
-import { type CameraPose, selectTiles } from '../../src/scene/tiles/select';
+import { type TileKey, dirOf, tileAt, tileId, parent } from '../../src/scene/tiles/cube';
+import { type CameraPose, selectTiles, tilesToFetch } from '../../src/scene/tiles/select';
 
 const R = 3396.19;
 const opts = { radiusKm: R, heightRangeKm: [-8.2 * 2.5, 21.3 * 2.5] as [number, number], tilePx: 256, maxLevel: 7 };
@@ -72,5 +72,33 @@ describe('tile selection from a 200 km orbit', () => {
 
   it('selects fewer tiles with a coarser texel limit', () => {
     expect(selectTiles(cam, { ...opts, maxTexelPx: 2 }).length).toBeLessThan(tiles.length);
+  });
+});
+
+describe('tiles to fetch', () => {
+  const tiles = selectTiles(pose(200, 12), opts);
+  const fetchIds = (keys: TileKey[]) => new Set(keys.map(tileId));
+
+  it('loads every selected tile, its parent, and all of levels 0 and 1', () => {
+    const keys = tilesToFetch(tiles);
+    const ids = fetchIds(keys);
+    expect(ids.size).toBe(keys.length);
+    for (const t of tiles) expect(ids.has(t.id)).toBe(true);
+    for (const t of tiles) if (t.key.level > 0) expect(ids.has(tileId(parent(t.key)!))).toBe(true);
+    expect(keys.filter((k) => k.level === 0)).toHaveLength(6);
+    expect(keys.filter((k) => k.level === 1)).toHaveLength(24);
+  });
+
+  it('pins deeper levels on request', () => {
+    expect(tilesToFetch([], { pinnedLevel: 2 })).toHaveLength(6 + 24 + 96);
+  });
+
+  it('loads only the selected tiles and level 0 when lean', () => {
+    const keys = tilesToFetch(tiles, { lean: true });
+    const selected = new Set(tiles.map((t) => t.id));
+    expect(keys.filter((k) => k.level === 0)).toHaveLength(6);
+    for (const k of keys) expect(k.level === 0 || selected.has(tileId(k))).toBe(true);
+    for (const t of tiles) expect(fetchIds(keys).has(t.id)).toBe(true);
+    expect(keys.length).toBeLessThan(tilesToFetch(tiles).length);
   });
 });

@@ -55,6 +55,9 @@ const choices = posters.map((p) => ({
   title: `${p.label}. A still frame rendered from ${DATA_CREDIT[p.body.toLowerCase()]}, lit by the real Sun position at ${p.at.slice(0, 10)} ${p.at.slice(11, 16)} UTC. Relief is exaggerated ${p.relief}×.`,
 }));
 const fallback = choices[0];
+// Production tiles live on their own host; in development they're served from this one.
+const tilesBase = import.meta.env.PUBLIC_TILES_BASE;
+const tilesOrigin = tilesBase && URL.canParse(tilesBase) ? new URL(tilesBase).origin : '';
 ---
 
 <div id="stage" transition:persist="stage">
@@ -65,7 +68,7 @@ const fallback = choices[0];
     <div class="scrim"></div>
   </div>
   <p id="telemetry" class="telemetry"><button type="button" class="body-switch"></button></p>
-  <script is:inline define:vars={{ choices, bodies, names }}>
+  <script is:inline define:vars={{ choices, bodies, names, tilesOrigin }}>
     (() => {
       // Decide before anything paints: visitors who'll get the live scene see dark
       // space until it fades in, so a poster of somewhere else never flashes first.
@@ -214,6 +217,14 @@ const fallback = choices[0];
       window.__falsyLabelSwitch = labelSwitch;
 
       if (!willTryLive) return showPoster();
+      // Opens the tile host's connection while the scene's script loads. Tiles are fetched without credentials.
+      if (tilesOrigin) {
+        const hint = document.createElement('link');
+        hint.rel = 'preconnect';
+        hint.href = tilesOrigin;
+        hint.crossOrigin = 'anonymous';
+        document.head.append(hint);
+      }
       sky.dataset.scene = 'pending';
       sky.style.setProperty('--horizon', '0.3');
       const loading = document.createElement('span');

@@ -94,6 +94,9 @@ export class TiledPlanet {
     // Counts GPU uploads, so frame timing can skip frames that include them.
     this.writes = 0;
     this.texelBias = 1;
+    // Until the scene first shows, requests go only to tiles it will draw, plus level 0 as the
+    // fallback of last resort. The scene clears this at its first fade-in.
+    this.lean = true;
     this.stats = { records: 0, requests: 0, bytes: 0, colorBytes: 0, heightBytes: 0, selected: 0, drawn: 0, pending: 0, texelBias: 1 };
     this.workers = Array.from({ length: WORKERS }, () => {
       const w = new Worker(new URL('./tile-worker.js', import.meta.url), { type: 'module' });
@@ -111,7 +114,13 @@ export class TiledPlanet {
     geo.instanceCount = 0;
     this.geometry = geo;
     this.exaggeration = uniform(relief);
-    this.shadowSlot = texture(new THREE.DataTexture(new Uint16Array(1), 1, 1, THREE.RedFormat, THREE.HalfFloatType));
+    // Full size from the start and filled in place: the material renders before the map arrives, and
+    // swapping in a new texture after that drew banded shadows.
+    const shadowMap = new THREE.DataTexture(new Uint16Array(SHADOW_MAP.width * SHADOW_MAP.height), SHADOW_MAP.width, SHADOW_MAP.height, THREE.RedFormat, THREE.HalfFloatType);
+    shadowMap.wrapS = THREE.RepeatWrapping;
+    shadowMap.magFilter = shadowMap.minFilter = THREE.LinearFilter;
+    shadowMap.needsUpdate = true;
+    this.shadowSlot = texture(shadowMap);
     this.mesh = new THREE.Mesh(geo, this.buildMaterial());
     this.mesh.frustumCulled = false;
   }
@@ -227,13 +236,13 @@ export class TiledPlanet {
     return mat;
   }
 
+  /** Loads the coarse shadow map. Resolves either way; without it the map stays zero, which reads as flat ground. */
   async init() {
     const shadow = await this.request({ kind: 'height', url: `${this.baseUrl}/${SHADOW_MAP.path}`, shape: SHADOW_MAP });
-    const tex = new THREE.DataTexture(shadow.data, SHADOW_MAP.width, SHADOW_MAP.height, THREE.RedFormat, THREE.HalfFloatType);
-    tex.wrapS = THREE.RepeatWrapping;
-    tex.magFilter = tex.minFilter = THREE.LinearFilter;
+    if (shadow.error || shadow.missing) return;
+    const tex = this.shadowSlot.value;
+    tex.image.data = shadow.data;
     tex.needsUpdate = true;
-    this.shadowSlot.value = tex;
     this.stats.bytes += shadow.bytes;
     this.stats.heightBytes += shadow.bytes;
   }
@@ -337,7 +346,7 @@ export class TiledPlanet {
     }
     this.stats.texelBias = opts.maxTexelPx;
 
-    const wanted = tilesToFetch(selected).map((k) => this.record(k));
+    const wanted = tilesToFetch(selected, { lean: this.lean }).map((k) => this.record(k));
     for (const r of wanted) r.lastUsed = this.frame;
     const idle = wanted.filter((r) => r.color.state === 'idle' || r.height.state === 'idle');
     this.stats.pending = idle.length;
