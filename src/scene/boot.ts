@@ -1,5 +1,5 @@
-// Loads the live scene when the stage has decided to try it (see Stage.astro). Everything
-// heavy sits behind a dynamic import, so poster-only visitors never download three.js.
+// Loads the live scene when the stage has decided to try it (see Stage.astro). Everything heavy
+// sits behind a dynamic import, so visitors the stage gives a poster never download three.js.
 
 declare global {
   interface Window {
@@ -114,7 +114,8 @@ export async function boot() {
   const fallBack = () => window.__falsyShowPoster?.();
   const body = bodyById(params.get('body') ?? root.dataset.body);
 
-  // The scene module and the tile metadata load side by side. A failed import surfaces where it's awaited.
+  // The scene module and the tile metadata load side by side, so a rare tile outage still costs the
+  // module's download. A failed import surfaces where it's awaited.
   const live = import('./live/scene.js');
   live.catch(() => {});
   const meta = await fetchMeta(body);

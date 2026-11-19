@@ -91,7 +91,7 @@ try {
       await page.waitForFunction(
         () => {
           const s = window.__falsyLive?.state;
-          return s && s.tiles.pending === 0 && s.tiles.inFlight === 0 && s.frames > 30 && s.earth !== 'loading';
+          return s && s.tiles.pending === 0 && s.tiles.inFlight === 0 && s.frames > 30 && s.earth !== 'loading' && s.shadow === 'ready';
         },
         null,
         { timeout: TIMEOUT, polling: 250 },

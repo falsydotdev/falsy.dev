@@ -121,7 +121,8 @@ export async function startLiveScene(host, opts) {
   let atmosphere;
   let pipeline;
   let layers;
-  let shadowDoneAt = 0;
+  // Time spent rendering before the first fade-in. A tab loaded in the background doesn't run it down.
+  let loadMs = 0;
   let stopped = false;
   let snapshot = null;
   let resumeStarted = 0;
@@ -200,8 +201,8 @@ export async function startLiveScene(host, opts) {
     layers = isWebGPU ? gpuLayers ?? 256 : Math.min(WANTED_LAYERS, renderer.backend.gl.getParameter(renderer.backend.gl.MAX_ARRAY_TEXTURE_LAYERS));
     planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: body.relief, layers, lighting, relaxBeyondKm: opts.farKm });
     const tiledPlanet = planet;
-    // Tiles stream while the shadow map downloads; the first fade-in waits for it (see the loop).
-    planet.init().then(() => (shadowDoneAt = performance.now()));
+    // Tiles stream while the shadow map downloads; the first fade-in waits for it, up to the settle timeout.
+    planet.init();
     atmosphere = body.atmosphere ? await createAtmosphere({ planetRadius: body.radiusKm, density: body.atmosphere.density, terrainHeight: (n) => tiledPlanet.coarseHeight(n) }) : null;
     scene.add(planet.mesh);
     sun.useTerrain((n) => tiledPlanet.coarseHeight(n));
@@ -307,7 +308,7 @@ export async function startLiveScene(host, opts) {
   // While two scenes overlap in a body switch, each sees the other's GPU time as its own load.
   let governorHeld = opts.holdGovernor ?? false;
   const state = {
-    frames: 0, body: body.id, shot: shot.kind, get earth() { return earth?.status ?? 'none'; }, backend: hints.backend, gpu: hints.vendor ?? hints.description, canvas: renderer.domElement, layers, tiles: planet.stats, firstFrameMs: 0,
+    frames: 0, body: body.id, shot: shot.kind, get earth() { return earth?.status ?? 'none'; }, get shadow() { return planet.shadow; }, backend: hints.backend, gpu: hints.vendor ?? hints.description, canvas: renderer.domElement, layers, tiles: planet.stats, firstFrameMs: 0,
     tier: tier.name, timing: governor ? (gpuTiming ? 'gpu' : 'cadence') : 'forced', gpuMs: 0, gpuLog: [], load: 0, tierChanges: [],
     framing: cam,
   };
@@ -402,6 +403,7 @@ export async function startLiveScene(host, opts) {
     if (t - lastRender < (throttled ? THROTTLED_FRAME_MS : 1000 / tier.fps) * 0.9) return;
     const interval = lastRender ? t - lastRender : 0;
     lastRender = t;
+    if (first) loadMs += interval;
     const s = frame();
     pipeline.render();
     state.frames++;
@@ -425,10 +427,13 @@ export async function startLiveScene(host, opts) {
       resumeStarted = 0;
       fadeSnapshot();
     }
-    // A load heading for the timeout needs parents to fall back on, or unfinished ground shows level 0.
-    if (first && shadowDoneAt && performance.now() - Math.max(started, shadowDoneAt) > (opts.settleTimeoutMs ?? SETTLE_TIMEOUT_MS) / 2) planet.lean = false;
-    // The timeout only stands in for tiles. Without the shadow map, shadows and the Sun's halo would pop in.
-    if (first && shadowDoneAt && (planet.settled() || performance.now() - Math.max(started, shadowDoneAt) > (opts.settleTimeoutMs ?? SETTLE_TIMEOUT_MS))) {
+    const settleMs = opts.settleTimeoutMs ?? SETTLE_TIMEOUT_MS;
+    // A load heading for the timeout needs parents to fall back on, or unfinished ground shows level 4.
+    if (first && loadMs > settleMs / 2) planet.lean = false;
+    // Without the shadow map, shadows and the Sun's halo would pop in, so the fade-in waits for it,
+    // though not forever. The timeout shows an unfinished view only once every tile has something to draw.
+    const shadowIn = planet.shadow !== 'loading' || loadMs > settleMs * 2;
+    if (first && shadowIn && (planet.settled() || (loadMs > settleMs && planet.covered()))) {
       first = false;
       planet.lean = false;
       state.firstFrameMs = Math.round(performance.now() - started);
