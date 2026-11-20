@@ -11,10 +11,11 @@ import { toWorld } from './terrain.js';
 
 const GRID = 32;
 const MAX_INSTANCES = 4096;
-// HTTP/2 multiplexes these over one connection; fewer would leave a high-latency link idle.
-const MAX_IN_FLIGHT = 32;
+// Most tiles miss the edge cache, so each costs a round trip to storage, not bandwidth. The tile
+// host allows 256 HTTP/2 streams; 64 keeps a cold load latency-bound for far less time.
+const MAX_IN_FLIGHT = 64;
 // Over a network the camera keeps moving while tiles arrive, so a few edge tiles are always
-// in flight; they draw from their parent meanwhile.
+// in flight; they draw from their nearest loaded ancestor meanwhile.
 const SETTLED_FRACTION = 0.95;
 // Records for tiles without GPU data are dropped after this many unused frames, so a long
 // session that keeps flying over new ground doesn't accumulate them.
@@ -93,6 +94,11 @@ export class TiledPlanet {
     // Counts GPU uploads, so frame timing can skip frames that include them.
     this.writes = 0;
     this.texelBias = 1;
+    // Before a visit's first scene shows, fallback tiles are cut to a few shared coarse ones (see
+    // tilesToFetch). The scene clears this at its first fade-in; a body switch starts with it off.
+    this.lean = true;
+    /** @type {'loading' | 'ready' | 'failed'} */
+    this.shadow = 'loading';
     this.stats = { records: 0, requests: 0, bytes: 0, colorBytes: 0, heightBytes: 0, selected: 0, drawn: 0, pending: 0, texelBias: 1 };
     this.workers = Array.from({ length: WORKERS }, () => {
       const w = new Worker(new URL('./tile-worker.js', import.meta.url), { type: 'module' });
@@ -110,7 +116,13 @@ export class TiledPlanet {
     geo.instanceCount = 0;
     this.geometry = geo;
     this.exaggeration = uniform(relief);
-    this.shadowSlot = texture(new THREE.DataTexture(new Uint16Array(1), 1, 1, THREE.RedFormat, THREE.HalfFloatType));
+    // Full size from the start and filled in place: the material renders before the map arrives, and
+    // swapping in a new texture after that drew banded shadows.
+    const shadowMap = new THREE.DataTexture(new Uint16Array(SHADOW_MAP.width * SHADOW_MAP.height), SHADOW_MAP.width, SHADOW_MAP.height, THREE.RedFormat, THREE.HalfFloatType);
+    shadowMap.wrapS = THREE.RepeatWrapping;
+    shadowMap.magFilter = shadowMap.minFilter = THREE.LinearFilter;
+    shadowMap.needsUpdate = true;
+    this.shadowSlot = texture(shadowMap);
     this.mesh = new THREE.Mesh(geo, this.buildMaterial());
     this.mesh.frustumCulled = false;
   }
@@ -226,15 +238,20 @@ export class TiledPlanet {
     return mat;
   }
 
+  /** Loads the coarse shadow map. Resolves either way; without it the map stays zero, which reads as flat ground. */
   async init() {
     const shadow = await this.request({ kind: 'height', url: `${this.baseUrl}/${SHADOW_MAP.path}`, shape: SHADOW_MAP });
-    const tex = new THREE.DataTexture(shadow.data, SHADOW_MAP.width, SHADOW_MAP.height, THREE.RedFormat, THREE.HalfFloatType);
-    tex.wrapS = THREE.RepeatWrapping;
-    tex.magFilter = tex.minFilter = THREE.LinearFilter;
+    if (shadow.error || shadow.missing) {
+      this.shadow = 'failed';
+      console.warn(`No shadow map at ${this.baseUrl}/${SHADOW_MAP.path}; terrain casts no long shadows.`, shadow.error ?? '');
+      return;
+    }
+    const tex = this.shadowSlot.value;
+    tex.image.data = shadow.data;
     tex.needsUpdate = true;
-    this.shadowSlot.value = tex;
     this.stats.bytes += shadow.bytes;
     this.stats.heightBytes += shadow.bytes;
+    this.shadow = 'ready';
   }
 
   request(msg) {
@@ -260,8 +277,8 @@ export class TiledPlanet {
     const url = `${this.baseUrl}/${kind === 'color' ? colorPath(rec.key) : heightPath(rec.key)}`;
     this.request({ kind, url }).then((out) => {
       this.inFlight--;
-      this.stats.bytes += out.bytes;
-      this.stats[kind === 'color' ? 'colorBytes' : 'heightBytes'] += out.bytes;
+      this.stats.bytes += out.bytes ?? 0;
+      this.stats[kind === 'color' ? 'colorBytes' : 'heightBytes'] += out.bytes ?? 0;
       if (out.error || out.missing) {
         slot.state = 'missing';
         return;
@@ -336,7 +353,7 @@ export class TiledPlanet {
     }
     this.stats.texelBias = opts.maxTexelPx;
 
-    const wanted = tilesToFetch(selected).map((k) => this.record(k));
+    const wanted = tilesToFetch(selected, { lean: this.lean }).map((k) => this.record(k));
     for (const r of wanted) r.lastUsed = this.frame;
     const idle = wanted.filter((r) => r.color.state === 'idle' || r.height.state === 'idle');
     this.stats.pending = idle.length;

@@ -1,5 +1,5 @@
-// Loads the live scene when the stage has decided to try it (see Stage.astro). Everything
-// heavy sits behind a dynamic import, so poster-only visitors never download three.js.
+// Loads the live scene when the stage has decided to try it (see Stage.astro). Everything heavy
+// sits behind a dynamic import, so visitors the stage gives a poster never download three.js.
 
 declare global {
   interface Window {
@@ -18,6 +18,10 @@ const tilesUrl = (body: Body) => {
   const base = import.meta.env.PUBLIC_TILES_BASE;
   return base ? `${base}/${body.id}/${body.tiles.version}` : `/data/${body.id}`;
 };
+const fetchMeta = (body: Body): Promise<unknown> =>
+  fetch(`${tilesUrl(body)}/meta.json`)
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => null);
 
 // Preview-only camera overrides, clamped to sensible real-orbit ranges.
 function numberParam(params: URLSearchParams, key: string, min: number, max: number) {
@@ -110,8 +114,12 @@ export async function boot() {
   const fallBack = () => window.__falsyShowPoster?.();
   const body = bodyById(params.get('body') ?? root.dataset.body);
 
-  const probe = await fetch(`${tilesUrl(body)}/meta.json`, { method: 'HEAD' }).catch(() => null);
-  if (!probe?.ok) return fallBack();
+  // The scene module and the tile metadata load side by side, so a rare tile outage still costs the
+  // module's download. A failed import surfaces where it's awaited.
+  const live = import('./live/scene.js');
+  live.catch(() => {});
+  const meta = await fetchMeta(body);
+  if (!meta) return fallBack();
 
   const tParam = Number(params.get('t') ?? 1);
   const at = params.has('at') ? new Date(params.get('at') ?? '') : undefined;
@@ -148,13 +156,14 @@ export async function boot() {
   };
 
   try {
-    const { startLiveScene } = await import('./live/scene.js');
+    const { startLiveScene } = await live;
     const start = (b: Body, slot: Slot, opts: Record<string, unknown>) =>
       startLiveScene(sky, { ...shared, dataUrl: tilesUrl(b), body: b.id, onLost: onLost(slot), ...opts }) as Promise<LiveScene | null>;
 
     const firstSlot: Slot = { scene: null, dead: false };
     current = firstSlot;
     firstSlot.scene = await start(body, firstSlot, {
+      meta,
       shot: params.get('shot'),
       at: at && !Number.isNaN(at.getTime()) ? at : undefined,
       seed: numberParam(params, 'seed', 0, 2 ** 32 - 1),
@@ -246,6 +255,9 @@ export async function boot() {
       try {
         const tier = old.state.tier;
         slot.scene = await start(to, slot, {
+          meta: fetchMeta(to),
+          // Prewarming cached levels 0 to 2, which is what a full (not lean) load draws from first.
+          lean: false,
           holdGovernor: true,
           settleTimeoutMs: SWITCH_SETTLE_MS,
           startTier: isTierName(tier) ? tier : undefined,

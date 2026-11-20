@@ -50,7 +50,8 @@ async function loadColor(url) {
 }
 
 async function loadHeight(url, shape) {
-  const res = await fetch(url);
+  // Only the shadow map has a shape. The first fade-in waits for it, so it goes ahead of the tile burst.
+  const res = await fetch(url, shape ? { priority: 'high' } : undefined);
   if (!res.ok) return { missing: true, bytes: 0 };
   const packed = new Uint8Array(await res.arrayBuffer());
   const raw = new Uint8Array(await new Response(new Blob([packed]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
