@@ -406,7 +406,8 @@ export async function startLiveScene(host, opts) {
     if (t - lastRender < (throttled ? THROTTLED_FRAME_MS : 1000 / tier.fps) * 0.9) return;
     const interval = lastRender ? t - lastRender : 0;
     lastRender = t;
-    if (first) loadMs += interval;
+    // Capped, so a stall the page didn't hear about (sleep, an occluded window) can't run the clock out.
+    if (first) loadMs += Math.min(interval, 250);
     const s = frame();
     pipeline.render();
     state.frames++;

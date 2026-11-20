@@ -33,7 +33,7 @@ Other details:
 - Height tiles use 96 cells, so full-resolution samples are 434 m apart, matching MOLA's 463 m. They're corner-aligned with a one-sample border, so neighbouring tiles agree on edges and normals difference cleanly up to the edge.
 - Long shadows march through one coarse global height map (2048×1024, about 10 km per sample, 1.2 MB). The march starts from that same map, so the surface never shadows itself.
 - The renderer draws every visible tile in one instanced call. Colour and height tiles live in two array textures (512 layers when the GPU allows it). A tile that is still loading borrows its nearest loaded ancestor's texels.
-- Each tile's parent is fetched along with it, so the fallback is never more than one level coarser. The exception is the load before a scene first shows: to get there sooner it fetches only level 0 and each tile's level-4 ancestor as fallbacks, then the parents.
+- Each tile's parent is fetched along with it, so the fallback is never more than one level coarser. The exception is the load before the first scene of a visit shows (a body switch loads in full, from tiles the page cached while idle): to get there sooner it fetches only level 0 and each tile's level-4 ancestor as fallbacks, then the parents.
 
 ## Consequences
 

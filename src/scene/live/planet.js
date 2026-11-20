@@ -94,8 +94,8 @@ export class TiledPlanet {
     // Counts GPU uploads, so frame timing can skip frames that include them.
     this.writes = 0;
     this.texelBias = 1;
-    // Before the scene first shows, fallback tiles are cut to a few shared coarse ones (see
-    // tilesToFetch). The scene clears this at its first fade-in.
+    // Before a visit's first scene shows, fallback tiles are cut to a few shared coarse ones (see
+    // tilesToFetch). The scene clears this at its first fade-in; a body switch starts with it off.
     this.lean = true;
     /** @type {'loading' | 'ready' | 'failed'} */
     this.shadow = 'loading';
