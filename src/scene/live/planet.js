@@ -21,7 +21,6 @@ const SETTLED_FRACTION = 0.95;
 // session that keeps flying over new ground doesn't accumulate them.
 const RECORD_TTL_FRAMES = 600;
 const WORKERS = 4;
-const MAX_RETRIES = 2;
 // The march samples a 10 km map, so 12 steps cast the same shadows as 44. Each step strides
 // 1.62× further, reaching the same ~560 km.
 const SHADOW_STEPS = 12;
@@ -280,11 +279,6 @@ export class TiledPlanet {
       this.inFlight--;
       this.stats.bytes += out.bytes ?? 0;
       this.stats[kind === 'color' ? 'colorBytes' : 'heightBytes'] += out.bytes ?? 0;
-      // A dropped connection deserves another go; a tile that isn't there doesn't.
-      if (out.error && (slot.failures = (slot.failures ?? 0) + 1) <= MAX_RETRIES) {
-        slot.state = 'idle';
-        return;
-      }
       if (out.error || out.missing) {
         slot.state = 'missing';
         return;
