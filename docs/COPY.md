@@ -10,15 +10,6 @@ This is a first draft in Justin's voice for him to edit. It follows the `sound-l
 4. **KarstScout:** mentioning that it was built for Justin's dad is fine.
 5. **Reply promise:** "within one business day" stays.
 
-## Phase 1 changes waiting for Justin's approval
-
-Phase 1 ships with poster stills, not the live scene, so two lines that claim "live" or "right now" would be false until Phase 2. The site uses the "after" text for now. Phase 2 switches back to the approved text.
-
-| Spot | Before (approved) | After (Phase 1) | Why |
-|---|---|---|---|
-| About, paragraph 3 | (Replaced 2026-11-04, see About below.) | | Phase 2 shows the live scene on computers and stills on phones, so the paragraph now covers both. |
-| Meta description | …and a live view of Mars. | …and a view of Mars rendered from real data. | Same reason |
-
 ## Meta
 
 - **Title:** Justin Powell · falsy.dev
