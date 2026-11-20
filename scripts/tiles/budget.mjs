@@ -59,7 +59,7 @@ function run(shot, { tiltDeg, maxTexelPx, relaxBeyondKm }) {
       { radiusKm: meta.radiusKm, heightRangeKm, tilePx: TILES.colorPx, maxLevel: TILES.maxLevel, maxTexelPx, relaxBeyondKm },
     );
     peakTiles = Math.max(peakTiles, selected.length);
-    // The first view is fetched lean, as the renderer does before its first fade-in. A slow load adds parents.
+    // The first view is fetched lean, as the renderer does before its first fade-in.
     for (const k of tilesToFetch(selected, { lean: t === 0 })) {
       const id = tileId(k);
       if (fetched.has(id)) continue;

@@ -67,8 +67,7 @@ interface Slot {
 }
 
 const FADE_MS = 1000;
-// A switch fades in once the new view has its prewarmed coarse tiles and shadow map; fine detail
-// streams in after, as on any load.
+// A switch fades in once the new view has its coarse tiles; fine detail streams in after, as on any load.
 const SWITCH_SETTLE_MS = 2500;
 const PREWARM_LEVELS = 2;
 const BODY_IDS = Object.keys(BODIES);
@@ -165,8 +164,6 @@ export async function boot() {
     current = firstSlot;
     firstSlot.scene = await start(body, firstSlot, {
       meta,
-      // Just inside the stage's 12 s watchdog, so a slow load shows the scene, not a poster and then the scene.
-      showByMs: 10500,
       shot: params.get('shot'),
       at: at && !Number.isNaN(at.getTime()) ? at : undefined,
       seed: numberParam(params, 'seed', 0, 2 ** 32 - 1),

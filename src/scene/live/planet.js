@@ -4,7 +4,7 @@ import {
   normalize, positionWorld, round, sin, smoothstep, sqrt, tan, texture, uniform, uniformArray, uv, varying, vec2, vec3, vec4,
 } from 'three/tsl';
 import { FACES, parent, tileId } from '../tiles/cube.ts';
-import { LEAN_FALLBACK_LEVEL, selectTiles, tilesToFetch } from '../tiles/select.ts';
+import { selectTiles, tilesToFetch } from '../tiles/select.ts';
 import { TILES, HEIGHT_SIZE, SHADOW_MAP, colorPath, heightPath } from '../tiles/layout.ts';
 import { LayerArray } from './tile-atlas.js';
 import { toWorld } from './terrain.js';
@@ -92,16 +92,12 @@ export class TiledPlanet {
     this.records = new Map();
     this.frame = 0;
     this.inFlight = 0;
-    this.inFlightBase = 0;
     // Counts GPU uploads, so frame timing can skip frames that include them.
     this.writes = 0;
     this.texelBias = 1;
-    // Before the scene first shows, fallback tiles are cut to a few shared coarse ones and load ahead
-    // of the detail (see tilesToFetch). The scene clears this at its first fade-in.
+    // Before the scene first shows, fallback tiles are cut to a few shared coarse ones (see
+    // tilesToFetch). The scene clears this at its first fade-in.
     this.lean = true;
-    // Set by the scene when a load is slow: tiles that won't finish in time get parents to draw from,
-    // and detail stops waiting for coarse tiles, in case one of those has stalled.
-    this.leanParents = false;
     /** @type {'loading' | 'ready' | 'failed'} */
     this.shadow = 'loading';
     this.stats = { records: 0, requests: 0, bytes: 0, colorBytes: 0, heightBytes: 0, selected: 0, drawn: 0, pending: 0, texelBias: 1 };
@@ -245,7 +241,7 @@ export class TiledPlanet {
 
   /** Loads the coarse shadow map. Resolves either way; without it the map stays zero, which reads as flat ground. */
   async init() {
-    const shadow = await this.request({ kind: 'height', url: `${this.baseUrl}/${SHADOW_MAP.path}`, shape: SHADOW_MAP, priority: 'high' });
+    const shadow = await this.request({ kind: 'height', url: `${this.baseUrl}/${SHADOW_MAP.path}`, shape: SHADOW_MAP });
     if (shadow.error || shadow.missing) {
       this.shadow = 'failed';
       console.warn(`No shadow map at ${this.baseUrl}/${SHADOW_MAP.path}; terrain casts no long shadows.`, shadow.error ?? '');
@@ -278,13 +274,10 @@ export class TiledPlanet {
     const slot = rec[kind];
     slot.state = 'loading';
     this.inFlight++;
-    const base = rec.key.level <= LEAN_FALLBACK_LEVEL ? 1 : 0;
-    this.inFlightBase += base;
     this.stats.requests++;
     const url = `${this.baseUrl}/${kind === 'color' ? colorPath(rec.key) : heightPath(rec.key)}`;
-    this.request({ kind, url, priority: base ? 'high' : 'auto' }).then((out) => {
+    this.request({ kind, url }).then((out) => {
       this.inFlight--;
-      this.inFlightBase -= base;
       this.stats.bytes += out.bytes ?? 0;
       this.stats[kind === 'color' ? 'colorBytes' : 'heightBytes'] += out.bytes ?? 0;
       // A dropped connection deserves another go; a tile that isn't there doesn't.
@@ -366,7 +359,7 @@ export class TiledPlanet {
     }
     this.stats.texelBias = opts.maxTexelPx;
 
-    const wanted = tilesToFetch(selected, { lean: this.lean, parents: !this.lean || this.leanParents }).map((k) => this.record(k));
+    const wanted = tilesToFetch(selected, { lean: this.lean }).map((k) => this.record(k));
     for (const r of wanted) r.lastUsed = this.frame;
     const idle = wanted.filter((r) => r.color.state === 'idle' || r.height.state === 'idle');
     this.stats.pending = idle.length;
@@ -374,17 +367,14 @@ export class TiledPlanet {
     if (this.inFlight < MAX_IN_FLIGHT && idle.length) {
       const dist = new Map(selected.map((s) => [s.id, s.distanceKm]));
       idle.sort((a, b) => a.key.level - b.key.level || (dist.get(a.id) ?? 0) - (dist.get(b.id) ?? 0));
-      // Coarse tiles are every tile's fallback. On a slow first load they must not share bandwidth with the detail.
-      const baseOnly = this.lean && !this.leanParents && (idle[0].key.level <= LEAN_FALLBACK_LEVEL || this.inFlightBase > 0);
       for (const r of idle) {
-        if (this.inFlight >= MAX_IN_FLIGHT || (baseOnly && r.key.level > LEAN_FALLBACK_LEVEL)) break;
+        if (this.inFlight >= MAX_IN_FLIGHT) break;
         if (r.color.state === 'idle') this.fetchTile(r, 'color');
         if (r.height.state === 'idle') this.fetchTile(r, 'height');
       }
     }
 
     let n = 0;
-    let rough = 0;
     const T = this.tileAttr.array;
     const C = this.colorAttr.array;
     const H = this.heightAttr.array;
@@ -394,9 +384,6 @@ export class TiledPlanet {
       const c = this.source(rec, 'color');
       const h = this.source(rec, 'height');
       if (!c || !h) continue;
-      // A scale of 1/2^d means the texels come from d levels up.
-      const gone = rec?.color.state === 'missing' || rec?.height.state === 'missing';
-      if (!gone && s.key.level + Math.log2(Math.min(c[1], h[1])) < Math.min(s.key.level, LEAN_FALLBACK_LEVEL)) rough++;
       const size = 2 / 2 ** s.key.level;
       T.set([s.key.face, -1 + s.key.x * size, -1 + s.key.y * size, size], n * 4);
       C.set(c, n * 4);
@@ -411,7 +398,6 @@ export class TiledPlanet {
     }
     this.stats.selected = selected.length;
     this.stats.drawn = n;
-    this.rough = rough;
     this.selected = selected;
     if (this.frame % 120 === 0) this.prune();
   }
@@ -424,16 +410,6 @@ export class TiledPlanet {
       this.records.delete(id);
     }
     this.stats.records = this.records.size;
-  }
-
-  /** True once every selected tile has texels to draw, however coarse. */
-  drawable() {
-    return this.stats.selected > 0 && this.stats.drawn === this.stats.selected;
-  }
-
-  /** True once every selected tile draws texels no coarser than the lean fallback level. */
-  covered() {
-    return this.drawable() && this.rough === 0;
   }
 
   /** True once nearly every selected tile draws from its own texels. */

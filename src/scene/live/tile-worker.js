@@ -36,8 +36,8 @@ function mipChain(rgba, size) {
   return levels;
 }
 
-async function loadColor(url, priority) {
-  const res = await fetch(url, { priority });
+async function loadColor(url) {
+  const res = await fetch(url);
   if (!res.ok) return { missing: true, bytes: 0 };
   const blob = await res.blob();
   const bmp = await createImageBitmap(blob, { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
@@ -49,8 +49,9 @@ async function loadColor(url, priority) {
   return { levels: mipChain(rgba, canvas.width), bytes: blob.size };
 }
 
-async function loadHeight(url, shape, priority) {
-  const res = await fetch(url, { priority });
+async function loadHeight(url, shape) {
+  // Only the shadow map has a shape. The first fade-in waits for it, so it goes ahead of the tile burst.
+  const res = await fetch(url, shape ? { priority: 'high' } : undefined);
   if (!res.ok) return { missing: true, bytes: 0 };
   const packed = new Uint8Array(await res.arrayBuffer());
   const raw = new Uint8Array(await new Response(new Blob([packed]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
@@ -66,9 +67,9 @@ async function loadHeight(url, shape, priority) {
   return { data: half, minKm: min / 1000, maxKm: max / 1000, bytes: packed.length };
 }
 
-self.onmessage = async ({ data: { id, kind, url, shape, priority = 'auto' } }) => {
+self.onmessage = async ({ data: { id, kind, url, shape } }) => {
   try {
-    const out = kind === 'color' ? await loadColor(url, priority) : await loadHeight(url, shape, priority);
+    const out = kind === 'color' ? await loadColor(url) : await loadHeight(url, shape);
     const transfer = out.levels ? out.levels.map((l) => l.buffer) : out.data ? [out.data.buffer] : [];
     self.postMessage({ id, kind, ...out }, transfer);
   } catch (err) {

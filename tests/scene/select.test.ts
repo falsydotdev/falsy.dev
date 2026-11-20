@@ -103,12 +103,4 @@ describe('tiles to fetch', () => {
     for (const t of tiles) expect(fetchIds(keys).has(t.id)).toBe(true);
     expect(keys.length).toBeLessThan(tilesToFetch(tiles).length);
   });
-
-  it('adds direct parents to the lean set on request, still pinning only level 0', () => {
-    const lean = fetchIds(tilesToFetch(tiles, { lean: true }));
-    const ids = fetchIds(tilesToFetch(tiles, { lean: true, parents: true }));
-    for (const id of lean) expect(ids.has(id)).toBe(true);
-    for (const t of tiles) if (t.key.level > 0) expect(ids.has(tileId(parent(t.key)!))).toBe(true);
-    expect(tilesToFetch([], { lean: true, pinnedLevel: 2 })).toHaveLength(6);
-  });
 });
