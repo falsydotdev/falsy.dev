@@ -63,28 +63,25 @@ export function initialTier(h: GpuHints): TierName | 'poster' {
   return 'medium';
 }
 
-const ARC = /\barc\b|xe-hpg|alchemist|battlemage/i;
+// Arc cards carry a model number (A770, B580); Core Ultra chips call their integrated GPU Arc too.
+const ARC_CARD = /xe2?-hpg|\barc(\(tm\))?\s+[ab]\d{3}\b/i;
 // AMD's laptop chips report as "Radeon Graphics" or by an M model number (680M, 780M, 890M).
 const AMD_INTEGRATED = /radeon(\(tm\))? graphics|radeon \d{3}m\b|vega \d+ graphics/i;
 const INTEGRATED_VENDOR = /^(qualcomm|arm|imagination|samsung|broadcom)$/i;
 
-/**
- * Whether the GPU shares the CPU's memory. Neither WebGPU nor WebGL says so, so this goes by vendor and
- * name; an AMD laptop chip that reports no name passes as discrete.
- */
+// Whether the GPU shares the CPU's memory. Browsers don't say, so this goes by vendor and name;
+// an AMD laptop chip that reports no name passes as discrete.
 export function isIntegrated(h: GpuHints): boolean {
   const vendor = h.vendor ?? '';
   const text = `${vendor} ${h.architecture ?? ''} ${h.description ?? ''}`;
   if (INTEGRATED_VENDOR.test(vendor)) return true;
-  if (/intel/i.test(text)) return !ARC.test(text);
+  if (/intel/i.test(text)) return !ARC_CARD.test(text);
   if (/amd|ati\b|radeon/i.test(text)) return AMD_INTEGRATED.test(text);
   return false;
 }
 
-/**
- * Whether a body switch fades from the old scene's frozen last frame instead of crossfading two live
- * scenes. Low and WebGL2 can't carry two, and on an integrated GPU both would sit in shared memory.
- */
+// Whether a body switch fades from the old scene's frozen frame rather than crossfading two live
+// scenes: Low and WebGL2 can't carry two, and on an integrated GPU both would sit in shared memory.
 export function switchesFromStill(scene: { tier: string; backend: string; integrated: boolean }) {
   return scene.tier === 'frozen' || scene.tier === 'low' || scene.backend === 'WebGL2' || scene.integrated;
 }

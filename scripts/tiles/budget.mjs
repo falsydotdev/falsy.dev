@@ -50,7 +50,8 @@ const meanSize = (layer, level) => {
     } catch {}
     meanCache.set(key, n ? sum / n : 0);
   }
-  return meanCache.get(key);
+  // A level the bake never reached takes the nearest coarser level's mean.
+  return meanCache.get(key) || (level > 0 ? meanSize(layer, level - 1) : 0);
 };
 const CLOUD_BYTES = BODY.clouds ? statSync(join(import.meta.dirname, '../../public', BODY.clouds.staticUrl.replace(/\.json$/, '.avif'))).size : 0;
 

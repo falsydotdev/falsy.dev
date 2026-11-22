@@ -7,11 +7,11 @@ const earthLayers = EARTH.tiles.layers;
 const MB = 1e6;
 
 // A scene as the live scene sets it up: atlas depth from its start tier, MSAA from the canvas.
-function plan(cls: MemoryClass, tierName: TierName, canvasPx: number, opts: { integrated?: boolean; preview?: boolean } = {}) {
+function plan(cls: MemoryClass, tierName: TierName, canvasPx: number, opts: { integrated?: boolean; preview?: boolean; ceilings?: boolean } = {}) {
   const layers = atlasLayers({ cls, tier: tierName, tileLayers: earthLayers, clouds: true });
-  const common = { canvasPx, atlasLayers: layers, tileLayers: earthLayers, clouds: true };
-  const msaa = msaaSamples({ cls, tier: tierName, integrated: opts.integrated ?? cls === 'integrated', preview: opts.preview ?? false, ...common }) > 0;
-  return { layers, msaa, bytes: sceneGpuBytes({ ...common, msaa, bloom: tier(tierName).bloom }) };
+  const common = { canvasPx, atlasLayers: layers, tileLayers: earthLayers, clouds: true, bloom: tier(tierName).bloom };
+  const msaa = msaaSamples({ cls, tier: tierName, integrated: opts.integrated ?? cls === 'integrated', ceilings: opts.ceilings ?? true, preview: opts.preview ?? false, ...common }) > 0;
+  return { layers, msaa, bytes: sceneGpuBytes({ ...common, msaa }) };
 }
 const cap = (t: TierName) => tier(t).maxMegapixels * 1e6;
 
@@ -51,12 +51,22 @@ describe('GPU memory per scene', () => {
 });
 
 describe('msaaSamples', () => {
-  it('keeps MSAA on a High canvas of a 14-inch laptop on a discrete or Apple GPU', () => {
+  it('keeps MSAA on a discrete or Apple GPU at High in a 1440×900 window at 2×', () => {
     expect(plan('discrete', 'high', 1800 * 1125).msaa).toBe(true);
   });
 
-  it('drops MSAA where its buffers would push the scene past the ceiling, as on a 5K screen at High', () => {
+  it('drops MSAA where its buffers would push the scene past the ceiling: a 1512×982 window at 2× at High, a 1440p screen, a 5K screen', () => {
+    expect(plan('discrete', 'high', 1890 * 1228).msaa).toBe(false);
+    expect(plan('discrete', 'medium', 2560 * 1440).msaa).toBe(false);
     expect(plan('discrete', 'high', cap('high')).msaa).toBe(false);
+  });
+
+  it('keeps MSAA at any size for bodies the ceilings don\'t cover, except on Low and integrated GPUs', () => {
+    expect(plan('discrete', 'high', cap('high'), { ceilings: false }).msaa).toBe(true);
+    expect(plan('low', 'low', 1280 * 720, { ceilings: false }).msaa).toBe(false);
+    expect(plan('integrated', 'medium', 1280 * 720, { ceilings: false }).msaa).toBe(false);
+    expect(EARTH.memoryCeilings).toBe(true);
+    expect(MARS.memoryCeilings ?? false).toBe(false);
   });
 
   it('never uses MSAA on Low or on integrated GPUs, however small the canvas', () => {

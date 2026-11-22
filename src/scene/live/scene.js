@@ -233,7 +233,7 @@ export async function startLiveScene(host, opts) {
     if (!meta) throw new Error(`No tiles at ${opts.dataUrl}`);
     if (meta.body !== body.id || Math.abs(meta.radiusKm - body.radiusKm) > 1e-6) console.warn(`Tiles at ${opts.dataUrl} are for ${meta.body}, not ${body.id}.`);
     const deviceLayers = isWebGPU ? gpuLayers ?? 256 : Math.min(WANTED_LAYERS, renderer.backend.gl.getParameter(renderer.backend.gl.MAX_ARRAY_TEXTURE_LAYERS));
-    layers = atlasLayers({ cls: memClass, tier: tier.name, tileLayers: body.tiles.layers, clouds: Boolean(cloudSet), maxLayers: deviceLayers });
+    layers = body.memoryCeilings ? atlasLayers({ cls: memClass, tier: tier.name, tileLayers: body.tiles.layers, clouds: Boolean(cloudSet && tables), maxLayers: deviceLayers }) : deviceLayers;
     if (cloudSet && tables) {
       clouds = createClouds({ body, lighting, tables, set: cloudSet });
       clouds.setTier(tier, fx.has('cloudShadows'));
@@ -252,7 +252,7 @@ export async function startLiveScene(host, opts) {
   const blooms = (t) => t.bloom && !fx.has('bloom');
   // The pass's sample count can change in place: the backend rebuilds its target on the next frame.
   const memory = (msaa) => ({ canvasPx: renderer.domElement.width * renderer.domElement.height, msaa, bloom: blooms(tier), atlasLayers: layers, tileLayers: body.tiles.layers, clouds: Boolean(clouds) });
-  const wantedSamples = () => msaaSamples({ cls: memClass, tier: tier.name, integrated, preview: Boolean(opts.scale), ...memory(false) });
+  const wantedSamples = () => msaaSamples({ cls: memClass, tier: tier.name, integrated, ceilings: Boolean(body.memoryCeilings), preview: Boolean(opts.scale), ...memory(false) });
   pipeline = new THREE.RenderPipeline(renderer);
   const scenePass = pass(scene, camera, { samples: 0 });
   const setSamples = () => {

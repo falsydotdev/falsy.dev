@@ -118,6 +118,13 @@ describe('isIntegrated', () => {
     expect(isIntegrated({ backend: 'WebGPU', vendor: 'intel', architecture: 'xe-lpg' })).toBe(true);
     expect(isIntegrated({ backend: 'WebGL2', description: 'ANGLE (Intel, Intel(R) Iris(R) Xe Graphics (0x00009A49) Direct3D11 vs_5_0 ps_5_0, D3D11)' })).toBe(true);
     expect(isIntegrated({ backend: 'WebGPU', vendor: 'intel', architecture: 'xe-hpg', description: 'Intel(R) Arc(TM) A770 Graphics' })).toBe(false);
+    expect(isIntegrated({ backend: 'WebGPU', vendor: 'intel', architecture: 'xe2-hpg' })).toBe(false);
+    expect(isIntegrated({ backend: 'WebGL2', description: 'ANGLE (Intel, Intel(R) Arc(TM) B580 Graphics (0x0000E20B) Direct3D11 vs_5_0 ps_5_0, D3D11)' })).toBe(false);
+  });
+
+  it("counts Core Ultra chips' integrated Arc graphics as integrated", () => {
+    expect(isIntegrated({ backend: 'WebGPU', vendor: 'intel', architecture: 'xe-lpg', description: 'Intel(R) Arc(TM) Graphics' })).toBe(true);
+    expect(isIntegrated({ backend: 'WebGPU', vendor: 'intel', architecture: 'xe2-lpg', description: 'Intel(R) Arc(TM) 140V GPU (16GB)' })).toBe(true);
   });
 
   it("counts AMD's laptop Radeon graphics as integrated and its cards as discrete", () => {

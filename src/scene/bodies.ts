@@ -64,6 +64,9 @@ export interface Body {
   // Offered in production's first-visit picks and the switch button. A body whose production
   // tiles aren't uploaded yet stays off; `?body=` and development still show it.
   listed: boolean;
+  // Held to the spec's GPU memory ceilings (gpu-memory.ts): smaller atlases where a ceiling is
+  // lower, and no MSAA where its buffers wouldn't fit. Mars and the Moon predate the ceilings.
+  memoryCeilings?: boolean;
 }
 
 export interface Ocean {
@@ -201,6 +204,7 @@ export const EARTH: Body = {
   // Heading into night, renders dim to 7 of 255 at −5° and are close to black by −6°.
   shots: { weights: { 'dawn-dusk': 0.3, 'orbital-sunrise': 0.3, 'feature-flyover': 0.4 }, dawnDuskSunDeg: 4, sunriseLeadS: 60, sunriseLimbKm: 0, darkBelowDeg: -5 },
   listed: false,
+  memoryCeilings: true,
 };
 
 export const BODIES: Record<string, Body> = { mars: MARS, moon: MOON, earth: EARTH };

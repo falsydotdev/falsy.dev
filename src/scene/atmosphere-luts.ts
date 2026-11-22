@@ -33,11 +33,8 @@ export type ViewSampling = 'even' | 'lowest';
 
 export type AtmosphereModel = Atmosphere & { radiusKm: number };
 
-/**
- * Where view-ray step edge `x` (0 to 1) falls between `tStart` and `tEnd`. In 'lowest' mode, steps
- * are half the even length at `tLow`, the ray's lowest point (its tangent point, or the ground), and
- * grow to 1.5× toward each end. atmosphere.js computes the same in its shader.
- */
+// Where view-ray step edge x (0 to 1) falls. 'lowest' halves the even step at tLow (the tangent
+// point, or the ground), where thin layers sit, and grows it to 1.5× at the ends. Mirrored in atmosphere.js.
 export function viewStepEdge(x: number, tStart: number, tLow: number, tEnd: number, mode: ViewSampling) {
   const length = tEnd - tStart;
   if (mode === 'even' || length <= 0) return tStart + x * length;

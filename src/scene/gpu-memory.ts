@@ -1,6 +1,5 @@
-// GPU memory one live scene holds, tallied from what it allocates, and the choices that keep it
-// under the spec's ceilings: how many tiles each atlas holds, and whether the scene pass uses MSAA.
-// Browsers don't report GPU memory, so this is the measure (`state.gpuMemory` in the live scene).
+// Browsers don't report GPU memory, so a scene's is tallied here from what it allocates
+// (`state.gpuMemoryMB`), and its atlas depth and MSAA are chosen to fit the spec's ceilings.
 import type { TileLayer } from './tiles/layers.ts';
 import { tier as tierByName, type Tier, type TierName } from './quality.ts';
 import { CLOUD_TEXTURE } from './clouds.ts';
@@ -68,10 +67,8 @@ export function sceneGpuBytes(m: SceneMemory) {
 
 const capPx = (t: Tier) => t.maxMegapixels * 1e6;
 
-/**
- * Tiles per atlas for a scene starting at `tier`: as many as fit under the class's ceiling with the
- * canvas at the tier's pixel cap and no MSAA, from 256 to 512. Fixed for the scene's life.
- */
+// Tiles per atlas, fixed for the scene's life: as many as fit under the ceiling with the canvas at
+// the start tier's pixel cap and no MSAA, from 256 to 512.
 export function atlasLayers(o: { cls: MemoryClass; tier: TierName; tileLayers: SceneMemory['tileLayers']; clouds: boolean; maxLayers?: number }) {
   const t = tierByName(o.tier);
   const max = Math.min(MAX_LAYERS, o.maxLayers ?? MAX_LAYERS);
@@ -80,14 +77,10 @@ export function atlasLayers(o: { cls: MemoryClass; tier: TierName; tileLayers: S
   return Math.min(max, Math.max(MIN_LAYERS, fit));
 }
 
-/**
- * MSAA samples for the scene pass. Never on Low or an integrated GPU. Elsewhere only while its buffers
- * fit under the ceiling at the canvas's current size; a preview `scale=` skips that check.
- */
-export function msaaSamples(o: { cls: MemoryClass; tier: TierName; integrated: boolean; preview: boolean } & Omit<SceneMemory, 'msaa' | 'bloom'>) {
-  const t = tierByName(o.tier);
-  if (t.name === 'low' || o.integrated) return 0;
-  if (o.preview) return MSAA_SAMPLES;
-  const fits = sceneGpuBytes({ ...o, msaa: true, bloom: t.bloom }) <= MEMORY_CEILING_MB[o.cls] * MB;
-  return fits ? MSAA_SAMPLES : 0;
+// Never on Low or integrated GPUs. Elsewhere, under the ceilings, only while the buffers fit at the
+// canvas's current size; a preview `scale=` keeps it regardless, as the posters need.
+export function msaaSamples(o: { cls: MemoryClass; tier: TierName; integrated: boolean; ceilings: boolean; preview: boolean } & Omit<SceneMemory, 'msaa'>) {
+  if (o.tier === 'low' || o.integrated) return 0;
+  if (!o.ceilings || o.preview) return MSAA_SAMPLES;
+  return sceneGpuBytes({ ...o, msaa: true }) <= MEMORY_CEILING_MB[o.cls] * MB ? MSAA_SAMPLES : 0;
 }
