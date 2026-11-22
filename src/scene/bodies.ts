@@ -172,7 +172,8 @@ export const EARTH: Body = {
   // Colour stops at level 6 and carries the water mask in alpha (opaque is land).
   tiles: { version: 'v1', layers: [{ ...COLOR_LAYER, format: 'masked', maxLevel: 6 }, HEIGHT_LAYER] },
   // Named places lead because visitors know them by sight; a flyover is on offer almost all the time.
-  shots: { weights: { 'dawn-dusk': 0.3, 'orbital-sunrise': 0.3, 'feature-flyover': 0.4 }, dawnDuskSunDeg: 4, sunriseLeadS: 60, sunriseLimbKm: 0, darkBelowDeg: -6 },
+  // Heading into night, renders dim to 7 of 255 at −5° and are close to black by −6°.
+  shots: { weights: { 'dawn-dusk': 0.3, 'orbital-sunrise': 0.3, 'feature-flyover': 0.4 }, dawnDuskSunDeg: 4, sunriseLeadS: 60, sunriseLimbKm: 0, darkBelowDeg: -5 },
   listed: false,
 };
 

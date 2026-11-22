@@ -3,7 +3,7 @@ import { EARTH } from '../../src/scene/bodies';
 import { bodyFrame, bodyVector, fromBody, sunElevationAt, sunFrom, vec } from '../../src/scene/ephemeris';
 import { EARTH_FEATURES, type Feature } from '../../src/scene/features';
 import { sample } from '../../src/scene/orbit';
-import { cameraRight, chooseShot, dawnDusk, featureFlyover, flyoverFeatures, orbitalSunrise, seededRandom, type Shot, worthShowing } from '../../src/scene/shots';
+import { cameraRight, chooseShot, dawnDusk, featureFlyover, flyoverFeatures, orbitalSunrise, seededRandom, type Shot, sunAhead, wantsReshoot, worthShowing } from '../../src/scene/shots';
 
 const equator: Feature = { id: 'equator', name: 'Equator', lat: 0, lon: 0 };
 
@@ -116,5 +116,34 @@ describe("Earth's shot mix", () => {
     expect(keyMoment!.getTime() - now.getTime()).toBe(60e3);
     expect(sample(orbit, plus(now, 55)).shadow).toBe(true);
     expect(sample(orbit, plus(now, 65)).shadow).toBe(false);
+  });
+});
+
+describe('re-shooting Earth', () => {
+  const firstWanted = (shot: Shot, built: Date, untilS: number) => {
+    // The scene checks every frame; 5 s is under a third of a degree of orbit.
+    for (let t = 0; t <= untilS; t += 5) if (wantsReshoot(shot, built, plus(built, t))) return t;
+    return null;
+  };
+
+  // In renders heading into night, the frame averages 11 of 255 with the Sun 4° below the ground
+  // ahead, 7 at −5°, and 3 (close to black) at −6°.
+  it.each(DATES)('plays a sunrise out, then swaps before the view ahead goes black, from %s', (built) => {
+    const shot = orbitalSunrise(built, { body: EARTH, rand: seededRandom(built.getTime()) });
+    const t = firstWanted(shot, built, 3 * 3600)!;
+    expect(t).toBeGreaterThan(30 * 60);
+    expect(t).toBeLessThan(70 * 60);
+    expect(sunAhead(shot.orbit, plus(built, t))).toBeGreaterThan(-6);
+  });
+
+  it.each(DATES)('replaces a flyover only after its pass, from %s', (built) => {
+    const shot = featureFlyover(built, { body: EARTH, rand: seededRandom(built.getTime()) })!;
+    const t = firstWanted(shot, built, 3 * 3600);
+    if (t !== null) expect(plus(built, t).getTime()).toBeGreaterThanOrEqual(shot.keyMoment!.getTime() + 120e3);
+  });
+
+  // At its lowest the Sun is 4° under the ground ahead, and the lit limb still fills the right of the frame.
+  it.each(DATES)('keeps the terminator pass, which never leaves twilight, from %s', (built) => {
+    expect(firstWanted(dawnDusk(built, { body: EARTH, rand: seededRandom(built.getTime()) }), built, 3 * 3600)).toBeNull();
   });
 });
