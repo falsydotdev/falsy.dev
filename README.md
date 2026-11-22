@@ -108,6 +108,15 @@ node scripts/posters/encode.mjs posters-out/frames.json
 
 Shots are defined in `scripts/posters/shots.json` as live-scene URL parameters with a pinned time, so re-rendering gives the same frames. Each shot renders twice: a landscape still framed for a laptop layout, and a portrait still framed for a phone layout, which tall screens get. `portraitQuery` can pick a different moment for the portrait still. The first shot also becomes `public/og.jpg`.
 
+Earth stills also need their own moment's clouds. The dev server can't read `clouds.falsy.dev` (CORS), so build each Earth shot's cloud set from NOAA's GMGSI archive into the local stand-in first. It downloads about 110 MB of GMGSI files per 3-hour set, cached in `~/.cache/falsy-dev/sources/gmgsi`:
+
+```bash
+cd clouds/container && npm ci && cd ../..
+node clouds/scripts/poster-sets.mjs        # writes kept/<valid>/ and kept/index.json under ~/.cache/falsy-dev/tiles/clouds (FALSY_TILES_CLOUDS)
+```
+
+A full `render.mjs` run renders only listed bodies, so Earth's shots join it once Earth is listed; `--only earth-glint` renders one before then. `render.mjs` refuses an Earth still whose clouds aren't the set for its moment. The cloud job keeps a poster's set only if the moment falls after the job started running, so copy the local `kept/` directory into the `falsy-clouds` bucket for earlier moments, and redeploy the cloud job after changing `shots.json`, since it bundles the file. The page leaves Earth stills out until Earth is listed (see above).
+
 ## Frame-time benchmark
 
 `scripts/posters/bench.mjs` measures what each scene layer costs the GPU. It renders one pinned poster shot in headless Chromium over WebGPU, once with every layer on and once with each `fx=` toggle, waits for every tile to settle, and collects GPU frame times. Runs alternate in mirrored rounds (all on, shadows, bloom, then bloom, shadows, all on), so a GPU that warms up or throttles over the session weighs on every toggle alike. It prints p10, median, and p90 per toggle, each with its difference from all layers on. Like the posters, it needs the local tiles.
