@@ -4,6 +4,7 @@
 import { readFile, writeFile, mkdir, rm } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import sharp from 'sharp';
+import { writeOg } from './og.mjs';
 
 const WIDTHS = [960, 1600, 2560];
 const PORTRAIT_WIDTHS = [600, 800, 1170];
@@ -35,5 +36,4 @@ for (const f of frames) {
 await writeFile(resolve(root, 'src/data/posters.json'), JSON.stringify(posters, null, 2) + '\n');
 
 // Link previews don't support AVIF, so the first frame doubles as the JPEG share image.
-const og = resolve(dirname(framesPath), frames[0].png);
-await sharp(og).resize(1200, 630, { fit: 'cover', position: 'centre' }).jpeg({ quality: 82, mozjpeg: true }).toFile(resolve(root, 'public/og.jpg'));
+await writeOg(resolve(dirname(framesPath), frames[0].png));
