@@ -1,14 +1,13 @@
 import * as THREE from 'three/webgpu';
 import {
   Fn, Loop, If, uniform, vec3, vec4, float, positionWorld, cameraPosition,
-  normalize, exp, dot, sqrt, max, min, length, pow, smoothstep,
+  normalize, exp, dot, sqrt, max, min, length, pow, smoothstep, clamp, select,
 } from 'three/tsl';
 
 // Single scattering raymarched through a shell around the planet (units: km), with sunlight
 // transmittance and multiple scattering read from the body's tables (see atmosphere-tables.js).
 // Mars is dust-dominated: Mie scattering with a per-channel phase asymmetry scatters blue light
 // more tightly around the Sun, which gives the blue Martian sunset.
-const VIEW_STEPS = 24;
 // Light shafts: a grazing sunbeam is checked against the terrain at its lowest point and this
 // far either side, where it has climbed only ~3 km on a Mars-sized planet. The soft edge hides
 // the coarse map's 10 km cells; a per-pixel dither did that too but left a visible hatch.
@@ -25,13 +24,24 @@ function densityAt(profile, h) {
   return min(h.sub(bottomKm).div(peakKm - bottomKm), float(topKm).sub(h).div(topKm - peakKm)).clamp(0, 1);
 }
 
+// TSL twin of viewStepEdge in atmosphere-luts.ts: where step edge x (0 to 1) falls on the ray.
+function stepEdge(x, tStart, tLow, tEnd) {
+  const before = tLow.sub(tStart);
+  const after = tEnd.sub(tLow);
+  const split = before.div(max(tEnd.sub(tStart), 1e-6));
+  const back = x.lessThan(split).or(after.lessThanEqual(0));
+  const side = select(back, split.sub(x).div(max(split, 1e-6)), x.sub(split).div(max(split.oneMinus(), 1e-6)));
+  const reach = side.mul(side.add(1)).mul(0.5);
+  return select(back, tLow.sub(before.mul(reach)), tLow.add(after.mul(reach)));
+}
+
 /**
  * The scattering shell, lit through the body's atmosphere tables.
- * @param {{ tables: Awaited<ReturnType<typeof import('./atmosphere-tables.js').createAtmosphereTables>>, terrainHeight?: (dir: any) => any, viewSteps?: number, clouds?: ReturnType<typeof import('./clouds.js').createClouds> | null }} opts
+ * @param {{ tables: Awaited<ReturnType<typeof import('./atmosphere-tables.js').createAtmosphereTables>>, terrainHeight?: (dir: any) => any, viewSteps: number, clouds?: ReturnType<typeof import('./clouds.js').createClouds> | null }} opts
  * `terrainHeight` maps a world-space unit direction to terrain height in km, for light shafts.
- * `clouds` puts a cloud shell inside the march.
+ * `viewSteps` is the tier's sample count per view ray; `clouds` puts a cloud shell inside the march.
  */
-export function createAtmosphere({ tables, terrainHeight, viewSteps = VIEW_STEPS, clouds = null }) {
+export function createAtmosphere({ tables, terrainHeight, viewSteps, clouds = null }) {
   const { model, transmittance: sunTransmittance, multiScatter } = tables;
   const u = {
     sunDir: uniform(new THREE.Vector3(1, 0, 0)),
@@ -65,7 +75,8 @@ export function createAtmosphere({ tables, terrainHeight, viewSteps = VIEW_STEPS
     return lit;
   };
 
-  const shade = Fn(() => {
+  const sampling = model.viewSamples ?? 'even';
+  const shade = (steps) => Fn(() => {
     const ro = cameraPosition;
     const rd = normalize(positionWorld.sub(cameraPosition));
 
@@ -107,15 +118,24 @@ export function createAtmosphere({ tables, terrainHeight, viewSteps = VIEW_STEPS
       };
     });
 
-    const seg = max(tEnd.sub(tStart), 0).div(viewSteps);
+    const evenSeg = max(tEnd.sub(tStart), 0).div(steps);
+    // The ray's lowest point in the air: where it passes closest to the centre, or the ground.
+    const tLow = clamp(b.negate(), tStart, tEnd);
     const throughput = vec3(1).toVar();
     const light = vec3(0).toVar();
     // Cloud light is in the ground's units, so it's kept apart from the shell's scaled light.
     const cloudList = clouds ? clouds.crossings(ro, rd, tEnd, sun) : [];
     const cloudLight = vec3(0).toVar();
 
-    Loop({ start: 0, end: viewSteps, name: 'i' }, ({ i }) => {
-      const t = tStart.add(seg.mul(float(i).add(0.5)));
+    Loop({ start: 0, end: steps, name: 'i' }, ({ i }) => {
+      let t = tStart.add(evenSeg.mul(float(i).add(0.5)));
+      let seg = evenSeg;
+      if (sampling === 'lowest') {
+        const t0 = stepEdge(float(i).div(steps), tStart, tLow, tEnd);
+        const t1 = stepEdge(float(i).add(1).div(steps), tStart, tLow, tEnd);
+        t = t0.add(t1).mul(0.5);
+        seg = max(t1.sub(t0), 0);
+      }
       if (clouds) clouds.composite(cloudList, t, throughput, cloudLight);
       const p = ro.add(rd.mul(t));
       const r = length(p);
@@ -149,7 +169,8 @@ export function createAtmosphere({ tables, terrainHeight, viewSteps = VIEW_STEPS
   });
 
   const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false });
-  mat.colorNode = shade();
+  let steps = viewSteps;
+  mat.colorNode = shade(steps)();
   mat.blending = THREE.CustomBlending;
   mat.blendSrc = THREE.OneFactor;
   mat.blendDst = THREE.OneMinusSrcAlphaFactor;
@@ -167,5 +188,13 @@ export function createAtmosphere({ tables, terrainHeight, viewSteps = VIEW_STEPS
     mat.depthTest = !inside;
   }
 
-  return { mesh, uniforms: u, update, dispose: () => [mat, mesh.geometry].forEach((x) => x.dispose()) };
+  // A tier change rebuilds the shader, under the crossfade that covers the change.
+  function setSteps(n) {
+    if (n === steps) return;
+    steps = n;
+    mat.colorNode = shade(n)();
+    mat.needsUpdate = true;
+  }
+
+  return { mesh, uniforms: u, update, setSteps, dispose: () => [mat, mesh.geometry].forEach((x) => x.dispose()) };
 }

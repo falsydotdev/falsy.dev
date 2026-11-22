@@ -176,6 +176,8 @@ export const EARTH: Body = {
     topKm: 100,
     groundAlbedo: [0.3, 0.3, 0.3],
     intensity: 8,
+    // The 1.2 km haze and the ozone layer are thin next to a 2,000 km limb ray.
+    viewSamples: 'lowest',
     components: [
       { scattering: [5.802e-3, 13.558e-3, 33.1e-3], absorption: [0, 0, 0], profile: { scaleHeightKm: 8 }, phase: 'rayleigh' },
       { scattering: [3.996e-3, 3.996e-3, 3.996e-3], absorption: [0.444e-3, 0.444e-3, 0.444e-3], profile: { scaleHeightKm: 1.2 }, phase: [0.8, 0.8, 0.8] },

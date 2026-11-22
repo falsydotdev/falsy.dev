@@ -25,9 +25,43 @@ export interface Atmosphere {
   components: AtmosphereComponent[];
   // Scales the tables' optical depth for sunlight reaching the ground, per channel; 1 when absent.
   groundHaze?: RGB;
+  // How the shell spaces its samples along a view ray (see viewSamples); even when absent.
+  viewSamples?: ViewSampling;
 }
 
+export type ViewSampling = 'even' | 'lowest';
+
 export type AtmosphereModel = Atmosphere & { radiusKm: number };
+
+/**
+ * Where view-ray step edge `x` (0 to 1) falls between `tStart` and `tEnd`. In 'lowest' mode, steps
+ * are half the even length at `tLow`, the ray's lowest point (its tangent point, or the ground), and
+ * grow to 1.5× toward each end. atmosphere.js computes the same in its shader.
+ */
+export function viewStepEdge(x: number, tStart: number, tLow: number, tEnd: number, mode: ViewSampling) {
+  const length = tEnd - tStart;
+  if (mode === 'even' || length <= 0) return tStart + x * length;
+  const before = tLow - tStart;
+  const after = tEnd - tLow;
+  const split = before / length;
+  const back = x < split || after <= 0;
+  const side = back ? (split - x) / split : (x - split) / (1 - split);
+  const reach = side * (1 + side) * 0.5;
+  return back ? tLow - before * reach : tLow + after * reach;
+}
+
+/** A view ray's samples: each step's midpoint `t` and length `seg`, tiling tStart to tEnd. */
+export function viewSamples(tStart: number, tLow: number, tEnd: number, steps: number, mode: ViewSampling) {
+  return Array.from({ length: steps }, (_, i) => {
+    if (mode === 'even') {
+      const seg = (tEnd - tStart) / steps;
+      return { t: tStart + (i + 0.5) * seg, seg };
+    }
+    const t0 = viewStepEdge(i / steps, tStart, tLow, tEnd, mode);
+    const t1 = viewStepEdge((i + 1) / steps, tStart, tLow, tEnd, mode);
+    return { t: (t0 + t1) / 2, seg: t1 - t0 };
+  });
+}
 
 export const OPTICAL_DEPTH_SIZE = { width: 256, height: 64 };
 export const MULTI_SCATTER_SIZE = 32;
