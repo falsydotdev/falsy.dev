@@ -14,6 +14,7 @@ import { createRequire } from 'node:module';
 import { SOURCES, TILE_DIR, PIPELINE, bodyArg, bodyInfo } from './paths.mjs';
 import { covers, isGlobal, listRasters } from './mosaic-rasters.mjs';
 import { QUALITY, encodeTile } from './colour-encode.mjs';
+import { leafLevelArg } from './leaf-level.ts';
 import { children, dirOf, tileDir, tileLatLonBounds, tileId } from '../../src/scene/tiles/cube.ts';
 import { TILES, colorPath } from '../../src/scene/tiles/layout.ts';
 
@@ -29,9 +30,8 @@ const RADIUS_KM = INFO.radiusKm;
 const MOSAIC = SPEC.format === 'mosaic';
 // Masked layers carry the water mask in alpha: 255 is land, 0 is water.
 const CHANNELS = LAYER.format === 'masked' ? 4 : 3;
-const leafArg = process.argv.indexOf('--leaf-level');
 // Worker threads don't see the command line, so the main thread hands its value over.
-const LEAF_LEVEL = isMainThread ? Math.min(LAYER.maxLevel, leafArg > 0 ? Number(process.argv[leafArg + 1]) : Infinity) : workerData.leafLevel;
+const LEAF_LEVEL = isMainThread ? leafLevelArg(process.argv, { min: JOB_LEVEL, max: LAYER.maxLevel }) : workerData.leafLevel;
 
 async function encode(rgb, k) {
   const file = join(OUT, colorPath(k));
