@@ -258,8 +258,7 @@ function lightsHeldFor(orbit: CircularOrbit, now: Date, ctx: ViewContext, sun: V
 }
 
 // A track past a city whose lights are fully on, with lights ahead at least until it may be replaced.
-// Places are drawn uniformly over the globe, so big lit regions come up most; for each city, the
-// headings whose lights last longest win. Null without a lights lookup or a qualifying track.
+// Places are drawn uniformly over the globe, so big lit regions come up most.
 export function nightPass(now: Date, opts: ShotOptions = {}): Shot | null {
   const { body, altKm } = resolve(opts);
   const ctx = opts.ctx ?? {};

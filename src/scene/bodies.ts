@@ -207,8 +207,7 @@ export const EARTH: Body = {
   clouds: { staticUrl: '/clouds/static.json', heightKm: 8, albedo: 0.85, reliefKm: 12 },
   // Colour stops at level 6 and carries the water mask in alpha (opaque is land).
   tiles: { version: 'v1', layers: [{ ...COLOR_LAYER, format: 'masked', maxLevel: 6 }, HEIGHT_LAYER, LIGHTS_LAYER] },
-  // Named places lead because visitors know them by sight; a flyover is on offer almost all the time.
-  // Some part of the night side is always over lit cities, so one load in five shows Earth's night.
+  // Named places lead because visitors know them by sight; one load in five shows the night side's cities.
   // Heading into night, renders dim to 7 of 255 at −5° and are close to black by −6°.
   shots: { weights: { 'dawn-dusk': 0.25, 'orbital-sunrise': 0.25, 'feature-flyover': 0.3, 'night-pass': 0.2 }, dawnDuskSunDeg: 4, sunriseLeadS: 60, sunriseLimbKm: 0, darkBelowDeg: -5, nightPass: { cityAbove: 1e-2, reachKm: 500, holdAbove: 3e-3 } },
   listed: false,
