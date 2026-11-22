@@ -16,9 +16,12 @@ export const EARTH_BAKE_DATE = new Date(process.env.EARTH_BAKE_DATE ?? Date.now(
 const BMNG = bmngMonth(EARTH_BAKE_DATE);
 const GEBCO_URL = 'https://dap.ceda.ac.uk/bodc/gebco/global/gebco_2026/ice_surface_elevation/geotiff';
 const BMNG_URL = `https://assets.science.nasa.gov/content/dam/science/esd/eo/images/bmng/bmng-base/${BMNG.name}`;
+const BLACK_MARBLE_URL = 'https://assets.science.nasa.gov/content/dam/science/esd/eo/images/imagerecords/144000/144897';
 const range = (t) => `n${t.north.toFixed(1)}_s${t.south.toFixed(1)}_w${t.west.toFixed(1)}_e${t.east.toFixed(1)}`;
 const earthSources = Object.fromEntries(
   QUAD_TILES.flatMap((t) => [
+    // Black Marble 2016 greyscale at 500 m (21600², LZW; the grey sits in all three channels).
+    [`blackMarble${t.name}`, { url: `${BLACK_MARBLE_URL}/BlackMarble_2016_${t.name}_geo_gray.tif`, file: join(SOURCE_DIR, 'earth', `BlackMarble_2016_${t.name}_geo_gray.tif`), tile: t }],
     // GEBCO_2026 ice surface (not sub-ice, which puts the ice sheets below sea level): 21600² int16, uncompressed.
     [`gebco${t.name}`, { url: `${GEBCO_URL}/gebco_2026_${range(t)}_geotiff.tif`, file: join(SOURCE_DIR, 'earth', `gebco_2026_${range(t)}_geotiff.tif`), tile: t }],
     // Blue Marble Next Generation base map (no hillshade), 500 m.
@@ -64,6 +67,11 @@ export const SOURCES = {
     url: `${BMNG_URL}/world.${BMNG.stamp}.3x5400x2700.jpg`,
     file: join(SOURCE_DIR, 'earth', `world.${BMNG.stamp}.3x5400x2700.jpg`),
   },
+  // Black Marble 2016 greyscale at 3 km (13500×6750), the global fill for city lights.
+  blackMarbleCoarse: {
+    url: `${BLACK_MARBLE_URL}/BlackMarble_2016_3km_gray_geo.tif`,
+    file: join(SOURCE_DIR, 'earth', 'BlackMarble_2016_3km_gray_geo.tif'),
+  },
 };
 
 // Which sources make each body's tiles, and how to read them. Height `pixelM` picks the mip a
@@ -82,8 +90,8 @@ export const PIPELINE = {
   earth: {
     heights: { format: 'mosaic' },
     colour: { format: 'mosaic' },
-    fetch: [...QUAD_TILES.flatMap((t) => [`gebco${t.name}`, `bmng${t.name}`]), 'naturalEarthLand'],
-    steps: ['fetch-sources', 'earth-mosaic', 'earth-sentinel', 'heights', 'colour'],
+    fetch: [...QUAD_TILES.flatMap((t) => [`gebco${t.name}`, `bmng${t.name}`, `blackMarble${t.name}`]), 'naturalEarthLand', 'blackMarbleCoarse'],
+    steps: ['fetch-sources', 'earth-mosaic', 'earth-sentinel', 'heights', 'colour', 'lights'],
   },
 };
 

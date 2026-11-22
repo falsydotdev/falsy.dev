@@ -2,6 +2,7 @@
 // with a box-filtered mip chain; masked colour comes back as an ImageBitmap; heights come back as
 // half floats in km, ready for an R16F array layer.
 import { decodeHeights } from '../tiles/layout.ts';
+import { halveLights } from '../tiles/lights-codec.ts';
 
 const toHalf = (() => {
   const f32 = new Float32Array(1);
@@ -67,13 +68,15 @@ async function loadMasked(url) {
   return { bitmap, bytes: blob.size };
 }
 
-// Single-channel images (city lights) keep their first channel.
+// Single-channel images (city lights) keep their first channel; their mips average light.
 async function loadMono(url) {
   const img = await decodeImage(url);
   if (!img) return { missing: true, bytes: 0 };
   const mono = new Uint8Array(img.size * img.size);
   for (let i = 0; i < mono.length; i++) mono[i] = img.rgba[i * 4];
-  return { levels: mipChain(mono, img.size, 1), bytes: img.bytes };
+  const levels = [mono];
+  for (let s = img.size; s > 1; s >>= 1) levels.push(halveLights(levels[levels.length - 1], s));
+  return { levels, bytes: img.bytes };
 }
 
 async function loadHeight(url, shape) {
