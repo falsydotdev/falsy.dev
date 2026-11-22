@@ -1,6 +1,6 @@
 ---
 import posterData from '../data/posters.json';
-import { BODIES } from '../scene/bodies';
+import { BODIES, nextBodyId } from '../scene/bodies';
 
 interface Poster {
   id: string;
@@ -39,9 +39,8 @@ function telemetry(p: Pick<Poster, 'body' | 'lat' | 'lon' | 'lst' | 'altKm' | 'r
   return parts.map(([text, cls]) => `<span${cls ? ` class="${cls}"` : ''}>${text}</span>`).join('');
 }
 
-const DATA_CREDIT: Record<string, string> = { mars: 'MOLA elevation and Viking colour data', moon: 'LOLA elevation and LROC colour data' };
 const bodies = Object.keys(BODIES);
-const names = Object.fromEntries(Object.values(BODIES).map((b) => [b.id, b.name]));
+const ui = Object.fromEntries(Object.values(BODIES).map((b) => [b.id, { name: b.name, spoken: b.spokenName, loading: b.loadingLabel }]));
 const srcset = (sources: { src: string; width: number }[]) => sources.map((s) => `${s.src} ${s.width}w`).join(', ');
 const choices = posters.map((p) => ({
   id: p.id,
@@ -52,9 +51,11 @@ const choices = posters.map((p) => ({
   srcset: srcset(p.sources),
   portrait: p.portrait ? { src: p.portrait.sources[0].src, srcset: srcset(p.portrait.sources), telemetry: telemetry({ ...p, ...p.portrait }) } : null,
   telemetry: telemetry(p),
-  title: `${p.label}. A still frame rendered from ${DATA_CREDIT[p.body.toLowerCase()]}, lit by the real Sun position at ${p.at.slice(0, 10)} ${p.at.slice(11, 16)} UTC. Relief is exaggerated ${p.relief}×.`,
+  title: `${p.label}. A still frame rendered from ${BODIES[p.body.toLowerCase()].dataCredit}, lit by the real Sun position at ${p.at.slice(0, 10)} ${p.at.slice(11, 16)} UTC. Relief is exaggerated ${p.relief}×.`,
 }));
 const fallback = choices[0];
+const withStills = new Set(choices.map((c) => c.body));
+const posterNext = Object.fromEntries(bodies.map((id) => [id, nextBodyId(bodies, id, (b) => withStills.has(b))]));
 // Production tiles live on their own host; in development they're served from this one.
 const tilesBase = import.meta.env.PUBLIC_TILES_BASE;
 const tilesOrigin = tilesBase && URL.canParse(tilesBase) ? new URL(tilesBase).origin : '';
@@ -68,7 +69,7 @@ const tilesOrigin = tilesBase && URL.canParse(tilesBase) ? new URL(tilesBase).or
     <div class="scrim"></div>
   </div>
   <p id="telemetry" class="telemetry"><button type="button" class="body-switch"></button></p>
-  <script is:inline define:vars={{ choices, bodies, names, tilesOrigin }}>
+  <script is:inline define:vars={{ choices, bodies, ui, posterNext, tilesOrigin }}>
     (() => {
       // Decide before anything paints: visitors who'll get the live scene see dark
       // space until it fades in, so a poster of somewhere else never flashes first.
@@ -115,12 +116,12 @@ const tilesOrigin = tilesBase && URL.canParse(tilesBase) ? new URL(tilesBase).or
       const t = document.getElementById('telemetry');
       const sw = t.querySelector('.body-switch');
       const sky = img.closest('.sky');
-      const nextBody = (id) => bodies[(bodies.indexOf(id) + 1) % bodies.length];
-      const spoken = (id) => (id === 'moon' ? 'the Moon' : names[id]);
+      // Posters skip bodies that have no stills; the live scene can show any body.
+      const nextBody = (id) => (sky.dataset.scene === 'poster' ? posterNext[id] : bodies[(bodies.indexOf(id) + 1) % bodies.length]);
       const labelSwitch = (id) => {
-        sw.textContent = names[id].toUpperCase();
-        sw.setAttribute('aria-label', `${names[id]}. Switch to ${spoken(nextBody(id))}`);
-        sw.title = `Switch to ${spoken(nextBody(id))}`;
+        sw.textContent = ui[id].name.toUpperCase();
+        sw.setAttribute('aria-label', `${ui[id].name}. Switch to ${ui[nextBody(id)].spoken}`);
+        sw.title = `Switch to ${ui[nextBody(id)].spoken}`;
       };
       labelSwitch(body);
 
@@ -170,9 +171,9 @@ const tilesOrigin = tilesBase && URL.canParse(tilesBase) ? new URL(tilesBase).or
         if (img.getAttribute('src')) return;
         const pick = posterFor(root.dataset.body);
         const tall = isTall(pick);
+        sky.dataset.scene = 'poster';
         describe(pick, tall);
         load(img, pick, tall);
-        sky.dataset.scene = 'poster';
       };
       window.__falsyShowPoster = showPoster;
 
@@ -237,7 +238,7 @@ const tilesOrigin = tilesBase && URL.canParse(tilesBase) ? new URL(tilesBase).or
       sky.dataset.scene = 'pending';
       sky.style.setProperty('--horizon', '0.3');
       const loading = document.createElement('span');
-      loading.textContent = `Loading ${body === 'moon' ? 'lunar' : 'Mars'} terrain…`;
+      loading.textContent = `Loading ${ui[body].loading}…`;
       t.append(loading);
       // If the live scene hasn't taken over by now, something went wrong: fall back.
       setTimeout(() => { if (sky.dataset.scene === 'pending') showPoster(); }, 12000);
