@@ -5,6 +5,7 @@ import { toWorld, createLighting } from './terrain.js';
 import { TiledPlanet } from './planet.js';
 import { orbitCameraPose } from '../camera.ts';
 import { createAtmosphere } from './atmosphere.js';
+import { createAtmosphereTables } from './atmosphere-tables.js';
 import { createStars } from './stars.js';
 import { createSun } from './sun.js';
 import { createEarth } from './earth.js';
@@ -122,6 +123,7 @@ export async function startLiveScene(host, opts) {
 
   let planet;
   let atmosphere;
+  let atmosphereTables;
   let pipeline;
   let layers;
   // Time spent rendering before the first fade-in. A tab loaded in the background doesn't run it down.
@@ -157,6 +159,7 @@ export async function startLiveScene(host, opts) {
     clearTimeout(reframe);
     planet?.dispose();
     atmosphere?.dispose();
+    atmosphereTables?.dispose();
     sun?.dispose();
     earth?.dispose();
     pipeline?.dispose();
@@ -201,16 +204,18 @@ export async function startLiveScene(host, opts) {
   // The device can be lost while tiles load; teardown has run, so nothing more may start.
   if (stopped) throw new Error('GPU device lost while the scene was loading');
   async function loadPlanet() {
-    const meta = await opts.meta;
+    // The terrain material reads sunlight through the atmosphere, so its tables come first.
+    const [meta, tables] = await Promise.all([opts.meta, body.atmosphere ? createAtmosphereTables(body.atmosphere, body.radiusKm) : null]);
+    atmosphereTables = tables;
     if (!meta) throw new Error(`No tiles at ${opts.dataUrl}`);
     if (meta.body !== body.id || Math.abs(meta.radiusKm - body.radiusKm) > 1e-6) console.warn(`Tiles at ${opts.dataUrl} are for ${meta.body}, not ${body.id}.`);
     layers = isWebGPU ? gpuLayers ?? 256 : Math.min(WANTED_LAYERS, renderer.backend.gl.getParameter(renderer.backend.gl.MAX_ARRAY_TEXTURE_LAYERS));
-    planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: body.relief, layers, tileLayers: body.tiles.layers, lighting, relaxBeyondKm: opts.farKm });
+    planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: body.relief, layers, tileLayers: body.tiles.layers, lighting, atmosphere: tables, relaxBeyondKm: opts.farKm });
     const tiledPlanet = planet;
     planet.lean = opts.lean ?? true;
     // Tiles stream while the shadow map downloads; the first fade-in waits for it (see the loop).
     planet.init().then(() => (shadowAtMs = loadMs));
-    atmosphere = body.atmosphere ? await createAtmosphere({ planetRadius: body.radiusKm, density: body.atmosphere.density, terrainHeight: (n) => tiledPlanet.coarseHeight(n) }) : null;
+    atmosphere = tables ? createAtmosphere({ tables, terrainHeight: (n) => tiledPlanet.coarseHeight(n) }) : null;
     scene.add(planet.mesh);
     sun.useTerrain((n) => tiledPlanet.coarseHeight(n));
     if (atmosphere) scene.add(atmosphere.mesh);
