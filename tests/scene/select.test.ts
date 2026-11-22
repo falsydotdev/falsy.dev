@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { orbitCameraPose } from '../../src/scene/camera';
 import { vec, type Vec3 } from '../../src/scene/ephemeris';
-import { type TileKey, dirOf, tileAt, tileId, parent } from '../../src/scene/tiles/cube';
-import { type CameraPose, selectTiles, tilesToFetch } from '../../src/scene/tiles/select';
+import { type TileKey, dirOf, tileAt, tileDir, tileId, parent } from '../../src/scene/tiles/cube';
+import { type CameraPose, layerTilesToFetch, selectTiles, tilesToFetch } from '../../src/scene/tiles/select';
+import type { TileLayer } from '../../src/scene/tiles/layers';
+import { MARS, MOON } from '../../src/scene/bodies';
 
 const R = 3396.19;
 const opts = { radiusKm: R, heightRangeKm: [-8.2 * 2.5, 21.3 * 2.5] as [number, number], tilePx: 256, maxLevel: 7 };
@@ -102,5 +104,52 @@ describe('tiles to fetch', () => {
     for (const t of tiles) if (t.key.level > 0) expect(fetchIds(keys).has(tileId(coarse(parent(t.key))!))).toBe(true);
     for (const t of tiles) expect(fetchIds(keys).has(t.id)).toBe(true);
     expect(keys.length).toBeLessThan(tilesToFetch(tiles).length);
+  });
+});
+
+describe('a body with an extra tile layer', () => {
+  const tiles = selectTiles(pose(200, 12), opts);
+  const keys = tilesToFetch(tiles);
+  const fetchIdsOf = (ks: TileKey[]) => new Set(ks.map(tileId));
+  const lights: TileLayer = { id: 'lights', format: 'mono', dir: 'l', ext: 'avif', sizePx: 128, maxLevel: 6, sunBelowDeg: 5 };
+
+  it('fetches a capped layer from ancestors at its cap, covering every selected tile', () => {
+    const capped = { ...lights, sunBelowDeg: undefined };
+    const ids = new Set(layerTilesToFetch(keys, capped).map(tileId));
+    expect(Math.max(...[...ids].map((id) => Number(id.split('/')[0])))).toBe(6);
+    for (const t of tiles) {
+      let k: TileKey | null = t.key;
+      while (k && k.level > 6) k = parent(k);
+      expect(ids.has(tileId(k!))).toBe(true);
+    }
+  });
+
+  it('fetches a night-only layer for every tile with ground under a Sun below its limit, and skips full daylight', () => {
+    // Sun 90° east of the camera's ground point, so the terminator runs under the camera.
+    const sun = dirOf(10, 120);
+    const ids = new Set(layerTilesToFetch(keys, lights, sun).map(tileId));
+    const capped = layerTilesToFetch(keys, { ...lights, sunBelowDeg: undefined });
+    let night = 0;
+    let day = 0;
+    for (const k of capped) {
+      let minDeg = 90;
+      for (let i = 0; i <= 4; i++) for (let j = 0; j <= 4; j++) minDeg = Math.min(minDeg, (Math.asin(vec.dot(tileDir(k, i / 4, j / 4), sun)) * 180) / Math.PI);
+      if (minDeg < 5) expect(ids.has(tileId(k))).toBe(true), night++;
+      if (minDeg > 8) expect(ids.has(tileId(k))).toBe(false), day++;
+    }
+    expect(night).toBeGreaterThan(20);
+    expect(day).toBeGreaterThan(20);
+  });
+
+  it('fetches nothing of a night-only layer under a high Sun', () => {
+    expect(layerTilesToFetch(keys.filter((k) => k.level >= 4), lights, dirOf(10, 30))).toHaveLength(0);
+  });
+
+  it('leaves Mars and the Moon fetching exactly the colour and height tiles they always did', () => {
+    const all = [...fetchIdsOf(keys)].sort();
+    for (const body of [MARS, MOON]) {
+      expect(body.tiles.layers.map((l) => l.id)).toEqual(['color', 'height']);
+      for (const layer of body.tiles.layers) expect([...fetchIdsOf(layerTilesToFetch(keys, layer, dirOf(10, 120)))].sort()).toEqual(all);
+    }
   });
 });

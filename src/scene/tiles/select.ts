@@ -1,5 +1,6 @@
 // Picks which quadtree tiles to draw for a camera, by screen-space texel size, with horizon
 // and frustum culling. Shared by the renderer and the download-budget measurement.
+import type { TileLayer } from './layers.ts';
 import { type TileKey, type Vec3, children, parent, roots, tileAngularRadius, tileDir, tileEdgeKm, tileId } from './cube.ts';
 
 export interface CameraPose {
@@ -120,6 +121,34 @@ export function tilesToFetch(selected: Selected[], { pinnedLevel = 1, lean = fal
     let p = parent(s.key);
     while (lean && p && p.level > LEAN_FALLBACK_LEVEL) p = parent(p);
     if (p) out.set(tileId(p), p);
+  }
+  return [...out.values()];
+}
+
+/** The tile that holds a layer's texels for `key`: `key` itself, or its ancestor at the layer's level cap. */
+export function layerTile(key: TileKey, layer: Pick<TileLayer, 'maxLevel'>): TileKey {
+  let k = key;
+  while (k.level > layer.maxLevel) k = parent(k)!;
+  return k;
+}
+
+/**
+ * Whether a layer's fetch rule wants tile `key` now. `sunDir` is the unit vector to the Sun in the
+ * body frame. A tile wants a night-only layer while any of its ground sees the Sun below the limit.
+ */
+export function layerWants(key: TileKey, layer: TileLayer, sunDir?: Vec3): boolean {
+  if (layer.sunBelowDeg === undefined) return true;
+  if (!sunDir) return false;
+  const centreDeg = (Math.asin(Math.max(-1, Math.min(1, dot(tileDir(key, 0.5, 0.5), sunDir)))) * 180) / Math.PI;
+  return centreDeg - (tileAngularRadius(key) * 180) / Math.PI < layer.sunBelowDeg;
+}
+
+/** One layer's share of `tilesToFetch`: held to the layer's level cap, minus tiles its fetch rule skips. */
+export function layerTilesToFetch(keys: TileKey[], layer: TileLayer, sunDir?: Vec3): TileKey[] {
+  const out = new Map<string, TileKey>();
+  for (const key of keys) {
+    const k = layerTile(key, layer);
+    if (layerWants(k, layer, sunDir)) out.set(tileId(k), k);
   }
   return [...out.values()];
 }

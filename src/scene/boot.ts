@@ -40,6 +40,7 @@ declare global {
 
 import { isTierName } from './quality.ts';
 import { type Body, BODIES, bodyById } from './bodies.ts';
+import { layerPath } from './tiles/layers.ts';
 
 // Load times from a tab that was hidden at any point include the wait, so analytics flags them.
 window.__falsyHiddenSinceNav ||=
@@ -124,12 +125,14 @@ async function prewarm(body: Body) {
   const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
   if (prewarmed.has(body.id) || connection?.saveData) return;
   prewarmed.add(body.id);
-  const { colorPath, heightPath, SHADOW_MAP } = await import('./tiles/layout.ts');
+  const { SHADOW_MAP } = await import('./tiles/layout.ts');
+  // A layer with a Sun rule depends on where the switch lands, so it isn't worth guessing at here.
+  const tileLayers = body.tiles.layers.filter((l) => l.sunBelowDeg === undefined);
   const paths: string[] = ['meta.json', SHADOW_MAP.path];
   for (let level = 0; level <= PREWARM_LEVELS; level++) {
     const n = 2 ** level;
     for (let face = 0; face < 6; face++) {
-      for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) paths.push(colorPath({ face, level, x, y }), heightPath({ face, level, x, y }));
+      for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) for (const l of tileLayers) if (level <= l.maxLevel) paths.push(layerPath(l, { face, level, x, y }));
     }
   }
   const queue = paths.map((p) => `${tilesUrl(body)}/${p}`);
