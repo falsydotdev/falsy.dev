@@ -17,6 +17,13 @@ function shouldTrack() {
   return location.hostname === 'falsy.dev' && !navigator.webdriver;
 }
 
+// `fx=` switches layers off and `bench=` renders each frame several times, so those sessions'
+// frame times and tier steps would skew the per-device numbers.
+const skewsFrameTimes = () => {
+  const params = new URLSearchParams(location.search);
+  return params.has('fx') || params.has('bench');
+};
+
 function sceneProps(mode: 'live' | 'poster') {
   const live = mode === 'live' ? window.__falsyLive?.state : undefined;
   return {
@@ -85,12 +92,13 @@ function reportScene(posthog: PostHog) {
   let shown = false;
   const sampled = new WeakSet<LiveState>();
   const sample = (state: LiveState) => {
-    if (sampled.has(state)) return;
+    if (!perfData || sampled.has(state)) return;
     sampled.add(state);
     samplePerf(posthog, sky, state);
   };
+  const perfData = !skewsFrameTimes();
   const sendTierChanges = () => {
-    if (!shown) return;
+    if (!shown || !perfData) return;
     const log = window.__falsyTierLog ?? [];
     for (const c of log.slice(sentChanges)) {
       posthog.capture('scene_tier_changed', {

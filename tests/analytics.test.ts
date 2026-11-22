@@ -18,7 +18,7 @@ const ALLOWED = new Set([
   'from', 'to', 'at_ms', 'load', 'mode',
 ]);
 
-function stubPage() {
+function stubPage(search = '?ph=1') {
   const listeners = new Map<string, ((e: Event) => void)[]>();
   const on = (type: string, fn: (e: Event) => void) => listeners.set(type, [...(listeners.get(type) ?? []), fn]);
   const state = {
@@ -27,7 +27,7 @@ function stubPage() {
     stopped: false, held: false, pixelRatio: 1.25, throttled: false,
   };
   vi.stubGlobal('window', globalThis);
-  vi.stubGlobal('location', { search: '?ph=1', hostname: 'localhost' });
+  vi.stubGlobal('location', { search, hostname: 'localhost' });
   vi.stubGlobal('navigator', { webdriver: false });
   vi.stubGlobal('devicePixelRatio', 2);
   vi.stubGlobal('requestIdleCallback', (cb: () => void) => cb());
@@ -49,6 +49,7 @@ function stubPage() {
 }
 
 afterEach(() => {
+  sent.length = 0;
   vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
@@ -74,5 +75,22 @@ describe('analytics during a home pass', () => {
         if (typeof value === 'string') expect(value).not.toMatch(/\/|home/);
       }
     }
+  });
+});
+
+describe('analytics in a preview session', () => {
+  it.each(['?ph=1&fx=clouds', '?ph=1&bench=4'])('keeps frame-time data out of the field numbers with %s', async (search) => {
+    vi.useFakeTimers();
+    vi.stubEnv('PUBLIC_POSTHOG_TOKEN', 'phc_test');
+    vi.stubEnv('PUBLIC_POSTHOG_HOST', 'https://example.test');
+    stubPage(search);
+    const { startAnalytics } = await import('../src/analytics');
+    startAnalytics();
+    await vi.advanceTimersByTimeAsync(50_000);
+
+    const events = sent.map((s) => s.event);
+    expect(events).toContain('scene_shown');
+    expect(events).not.toContain('scene_perf');
+    expect(events).not.toContain('scene_tier_changed');
   });
 });
