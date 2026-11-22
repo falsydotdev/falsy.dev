@@ -14,6 +14,7 @@ import { chooseShot, dawnDusk, earthrise, orbitalSunrise, featureFlyover, seeded
 import { bodyById } from '../bodies.ts';
 import { telemetryParts } from '../telemetry';
 import { Governor, initialTier, renderPixelRatio, tier as tierByName } from '../quality.ts';
+import { frameTimes } from '../perf.ts';
 import { solveFraming } from '../composition.ts';
 
 const DEG = Math.PI / 180;
@@ -311,7 +312,7 @@ export async function startLiveScene(host, opts) {
   // While two scenes overlap in a body switch, each sees the other's GPU time as its own load.
   let governorHeld = opts.holdGovernor ?? false;
   const state = {
-    frames: 0, body: body.id, shot: shot.kind, get earth() { return earth?.status ?? 'none'; }, get shadow() { return planet.shadow; }, backend: hints.backend, gpu: hints.vendor ?? hints.description, canvas: renderer.domElement, layers, tiles: planet.stats, firstFrameMs: 0,
+    frames: 0, body: body.id, shot: shot.kind, get earth() { return earth?.status ?? 'none'; }, get shadow() { return planet.shadow; }, backend: hints.backend, gpu: hints.vendor ?? hints.description, canvas: renderer.domElement, layers, tiles: planet.stats, firstFrameMs: 0, readyAtMs: 0, startTier: tier.name,
     tier: tier.name, timing: governor ? (gpuTiming ? 'gpu' : 'cadence') : 'forced', gpuMs: 0, gpuLog: [], load: 0, tierChanges: [],
     framing: cam,
   };
@@ -367,9 +368,11 @@ export async function startLiveScene(host, opts) {
       if (stopped || !governor) return;
       const verdict = governor.sample(load, !first);
       state.load = governor.lastMedian;
+      if (verdict !== 'down' && verdict !== 'give-up') return;
+      const change = { from: tier.name, to: verdict === 'give-up' ? 'frozen' : governor.tier, atMs: Math.round(performance.now() - started), load: governor.lastMedian, gpu: frameTimes(state.gpuLog.slice(-20)) };
+      state.tierChanges.push(change);
+      document.dispatchEvent(new CustomEvent('falsy:tier-changed', { detail: { state, change } }));
       if (verdict === 'give-up') return giveUp();
-      if (verdict !== 'down') return;
-      state.tierChanges.push({ to: governor.tier, atMs: Math.round(performance.now() - started), load: governor.lastMedian });
       // Before the first frame shows, nobody sees the change; after, it crossfades like a tab return.
       if (!first) {
         takeSnapshot();
@@ -438,6 +441,7 @@ export async function startLiveScene(host, opts) {
       first = false;
       planet.lean = false;
       state.firstFrameMs = Math.round(performance.now() - started);
+      state.readyAtMs = Math.round(performance.now());
       opts.onFirstFrame?.();
     }
   });

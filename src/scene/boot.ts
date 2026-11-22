@@ -6,7 +6,29 @@ declare global {
     __falsyShowPoster?: () => void;
     __falsySwitchLive?: (body: string) => void;
     __falsyLabelSwitch?: (body: string) => void;
-    __falsyLive?: { state: { frames: number; body: string; shot: string; backend: string; tier: string; canvas: HTMLCanvasElement } };
+    __falsyLive?: { state: LiveState };
+  }
+  interface LiveState {
+    frames: number;
+    body: string;
+    shot: string;
+    backend: string;
+    tier: string;
+    startTier: string;
+    timing: string;
+    gpu: string | undefined;
+    gpuLog: number[];
+    tierChanges: TierChange[];
+    firstFrameMs: number;
+    readyAtMs: number;
+    canvas: HTMLCanvasElement;
+  }
+  interface TierChange {
+    from: string;
+    to: string;
+    atMs: number;
+    load: number;
+    gpu: import('./perf.ts').FrameTimes;
   }
 }
 
@@ -50,7 +72,7 @@ function measureLayout() {
 }
 
 interface LiveScene {
-  state: { frames: number; body: string; shot: string; backend: string; tier: string; canvas: HTMLCanvasElement };
+  state: LiveState;
   dispose(): void;
   freeze(): HTMLCanvasElement | null;
   surfaces(): HTMLCanvasElement[];

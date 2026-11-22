@@ -1,7 +1,11 @@
 import type { PostHog } from 'posthog-js';
+import { frameTimes } from './scene/perf.ts';
 
 const token = import.meta.env.PUBLIC_POSTHOG_TOKEN;
 const host = import.meta.env.PUBLIC_POSTHOG_HOST;
+
+// Long enough for the governor to settle on a tier after the fade-in.
+const PERF_SAMPLE_AFTER_MS = 20_000;
 
 // Only the production host reports, so dev, Lighthouse CI and PR previews stay out of the data.
 // `?ph=1` turns it on anywhere; test locally under `wrangler dev`, which serves the /uplink relay.
@@ -22,23 +26,81 @@ function sceneProps(mode: 'live' | 'poster') {
   };
 }
 
+function frameProps(state: LiveState) {
+  const t = frameTimes(state.gpuLog);
+  return { gpu_ms_p50: t.p50, gpu_ms_p90: t.p90, gpu_samples: t.samples, timing: state.timing };
+}
+
+// One frame-time reading per scene once its tier has settled, so every visit shows its headroom,
+// not only the ones that stepped down. Skipped if the tab was hidden, since the log would be stale.
+function samplePerf(posthog: PostHog, state: LiveState) {
+  setTimeout(() => {
+    if (document.visibilityState !== 'visible' || state.tier === 'frozen') return;
+    posthog.capture('scene_perf', {
+      body: state.body,
+      tier: state.tier,
+      start_tier: state.startTier,
+      gpu: state.gpu ?? null,
+      dpr: devicePixelRatio,
+      ...frameProps(state),
+    });
+  }, PERF_SAMPLE_AFTER_MS);
+}
+
 // Records once per visit whether the visitor got the live orbit or a poster, and on which GPU path,
-// then each switch between bodies from the readout.
+// then each switch between bodies from the readout, each tier step-down, and one frame-time sample.
 function reportScene(posthog: PostHog) {
   const sky = document.querySelector<HTMLElement>('#stage .sky');
   if (!sky) return;
+  const sent = new WeakMap<LiveState, number>();
+  const sendTierChanges = (state: LiveState) => {
+    const changes = state.tierChanges;
+    for (const c of changes.slice(sent.get(state) ?? 0)) {
+      posthog.capture('scene_tier_changed', {
+        body: state.body,
+        from: c.from,
+        to: c.to,
+        at_ms: c.atMs,
+        load: c.load,
+        gpu_ms_p50: c.gpu.p50,
+        gpu_ms_p90: c.gpu.p90,
+        gpu_samples: c.gpu.samples,
+        gpu: state.gpu ?? null,
+      });
+    }
+    sent.set(state, changes.length);
+  };
   const send = () => {
     const mode = sky.dataset.scene;
     if (mode !== 'live' && mode !== 'poster') return false;
     const props = sceneProps(mode);
     posthog.register(props);
-    posthog.capture('scene_shown', props);
+    const live = mode === 'live' ? window.__falsyLive?.state : undefined;
+    posthog.capture('scene_shown', {
+      ...props,
+      ...(live && {
+        scene_ready_ms: live.readyAtMs || null,
+        scene_load_ms: live.firstFrameMs || null,
+        scene_gpu: live.gpu ?? null,
+        scene_dpr: devicePixelRatio,
+      }),
+    });
+    if (live) {
+      // Analytics starts after load, so a step-down may already have happened.
+      sendTierChanges(live);
+      samplePerf(posthog, live);
+    }
     return true;
   };
+  document.addEventListener('falsy:tier-changed', (e) => {
+    sendTierChanges((e as CustomEvent<{ state: LiveState }>).detail.state);
+  });
   document.addEventListener('falsy:body-switched', (e) => {
     const { from, to, mode } = (e as CustomEvent<{ from: string; to: string; mode: 'live' | 'poster' }>).detail;
     posthog.register(sceneProps(mode));
     posthog.capture('body_switched', { from, to, mode });
+    const live = mode === 'live' ? window.__falsyLive?.state : undefined;
+    if (live) samplePerf(posthog, live);
   });
   if (send()) return;
   const watch = new MutationObserver(() => send() && watch.disconnect());
