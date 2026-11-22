@@ -178,7 +178,7 @@ export const EARTH: Body = {
   },
   seaLevel: true,
   // Until the live clouds ship: GMGSI for 2026-11-22 11:00 UTC against the 14 days before it.
-  clouds: { url: '/clouds/static.json', source: 'static', heightKm: 8, albedo: 0.85, reliefKm: 4 },
+  clouds: { url: '/clouds/static.json', source: 'static', heightKm: 8, albedo: 0.85, reliefKm: 12 },
   // Colour stops at level 6 and carries the water mask in alpha (opaque is land).
   tiles: { version: 'v1', layers: [{ ...COLOR_LAYER, format: 'masked', maxLevel: 6 }, HEIGHT_LAYER] },
   // Feature flyovers fall back to dawn-dusk until Earth has a feature list.

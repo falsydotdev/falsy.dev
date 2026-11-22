@@ -502,9 +502,11 @@ export async function startLiveScene(host, opts) {
     }
     const settleMs = opts.settleTimeoutMs ?? SETTLE_TIMEOUT_MS;
     // Without the shadow map, shadows and the Sun's halo would pop in, so the timeout runs from its
-    // arrival. Clouds would pop in too, so it waits for them as well.
-    const shadowIn = planet.shadow !== 'loading' && clouds?.state.status !== 'loading';
-    if (first && ((shadowIn && (planet.settled() || loadMs - shadowAtMs > settleMs)) || loadMs > settleMs * 2)) {
+    // arrival. Settled tiles also wait for the clouds, but the timeouts don't, so a slow cloud map
+    // can't hold the scene past the page's poster fallback.
+    const shadowIn = planet.shadow !== 'loading';
+    const cloudsIn = clouds?.state.status !== 'loading';
+    if (first && ((shadowIn && ((planet.settled() && cloudsIn) || loadMs - shadowAtMs > settleMs)) || loadMs > settleMs * 2)) {
       first = false;
       planet.lean = false;
       state.firstFrameMs = Math.round(performance.now() - started);
