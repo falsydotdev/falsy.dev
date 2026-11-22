@@ -147,7 +147,7 @@ The readout sits in a corner, for example `MARS  18.4°N  226.0°E  LST 06:12  A
 
 ### Later bodies
 
-- **Earth:** shows that day's real clouds from NASA's daily imagery, fetched by the daily job. It falls back to the previous day, then to a static cloud map. Night-side city lights come from NASA Black Marble.
+- **Earth:** shows real clouds from NOAA's GMGSI geostationary infrared composite, refreshed every 3 hours by the cloud job (a cron Worker that runs a Cloudflare Container). If the newest clouds are missing or more than about 6 hours old, it keeps the last good set and the readout says so; with no set at all, it falls back to a static cloud map. Night-side city lights come from NASA Black Marble.
 - **Jupiter and Saturn:** cloud bands drift at their real, latitude-dependent rotation rates, using Cassini and Juno maps with flow distortion. At real time that drift is slow, so the camera's orbit carries the motion. Saturn's rings and the planet shadow each other.
 
 ## Easter egg: the explorer (v2)
