@@ -2,6 +2,7 @@
 import type * as A from 'astronomy-engine';
 import type { Atmosphere } from './atmosphere-luts.ts';
 import { EARTH_FEATURES, type Feature, MARS_FEATURES, MOON_FEATURES } from './features.ts';
+import type { ShotKind } from './shots.ts';
 import { COLOR_LAYER, HEIGHT_LAYER, type TileLayer } from './tiles/layers.ts';
 
 export type RGB = readonly [number, number, number];
@@ -36,7 +37,7 @@ export interface Body {
   // The streamed tile layers. Colour and height are required; the terrain draws without the rest.
   tiles: { version: string; layers: TileLayer[] };
   shots: {
-    weights: Partial<Record<'dawn-dusk' | 'orbital-sunrise' | 'feature-flyover' | 'earthrise', number>>;
+    weights: Partial<Record<ShotKind, number>>;
     // How far into daylight the terminator orbit runs. Without air there's no skylight, so an
     // orbit right on the terminator looks down on ground that is almost all in shadow.
     dawnDuskSunDeg: number;
@@ -44,8 +45,8 @@ export interface Body {
     // Height of the limb the Sun has to clear. Exaggerated limb mountains hold sunrise back by
     // most of a minute, which on an airless body would mean a long black opening.
     sunriseLimbKm: number;
-    // Sun elevation on the ground ahead below which the view is close to black, from renders.
-    // Haze keeps Mars lit past its terminator; the bare Moon goes dark before it.
+    // Sun elevation on the ground ahead below which the view is close to black without city
+    // lights, from renders. Haze keeps Mars lit past its terminator; the bare Moon goes dark before it.
     darkBelowDeg: number;
   };
   // Offered in production's first-visit picks and the switch button. A body whose production
@@ -170,8 +171,9 @@ export const EARTH: Body = {
   seaLevel: true,
   // Colour stops at level 6 and carries the water mask in alpha (opaque is land).
   tiles: { version: 'v1', layers: [{ ...COLOR_LAYER, format: 'masked', maxLevel: 6 }, HEIGHT_LAYER] },
-  // Feature flyovers fall back to dawn-dusk until Earth has a feature list.
-  shots: { weights: { 'dawn-dusk': 0.4, 'orbital-sunrise': 0.3, 'feature-flyover': 0.3 }, dawnDuskSunDeg: 4, sunriseLeadS: 60, sunriseLimbKm: 0, darkBelowDeg: -6 },
+  // Named places lead because visitors know them by sight; a flyover is on offer almost all the time.
+  // Heading into night, renders dim to 7 of 255 at −5° and are close to black by −6°.
+  shots: { weights: { 'dawn-dusk': 0.3, 'orbital-sunrise': 0.3, 'feature-flyover': 0.4 }, dawnDuskSunDeg: 4, sunriseLeadS: 60, sunriseLimbKm: 0, darkBelowDeg: -5 },
   listed: false,
 };
 
