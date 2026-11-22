@@ -77,7 +77,7 @@ Production builds read the tile base URL from `PUBLIC_TILES_BASE` in `.env.produ
 | `tier=high`, `tier=medium`, `tier=low` | Force a quality tier and stop the automatic step-down, to compare them. `window.__falsyLive.state` shows the tier, `gpuMs`, and any tier changes. |
 | `scale=N` | Render at N device pixels per CSS pixel (0.5 to 3, never above the screen's own), overriding the tier's resolution. For comparing sharpness. |
 | `webgl` | Force the WebGL2 backend |
-| `fx=shadows,bloom` | Turn these scene layers off (on Earth also `clouds`, `cloudShadows`, and `lights`), to measure what each costs. Layers are listed in `src/scene/fx.ts`; unknown names are ignored. `window.__falsyLive.state.fx` shows which layers are off. |
+| `fx=shadows,bloom` | Turn these scene layers off (on Earth also `glint`, `clouds`, `cloudShadows`, and `lights`), to measure what each costs. Layers are listed in `src/scene/fx.ts`; unknown names are ignored. `window.__falsyLive.state.fx` shows which layers are off. |
 | `bench=N` | Render each frame N times back to back (1 to 64) and log the GPU time per frame, for the frame-time benchmark. |
 | `ph=1` | Turn on PostHog analytics off the production host. Events go through the `/uplink` relay, which only the Worker serves, so test a build with `npm run build && npx wrangler dev`, not `astro preview` or `astro dev`. Headless browsers also need `navigator.webdriver` masked, or posthog-js drops their events as bots. |
 
