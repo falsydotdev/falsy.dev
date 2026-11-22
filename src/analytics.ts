@@ -51,7 +51,8 @@ function samplePerf(posthog: PostHog, sky: HTMLElement, state: LiveState) {
     // A scene switched away from, lost to a poster, or frozen would report stale frames.
     if (window.__falsyLive?.state !== state || sky.dataset.scene !== 'live' || state.stopped || state.tier === 'frozen') return stop();
     // Mid-switch the log isn't this scene's alone; after a scroll or switch it restarts and needs refilling.
-    const short = state.timing === 'gpu' && state.gpuLog.length < MIN_PERF_SAMPLES;
+    // Any WebGPU scene fills the log, including one with a forced tier.
+    const short = state.backend !== 'WebGL2' && state.gpuLog.length < MIN_PERF_SAMPLES;
     if (state.held || short || document.documentElement.classList.contains('body-fade')) return arm();
     stop();
     posthog.capture('scene_perf', {
@@ -90,7 +91,7 @@ function reportScene(posthog: PostHog) {
     for (const c of log.slice(sentChanges)) {
       posthog.capture('scene_tier_changed', {
         // Sent late, after register() has moved on to the current scene.
-        scene: 'live',
+        scene: c.to === 'poster' ? 'poster' : 'live',
         scene_body: c.body,
         scene_backend: c.backend,
         scene_tier: c.to,
@@ -109,14 +110,18 @@ function reportScene(posthog: PostHog) {
     // Later events should carry the tier the scene runs at now.
     if (log.length && sky.dataset.scene === 'live') posthog.register(sceneProps('live'));
   };
+  // A slow live scene can arrive after the poster fallback; that visit is reported once as shown,
+  // then again when it goes live, so its load timing isn't lost.
+  let reported: 'live' | 'poster' | null = null;
   const send = () => {
     const mode = sky.dataset.scene;
-    if (mode !== 'live' && mode !== 'poster') return false;
+    if ((mode !== 'live' && mode !== 'poster') || mode === reported) return mode === 'live';
+    if (mode === 'poster' && reported === 'live') return true;
     const props = sceneProps(mode);
     posthog.register(props);
     const live = mode === 'live' ? window.__falsyLive?.state : undefined;
     const page = window.__falsyPageReady;
-    posthog.capture('scene_shown', {
+    posthog.capture(reported === 'poster' ? 'scene_went_live' : 'scene_shown', {
       ...props,
       ...(live && {
         // From the page's first scene, which may not be the one showing if the visitor already switched.
@@ -129,10 +134,11 @@ function reportScene(posthog: PostHog) {
         scene_render_ratio: live.pixelRatio,
       }),
     });
+    reported = mode;
     shown = true;
     sendTierChanges();
     if (live) sample(live);
-    return true;
+    return mode === 'live';
   };
   document.addEventListener('falsy:tier-changed', sendTierChanges);
   document.addEventListener('falsy:body-switched', (e) => {
