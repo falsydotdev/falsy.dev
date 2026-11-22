@@ -24,10 +24,7 @@ export interface TileLayer {
   ext: string;
   sizePx: number;
   maxLevel: number;
-  /**
-   * Fetch only tiles where some ground sees the Sun below this elevation, in degrees. A layer
-   * with a rule is optional: tiles draw without it.
-   */
+  /** Fetch only tiles where some ground sees the Sun below this elevation, in degrees. */
   sunBelowDeg?: number;
 }
 
