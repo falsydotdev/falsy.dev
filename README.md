@@ -97,6 +97,7 @@ GPU time is the time from submitting a frame until the GPU reports it done (`onS
 
 - The measure includes a fixed delay, about 4 ms on an M-series Mac, while the browser reports completion. A frame at the tier's frame rate also starts with the GPU at idle clocks. On a fast GPU, both swamp the frame's real cost: Mars at High reads about 4 to 9 ms, with almost all of that in the delay.
 - `--repeat` spreads that delay over several renders and keeps the GPU busy, so differences between toggles show. The figure per frame still includes the delay divided by the repeat count, and CPU time to encode the frame if the CPU is the slower side.
+- A GPU that isn't kept busy picks its clock from the load, so turning a layer off can read slower. On an M-series Mac, `fx=shadows` read 0.3 ms slower than all on at `--repeat 8`, and level with it at `--repeat 32`. A positive Δ means the GPU wasn't kept busy enough: raise `--repeat`.
 - Results are steadier on slower GPUs, where a frame takes longer than the delay. On an M-series Mac, Mars's layers each cost less than the run-to-run noise. The last line of the output gives that noise.
 - Close other GPU work first. Other browser tabs, a second dev server rendering posters, or a video call all show up in the numbers.
 

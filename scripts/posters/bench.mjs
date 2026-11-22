@@ -123,7 +123,7 @@ try {
   console.log(`${rounds} rounds × ${toggles.length} toggles × ${samples} samples`);
   console.log(
     repeat > 1
-      ? `Each sample renders the frame ${repeat}× back to back and divides submit-to-done time by ${repeat}: the frame's cost at full GPU clock (CPU encoding included, if it's the slower side)`
+      ? `Each sample renders the frame ${repeat}× back to back and divides submit-to-done time by ${repeat}, which spreads the fixed completion delay and keeps the GPU busier`
       : 'Each sample is one frame at the tier frame rate, submit-to-done, as the governor and scene_perf measure it: it includes the GPU waking from idle clocks',
   );
   for (const [i, fx] of order.entries()) {
