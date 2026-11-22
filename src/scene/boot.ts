@@ -235,7 +235,9 @@ export async function boot() {
       const slot: Slot = { scene: null, dead: false };
       incoming = slot;
       setBusy(true);
-      const light = old.state.tier === 'low' || old.state.backend === 'WebGL2';
+      // A frozen scene already gave up on Low, so it's switched like Low and the next body starts there.
+      const frozen = old.state.tier === 'frozen';
+      const light = frozen || old.state.tier === 'low' || old.state.backend === 'WebGL2';
       const cover = light ? old.freeze() : null;
       if (!light) old.holdGovernor(true);
 
@@ -302,7 +304,7 @@ export async function boot() {
           lean: false,
           holdGovernor: true,
           settleTimeoutMs: SWITCH_SETTLE_MS,
-          startTier: isTierName(tier) ? tier : undefined,
+          startTier: frozen ? 'low' : isTierName(tier) ? tier : undefined,
           onFirstFrame: crossfade,
         });
         if (!slot.scene) return abortSwitch();
