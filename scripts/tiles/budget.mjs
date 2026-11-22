@@ -1,7 +1,9 @@
 // Estimates tile downloads for real orbits: runs the renderer's tile selection and fetch
 // policy along an orbit and sums the sizes of the baked tiles it would request.
 //   node scripts/tiles/budget.mjs [--body mars] [--seconds 90] [--height 1440] [--shots 12]
-import { statSync } from 'node:fs';
+// Against a partial bake, a missing tile counts as the mean size of its layer's baked tiles at
+// that level (the "estimated" column). Earth adds its cloud map, which every first view loads.
+import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { TILE_DIR } from './paths.mjs';
 import { drawnHeightRangeKm, layerTilesFor, selectTiles } from '../../src/scene/tiles/select.ts';
@@ -32,6 +34,27 @@ const LAYERS = BODY.tiles.layers;
 const MAX_LEVEL = Math.max(...LAYERS.map((l) => l.maxLevel));
 const LABELS = { color: 'colour' };
 
+// Mean baked file size per layer directory and level, for tiles a partial bake lacks.
+const meanCache = new Map();
+const meanSize = (layer, level) => {
+  const key = `${layer.dir}/${level}`;
+  if (!meanCache.has(key)) {
+    let n = 0;
+    let sum = 0;
+    try {
+      for (const f of readdirSync(join(BASE, layer.dir, String(level)), { recursive: true })) {
+        if (!String(f).endsWith(`.${layer.ext}`)) continue;
+        n++;
+        sum += statSync(join(BASE, layer.dir, String(level), String(f))).size;
+      }
+    } catch {}
+    meanCache.set(key, n ? sum / n : 0);
+  }
+  // A level the bake never reached takes the nearest coarser level's mean.
+  return meanCache.get(key) || (level > 0 ? meanSize(layer, level - 1) : 0);
+};
+const CLOUD_BYTES = BODY.clouds ? statSync(join(import.meta.dirname, '../../public', BODY.clouds.staticUrl.replace(/\.json$/, '.avif'))).size : 0;
+
 const sizeCache = new Map();
 const size = (path) => {
   if (!sizeCache.has(path)) {
@@ -49,6 +72,8 @@ function run(shot, { tiltDeg, maxTexelPx, relaxBeyondKm }) {
   // The shadow map counts as height.
   const bytes = LAYERS.map((l) => (l.id === 'height' ? size(SHADOW_MAP.path) : 0));
   let missing = 0;
+  let estimated = 0;
+  let unestimated = 0;
   let firstView = 0;
   let peakTiles = 0;
   for (let t = 0; t <= SECONDS; t += 1) {
@@ -69,13 +94,17 @@ function run(shot, { tiltDeg, maxTexelPx, relaxBeyondKm }) {
         if (fetched[i].has(id)) continue;
         fetched[i].add(id);
         const b = size(layerPath(layer, k));
-        if (Number.isNaN(b)) missing++;
-        else bytes[i] += b;
+        if (Number.isNaN(b)) {
+          missing++;
+          const mean = meanSize(layer, k.level);
+          estimated += mean;
+          if (!mean) unestimated++;
+        } else bytes[i] += b;
       }
     });
-    if (t === 0) firstView = bytes.reduce((a, b) => a + b, 0);
+    if (t === 0) firstView = bytes.reduce((a, b) => a + b, 0) + estimated + CLOUD_BYTES;
   }
-  return { firstView, total: bytes.reduce((a, b) => a + b, 0), bytes, peakTiles, missing };
+  return { firstView, total: bytes.reduce((a, b) => a + b, 0) + estimated + CLOUD_BYTES, bytes, peakTiles, missing, estimated, unestimated };
 }
 
 const now = new Date();
@@ -89,9 +118,11 @@ for (let i = 0; i < SHOTS; i++) {
 const MB = (b) => (b / 1e6).toFixed(1);
 console.log(`viewport ${Math.round(HEIGHT_PX * ASPECT)}×${HEIGHT_PX}, ${SHOTS} shots, ${SECONDS} s of orbit each\n`);
 const rows = [];
+let unestimatedTiles = 0;
 for (const tiltDeg of [12, 15, 18, 25, 35]) {
   for (const [maxTexelPx, relaxBeyondKm] of [[1, Infinity], [1.5, Infinity], [2, Infinity], [1, 500], [1, 300]]) {
     const runs = shots.map((s) => run(s, { tiltDeg, maxTexelPx, relaxBeyondKm }));
+    unestimatedTiles += runs.reduce((a, r) => a + r.unestimated, 0);
     const avg = (k) => runs.reduce((a, r) => a + r[k], 0) / runs.length;
     rows.push({
       tilt: `${tiltDeg}°`,
@@ -100,6 +131,8 @@ for (const tiltDeg of [12, 15, 18, 25, 35]) {
       'first view MB': MB(avg('firstView')),
       [`${SECONDS} s MB`]: MB(avg('total')),
       ...Object.fromEntries(LAYERS.map((l, i) => [`${LABELS[l.id] ?? l.id} MB`, MB(runs.reduce((a, r) => a + r.bytes[i], 0) / runs.length)])),
+      ...(CLOUD_BYTES ? { 'clouds MB': MB(CLOUD_BYTES) } : {}),
+      ...(runs.some((r) => r.missing) ? { 'estimated MB': MB(avg('estimated')) } : {}),
       [`worst ${SECONDS} s MB`]: MB(Math.max(...runs.map((r) => r.total))),
       'peak tiles drawn': Math.round(avg('peakTiles')),
       missing: Math.round(avg('missing')),
@@ -107,3 +140,4 @@ for (const tiltDeg of [12, 15, 18, 25, 35]) {
   }
 }
 console.table(rows);
+if (unestimatedTiles) console.warn(`${unestimatedTiles} missing tiles belong to a layer with no baked tiles at all and count as 0 bytes.`);

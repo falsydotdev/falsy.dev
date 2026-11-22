@@ -28,6 +28,11 @@ declare global {
     readonly pixelRatio: number;
     readonly throttled: boolean;
     canvas: HTMLCanvasElement;
+    /** Whether the GPU shares the CPU's memory (see isIntegrated). */
+    integrated: boolean;
+    /** MSAA samples on the scene pass. */
+    readonly msaa: number;
+    readonly gpuMemoryMB: number;
   }
   interface TierChange {
     from: string;
@@ -38,7 +43,7 @@ declare global {
   }
 }
 
-import { isTierName } from './quality.ts';
+import { isTierName, switchesFromStill } from './quality.ts';
 import { type Body, bodyById, listedBodyIds } from './bodies.ts';
 import { layerPath } from './tiles/layers.ts';
 
@@ -233,7 +238,7 @@ export async function boot() {
     firstSlot.scene.setRunning(document.visibilityState === 'visible');
 
     // The new body loads under the old one, which keeps moving, and they crossfade at its first frame.
-    // The lowest tier and WebGL2 can't carry two scenes, so they fade from the old one's frozen frame.
+    // Low, WebGL2, and integrated GPUs don't carry two scenes, so they fade from the old one's frozen frame.
     const switchTo = async (id: string) => {
       const from = current;
       const old = from?.scene;
@@ -244,7 +249,7 @@ export async function boot() {
       setBusy(true);
       // A frozen scene already gave up on Low, so it's switched like Low and the next body starts there.
       const frozen = old.state.tier === 'frozen';
-      const light = frozen || old.state.tier === 'low' || old.state.backend === 'WebGL2';
+      const light = switchesFromStill(old.state);
       const cover = light ? old.freeze() : null;
       if (!light) old.holdGovernor(true);
 

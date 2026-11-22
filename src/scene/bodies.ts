@@ -74,6 +74,9 @@ export interface Body {
   // Offered in production's first-visit picks and the switch button. A body whose production
   // tiles aren't uploaded yet stays off; `?body=` and development still show it.
   listed: boolean;
+  // Held to the spec's GPU memory ceilings (gpu-memory.ts): smaller atlases where a ceiling is
+  // lower, and no MSAA where its buffers wouldn't fit. Mars and the Moon predate the ceilings.
+  memoryCeilings?: boolean;
 }
 
 export interface Ocean {
@@ -186,6 +189,8 @@ export const EARTH: Body = {
     topKm: 100,
     groundAlbedo: [0.3, 0.3, 0.3],
     intensity: 8,
+    // The 1.2 km haze and the ozone layer are thin next to a 2,000 km limb ray.
+    viewSamples: 'lowest',
     components: [
       { scattering: [5.802e-3, 13.558e-3, 33.1e-3], absorption: [0, 0, 0], profile: { scaleHeightKm: 8 }, phase: 'rayleigh' },
       { scattering: [3.996e-3, 3.996e-3, 3.996e-3], absorption: [0.444e-3, 0.444e-3, 0.444e-3], profile: { scaleHeightKm: 1.2 }, phase: [0.8, 0.8, 0.8] },
@@ -211,6 +216,7 @@ export const EARTH: Body = {
   // Heading into night, renders dim to 7 of 255 at −5° and are close to black by −6°.
   shots: { weights: { 'dawn-dusk': 0.25, 'orbital-sunrise': 0.25, 'feature-flyover': 0.3, 'night-pass': 0.2 }, dawnDuskSunDeg: 4, sunriseLeadS: 60, sunriseLimbKm: 0, darkBelowDeg: -5, nightPass: { cityAbove: 1e-2, reachKm: 500, holdAbove: 3e-3 } },
   listed: false,
+  memoryCeilings: true,
 };
 
 export const BODIES: Record<string, Body> = { mars: MARS, moon: MOON, earth: EARTH };
