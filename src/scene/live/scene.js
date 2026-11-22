@@ -318,6 +318,7 @@ export async function startLiveScene(host, opts) {
     get stopped() { return stopped; },
     get held() { return governorHeld; },
     get pixelRatio() { return renderer.getPixelRatio(); },
+    get throttled() { return throttled; },
   };
   const started = performance.now();
 
@@ -367,7 +368,8 @@ export async function startLiveScene(host, opts) {
   // Bumped when the log restarts, so a frame still in flight from before can't land in the new one.
   let gpuLogGen = 0;
   // The first frame measured after a restart also waits on work queued before it, like a snapshot or resize.
-  let skipGpuSamples = 0;
+  // Starts past the first frames, which compile pipelines and would inflate an early step-down's numbers.
+  let skipGpuSamples = 6;
   const restartGpuLog = () => {
     state.gpuLog.length = 0;
     gpuLogGen++;

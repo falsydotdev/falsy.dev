@@ -26,6 +26,7 @@ declare global {
     readonly stopped: boolean;
     readonly held: boolean;
     readonly pixelRatio: number;
+    readonly throttled: boolean;
     canvas: HTMLCanvasElement;
   }
   interface TierChange {
@@ -259,6 +260,8 @@ export async function boot() {
           return lostCurrent();
         }
         finish();
+        // A frozen scene's last frame stays up, rather than a poster of a different place and time.
+        if (frozen && !from.dead) return;
         if (light || from.dead) {
           cover?.remove();
           old.dispose();

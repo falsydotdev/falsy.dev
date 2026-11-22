@@ -7,6 +7,7 @@ const host = import.meta.env.PUBLIC_POSTHOG_HOST;
 // Long enough for the governor to settle on a tier after the fade-in.
 const PERF_SAMPLE_AFTER_MS = 20_000;
 const MIN_PERF_SAMPLES = 60;
+const MAX_PERF_WAITS = 3;
 
 // Only the production host reports, so dev, Lighthouse CI and PR previews stay out of the data.
 // `?ph=1` turns it on anywhere; test locally under `wrangler dev`, which serves the /uplink relay.
@@ -36,6 +37,7 @@ function frameProps(state: LiveState) {
 // The scene restarts its frame log when the tab returns, and so does this clock.
 function samplePerf(posthog: PostHog, sky: HTMLElement, state: LiveState) {
   let timer = 0;
+  let waits = 0;
   const arm = () => {
     clearTimeout(timer);
     if (state.stopped || window.__falsyLive?.state !== state) return stop();
@@ -51,8 +53,9 @@ function samplePerf(posthog: PostHog, sky: HTMLElement, state: LiveState) {
     // A scene switched away from, lost to a poster, or frozen would report stale frames.
     if (window.__falsyLive?.state !== state || sky.dataset.scene !== 'live' || state.stopped || state.tier === 'frozen') return stop();
     // Mid-switch the log isn't this scene's alone; after a scroll or switch it restarts and needs refilling.
-    // Any WebGPU scene fills the log, including one with a forced tier.
-    const short = state.backend !== 'WebGL2' && state.gpuLog.length < MIN_PERF_SAMPLES;
+    // Any WebGPU scene fills the log, including one with a forced tier. Waits are capped so
+    // visitors who keep scrolling still report, with gpu_samples showing how thin the log is.
+    const short = state.backend !== 'WebGL2' && state.gpuLog.length < MIN_PERF_SAMPLES && waits++ < MAX_PERF_WAITS;
     if (state.held || short || document.documentElement.classList.contains('body-fade')) return arm();
     stop();
     posthog.capture('scene_perf', {
@@ -62,6 +65,7 @@ function samplePerf(posthog: PostHog, sky: HTMLElement, state: LiveState) {
       gpu: state.gpu ?? null,
       dpr: devicePixelRatio,
       render_ratio: state.pixelRatio,
+      throttled: state.throttled,
       ...frameProps(state),
     });
   };
