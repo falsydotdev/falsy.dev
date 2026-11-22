@@ -55,6 +55,7 @@ Production builds read the tile base URL from `PUBLIC_TILES_BASE` in `.env.produ
 | `scripts/posters/` | Poster pipeline: `render.mjs` screenshots the live scene, and `encode.mjs` writes AVIF files |
 | `src/scene/tiles/` | Cube-sphere tile addressing, LOD selection, and the tile file formats |
 | `scripts/tiles/` | Tile pipeline: source download, height and colour cutters, budget estimate |
+| `clouds/` | Cloud job: a cron Worker and a container that turn NOAA GMGSI into Earth's cloud texture |
 | `prototypes/mars-orbit/` | The original Mars rendering prototype, kept for reference |
 | `docs/` | Spec, plan, ADRs, research, copy, and design references |
 
@@ -74,5 +75,24 @@ Shots are defined in `scripts/posters/shots.json` as live-scene URL parameters w
 Cloudflare Workers Builds deploys the Worker (`wrangler.jsonc`, static assets in `dist`, and the PostHog relay in `worker/`) on every push to `main`: the Cloudflare project `falsy-dev` is connected to this repo, with build command `npm run build` and deploy command `npx wrangler deploy`. GitHub Actions only runs checks (type check, tests, build, Lighthouse) and needs no Cloudflare credentials.
 
 Tiles are served from the R2 bucket `falsy-tiles` at `tiles.falsy.dev`; see "Live Mars locally" for uploads. Secrets live in the Doppler project `falsy-dev`.
+
+### Cloud job
+
+`clouds/` is a separate Worker, deployed by hand. Every 3 hours (at minute 50, after NOAA's hourly file lands), its cron trigger finds the newest NOAA GMGSI longwave file, passes it and the clear-sky history to a `standard-1` Cloudflare Container, and writes the results to the R2 bucket `falsy-clouds` (served at `clouds.falsy.dev`) through a binding. It needs no API token or secret.
+
+- `dated/<valid>/clouds.avif` and `meta.json`: a 4096×2048 opacity texture (equirectangular, row 0 at 90°N, column 0 at 180°W; read the red channel) and its metadata. Immutable.
+- `latest.json`: the set the site shows, with `path`, the metadata, `fallback` (`source-missing`, `source-stale`, `process-failed`, `warming-up`, or `null`), `stale` (older than 6 hours), and `checked`. Written last, with a 5-minute cache.
+- `kept/<valid>/` and `kept/index.json`: the set each Earth poster in `scripts/posters/shots.json` was pinned to, kept past the 14-day expiry.
+- `state/<hour>/<day>`: the clear-sky history, one gzipped plane per 3-hour run per day.
+
+When the clouds are older than about 6 hours, each run logs `clouds stale: …` and fails, so a Cloudflare notification on the Worker's errors can alert. Run it locally (Docker required; local R2 only, nothing reaches the real bucket):
+
+```bash
+cd clouds && npm ci
+npx wrangler dev --test-scheduled --port 4437
+curl "http://localhost:4437/__scheduled?cron=50+*/3+*+*+*"
+```
+
+Deploy with `cd clouds && npm ci && npx wrangler deploy`. It builds and pushes the container image, so Docker must be running.
 
 Analytics go to the PostHog project `falsy.dev` (US Cloud). `src/analytics.ts` loads posthog-js after the page is idle, and only on `falsy.dev`, so dev, Lighthouse CI, and PR previews send nothing. Events go through `/uplink/*` on the site itself, which `worker/index.js` relays to PostHog, so ad blockers that block posthog.com don't drop them. That path is the only one that runs the Worker; everything else is served as static assets. The project token is in `.env.production`: it's public by design, since it can only send events and ships in the page anyway. It runs in cookieless mode: nothing is stored in the browser, and PostHog counts a returning visitor as new each day. Besides pageviews and clicks, a `scene_shown` event records whether each visitor got the live orbit or a poster, with the GPU backend and quality tier.
