@@ -6,6 +6,7 @@ const host = import.meta.env.PUBLIC_POSTHOG_HOST;
 
 // Long enough for the governor to settle on a tier after the fade-in.
 const PERF_SAMPLE_AFTER_MS = 20_000;
+const MIN_PERF_SAMPLES = 60;
 
 // Only the production host reports, so dev, Lighthouse CI and PR previews stay out of the data.
 // `?ph=1` turns it on anywhere; test locally under `wrangler dev`, which serves the /uplink relay.
@@ -37,6 +38,7 @@ function samplePerf(posthog: PostHog, sky: HTMLElement, state: LiveState) {
   let timer = 0;
   const arm = () => {
     clearTimeout(timer);
+    if (state.stopped || window.__falsyLive?.state !== state) return stop();
     if (document.visibilityState === 'visible') timer = window.setTimeout(fire, PERF_SAMPLE_AFTER_MS);
   };
   // A step-down restarts the scene's frame log, so the tier has to settle again.
@@ -48,8 +50,9 @@ function samplePerf(posthog: PostHog, sky: HTMLElement, state: LiveState) {
   const fire = () => {
     // A scene switched away from, lost to a poster, or frozen would report stale frames.
     if (window.__falsyLive?.state !== state || sky.dataset.scene !== 'live' || state.stopped || state.tier === 'frozen') return stop();
-    // Mid-switch, the governor is held and the log isn't this scene's alone.
-    if (state.held || document.documentElement.classList.contains('body-fade')) return arm();
+    // Mid-switch the log isn't this scene's alone; after a scroll or switch it restarts and needs refilling.
+    const short = state.timing === 'gpu' && state.gpuLog.length < MIN_PERF_SAMPLES;
+    if (state.held || short || document.documentElement.classList.contains('body-fade')) return arm();
     stop();
     posthog.capture('scene_perf', {
       body: state.body,
@@ -87,7 +90,9 @@ function reportScene(posthog: PostHog) {
     for (const c of log.slice(sentChanges)) {
       posthog.capture('scene_tier_changed', {
         // Sent late, after register() has moved on to the current scene.
+        scene: 'live',
         scene_body: c.body,
+        scene_backend: c.backend,
         scene_tier: c.to,
         body: c.body,
         from: c.from,

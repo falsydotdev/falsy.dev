@@ -7,7 +7,7 @@ declare global {
     __falsySwitchLive?: (body: string) => void;
     __falsyLabelSwitch?: (body: string) => void;
     __falsyLive?: { state: LiveState };
-    __falsyTierLog?: (TierChange & { body: string; gpuName: string | undefined })[];
+    __falsyTierLog?: (TierChange & { body: string; backend: string; gpuName: string | undefined })[];
     __falsyHiddenSinceNav?: boolean;
     __falsyPageReady?: { body: string; sinceNavMs: number; renderMs: number; hiddenDuringLoad: boolean };
   }
@@ -41,7 +41,12 @@ import { isTierName } from './quality.ts';
 import { type Body, BODIES, bodyById } from './bodies.ts';
 
 // Load times from a tab that was hidden at any point include the wait, so analytics flags them.
-window.__falsyHiddenSinceNav ||= document.visibilityState !== 'visible';
+window.__falsyHiddenSinceNav ||=
+  document.visibilityState !== 'visible' ||
+  // Chromium also remembers a hide before this module ran.
+  (typeof PerformanceObserver !== 'undefined' &&
+    PerformanceObserver.supportedEntryTypes?.includes('visibility-state') &&
+    performance.getEntriesByType('visibility-state').some((e) => e.name === 'hidden'));
 const noteHidden = () => {
   if (document.visibilityState !== 'visible') {
     window.__falsyHiddenSinceNav = true;

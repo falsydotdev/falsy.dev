@@ -366,9 +366,12 @@ export async function startLiveScene(host, opts) {
   let timingBusy = false;
   // Bumped when the log restarts, so a frame still in flight from before can't land in the new one.
   let gpuLogGen = 0;
+  // The first frame measured after a restart also waits on work queued before it, like a snapshot or resize.
+  let skipGpuSamples = 0;
   const restartGpuLog = () => {
     state.gpuLog.length = 0;
     gpuLogGen++;
+    skipGpuSamples = 1;
   };
   let lastWrites = 0;
   const measure = (interval) => {
@@ -383,7 +386,7 @@ export async function startLiveScene(host, opts) {
       const change = { from: tier.name, to, atMs: Math.round(performance.now() - started), load: governor.lastMedian, gpu: frameTimes(state.gpuLog.slice(-20)) };
       state.tierChanges.push(change);
       // Page-wide, so analytics (which loads late) still sees changes from scenes already gone.
-      (window.__falsyTierLog ??= []).push({ ...change, body: state.body, gpuName: state.gpu });
+      (window.__falsyTierLog ??= []).push({ ...change, body: state.body, backend: state.backend, gpuName: state.gpu });
       // Announced once state.tier holds the new value, since listeners read it straight away.
       const announce = () => document.dispatchEvent(new CustomEvent('falsy:tier-changed', { detail: { state } }));
       if (verdict === 'give-up') {
@@ -417,8 +420,11 @@ export async function startLiveScene(host, opts) {
       const ms = performance.now() - t0;
       state.gpuMs = ms;
       if (gen !== gpuLogGen) return;
-      state.gpuLog.push(Math.round(ms * 10) / 10);
-      if (state.gpuLog.length > 120) state.gpuLog.shift();
+      if (skipGpuSamples > 0) skipGpuSamples--;
+      else {
+        state.gpuLog.push(Math.round(ms * 10) / 10);
+        if (state.gpuLog.length > 120) state.gpuLog.shift();
+      }
       judge(ms / (1000 / tier.fps));
     }, () => {
       timingBusy = false;
