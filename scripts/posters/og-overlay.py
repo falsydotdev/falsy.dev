@@ -13,15 +13,19 @@ mono = instantiateVariableFont(
 )
 
 
-def outline(font, text, size, x, y, tracking=0.0):
+# fontTools doesn't shape text, so these are the serif's kern pairs for "falsy" as Chrome applies them, in em.
+SERIF_KERN = {"fa": -0.024, "sy": -0.006}
+
+
+def outline(font, text, size, x, y, tracking=0.0, kern={}):
     s = size / font["head"].unitsPerEm
     glyphs = font.getGlyphSet()
     cmap = font.getBestCmap()
     pen = SVGPathPen(glyphs)
-    for ch in text:
+    for i, ch in enumerate(text):
         g = cmap[ord(ch)]
         glyphs[g].draw(TransformPen(pen, (s, 0, 0, -s, x, y)))
-        x += glyphs[g].width * s + tracking * size
+        x += glyphs[g].width * s + tracking * size + kern.get(text[i : i + 2], 0) * size
     return pen.getCommands(), x
 
 
@@ -29,15 +33,15 @@ W, H = 1200, 630
 ACCENT, INK, NIGHT = "#e8915f", "#eef1f4", "#2c2424"
 left, base, size = 96, 214, 132
 
-# Proportions follow the header: a 22 px mark box beside 26 px type, the disc filling 76% of the box,
-# centred on the serif's line box.
+# The mark is sized as in the header (a 22 px box beside 26 px type, the disc filling 76% of it), but
+# sits closer to the name, which reads better at this size. NIGHT is the header's color-mix() for Mars.
 hhea = serif["hhea"]
 centre = base - (hhea.ascent + hhea.descent) / 2 / serif["head"].unitsPerEm * size
 box = 0.846 * size
 cx = left + box / 2
 r = box / 2 * 0.76
 
-name_d, end = outline(serif, "falsy", size, left + box + 0.2 * size, base)
+name_d, end = outline(serif, "falsy", size, left + box + 0.2 * size, base, kern=SERIF_KERN)
 tld = size / 2
 # The mono full stop sits mid-cell, so pull it in to read as one word.
 tld_d, _ = outline(mono, ".dev", tld, end - 0.16 * tld, base, tracking=0.04)
