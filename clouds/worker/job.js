@@ -149,11 +149,17 @@ export async function runJob({ bucket, fetch, container, now, keep = [], log = c
     const valid = source && validOf(source.key);
     if (!source) fallback = 'source-missing';
     else if (now - valid > STALE_MS) fallback = 'source-stale';
-    else if (await bucket.head(`dated/${stampOf(valid)}/meta.json`)) say.info(`already processed ${source.key}`);
     else {
-      const set = await process({ bucket, fetch, container, source, valid, log: say });
-      if (set.fallback) fallback = set.fallback;
-      else current = set;
+      const done = await bucket.get(`dated/${stampOf(valid)}/meta.json`);
+      let set = null;
+      if (done) {
+        say.info(`already processed ${source.key}`);
+        const meta = await done.json();
+        // A run that died between the dated set and latest.json left the pointer behind.
+        if (!current || new Date(current.valid) < new Date(meta.valid)) set = { ...meta, path: `dated/${stampOf(valid)}/clouds.avif` };
+      } else set = await process({ bucket, fetch, container, source, valid, log: say });
+      if (set?.fallback) fallback = set.fallback;
+      else if (set) current = set;
     }
   } catch (error) {
     fallback = fallback ?? 'process-failed';

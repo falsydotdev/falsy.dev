@@ -215,6 +215,30 @@ describe('cloud job', () => {
     expect(bucket.json('latest.json')).toMatchObject({ path: 'dated/20261122T0900Z/clouds.avif', fallback: null, stale: false });
   });
 
+  it('moves latest.json to a set a crashed run wrote but never pointed to', async () => {
+    const dated = { valid: '2026-11-22T09:00:00.000Z', texture: { width: 4096, height: 2048 }, fallback: null };
+    const bucket = fakeBucket({
+      'latest.json': JSON.stringify(previous),
+      'dated/20261122T0900Z/clouds.avif': new Uint8Array([1]),
+      'dated/20261122T0900Z/meta.json': JSON.stringify(dated),
+    });
+    const container = fakeContainer();
+    await runJob({ bucket, fetch: fakeNoaa(['2026-11-22T09:00Z']), container, now: at('2026-11-22T10:15Z'), log });
+
+    expect(container.fetch).not.toHaveBeenCalled();
+    expect(bucket.json('latest.json')).toMatchObject({ ...dated, path: 'dated/20261122T0900Z/clouds.avif', stale: false });
+  });
+
+  it('leaves latest.json alone when the unpointed set was still warming up', async () => {
+    const bucket = fakeBucket({
+      'latest.json': JSON.stringify(previous),
+      'dated/20261122T0900Z/meta.json': JSON.stringify({ valid: '2026-11-22T09:00:00.000Z', fallback: 'warming-up' }),
+    });
+    await runJob({ bucket, fetch: fakeNoaa(['2026-11-22T09:00Z']), container: fakeContainer(), now: at('2026-11-22T10:15Z'), log });
+
+    expect(bucket.json('latest.json')).toMatchObject({ path: previous.path, fallback: 'warming-up' });
+  });
+
   it('backfills missing clear-sky days from older GMGSI files at the same hour', async () => {
     const bucket = fakeBucket({ 'latest.json': JSON.stringify(previous) });
     const container = fakeContainer();
