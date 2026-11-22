@@ -1,6 +1,7 @@
 // Picks which quadtree tiles to draw for a camera, by screen-space texel size, with horizon
 // and frustum culling. Shared by the renderer and the download-budget measurement.
 import type { TileLayer } from './layers.ts';
+import { type FlatOcean, isFlatOcean } from './flat-ocean.ts';
 import { type TileKey, type Vec3, children, parent, roots, tileAngularRadius, tileDir, tileEdgeKm, tileId } from './cube.ts';
 
 export interface CameraPose {
@@ -133,10 +134,28 @@ export function layerTile(key: TileKey, layer: Pick<TileLayer, 'maxLevel'>): Til
 }
 
 /**
+ * The terrain's drawn height range in km, from the tiles' range in metres: exaggerated, and held at
+ * sea level from below on a body whose sea is drawn flat.
+ */
+export function drawnHeightRangeKm(heightRangeM: readonly [number, number] | number[], body: { relief: number; seaLevel?: boolean }): [number, number] {
+  const km = (m: number) => ((body.seaLevel ? Math.max(m, 0) : m) / 1000) * body.relief;
+  return [km(heightRangeM[0]), km(heightRangeM[1])];
+}
+
+/**
+ * Whether every height sample of tile `key` is sea, so it draws flat at sea level without its
+ * height tile. An ancestor's coarser samples could bleed coastal land into it, so it borrows none.
+ * Levels 0 and 1 always load, as the fallback for every other tile.
+ */
+export const isOpenSea = (key: TileKey, flatOcean?: FlatOcean): boolean => key.level > 1 && isFlatOcean(flatOcean, key);
+
+/**
  * Whether a layer's fetch rule wants tile `key` now. `sunDir` is the unit vector to the Sun in the
  * body frame. A tile wants a night-only layer while any of its ground sees the Sun below the limit.
+ * Open-sea tiles skip their height tile (see `isOpenSea`).
  */
-export function layerWants(key: TileKey, layer: TileLayer, sunDir?: Vec3): boolean {
+export function layerWants(key: TileKey, layer: TileLayer, sunDir?: Vec3, flatOcean?: FlatOcean): boolean {
+  if (layer.format === 'height' && isOpenSea(key, flatOcean)) return false;
   if (layer.sunBelowDeg === undefined) return true;
   if (!sunDir) return false;
   const centreDeg = (Math.asin(Math.max(-1, Math.min(1, dot(tileDir(key, 0.5, 0.5), sunDir)))) * 180) / Math.PI;
@@ -144,11 +163,11 @@ export function layerWants(key: TileKey, layer: TileLayer, sunDir?: Vec3): boole
 }
 
 /** One layer's share of `tilesToFetch`: held to the layer's level cap, minus tiles its fetch rule skips. */
-export function layerTilesToFetch(keys: TileKey[], layer: TileLayer, sunDir?: Vec3): TileKey[] {
+export function layerTilesToFetch(keys: TileKey[], layer: TileLayer, sunDir?: Vec3, flatOcean?: FlatOcean): TileKey[] {
   const out = new Map<string, TileKey>();
   for (const key of keys) {
     const k = layerTile(key, layer);
-    if (layerWants(k, layer, sunDir)) out.set(tileId(k), k);
+    if (layerWants(k, layer, sunDir, flatOcean)) out.set(tileId(k), k);
   }
   return [...out.values()];
 }

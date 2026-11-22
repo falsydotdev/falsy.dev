@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { vec } from '../../src/scene/ephemeris';
 import { circularOrbit, orbitalPeriod, orbitalSpeed, sample, stateAt } from '../../src/scene/orbit';
-import { MARS } from '../../src/scene/bodies';
+import { EARTH, MARS } from '../../src/scene/bodies';
 import { formatTelemetry } from '../../src/scene/telemetry';
 
 const EPOCH = new Date('2026-11-02T12:00:00Z');
@@ -45,5 +45,22 @@ describe('circular orbit at 380 km', () => {
   it('reports altitude and speed in the telemetry line', () => {
     const line = formatTelemetry(sample(orbit, at(0)), { body: 'Mars', relief: 2.5 });
     expect(line).toMatch(/^MARS {2}\d+\.\d°[NS] {2}\d+\.\d°E {2}LST \d\d:\d\d {2}ALT 380 km {2}v 3\.37 km\/s {2}relief×2\.5$/);
+  });
+});
+
+describe("Earth's 400 km orbit", () => {
+  const earthOrbit = circularOrbit(EARTH, EPOCH, EARTH.altKm, [1, 0, 0], [0, 0.6, 0.8], 0.3);
+
+  it('flies at 7.67 km/s with a 92.4-minute period', () => {
+    expect(EARTH.altKm).toBe(400);
+    expect(orbitalSpeed(earthOrbit)).toBeCloseTo(7.67, 2);
+    expect(orbitalPeriod(earthOrbit) / 60).toBeCloseTo(92.4, 1);
+  });
+
+  it('reads altitude above the mean radius in the telemetry line', () => {
+    const s = sample(earthOrbit, at(600));
+    expect(s.altKm).toBeCloseTo(400, 6);
+    const line = formatTelemetry(s, { body: EARTH.name, relief: EARTH.relief });
+    expect(line).toMatch(/^EARTH {2}\d+\.\d°[NS] {2}\d+\.\d°E {2}LST \d\d:\d\d {2}ALT 400 km {2}v 7\.67 km\/s {2}relief×2\.5$/);
   });
 });

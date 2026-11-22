@@ -4,7 +4,7 @@
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import { TILE_DIR } from './paths.mjs';
-import { layerTilesToFetch, selectTiles, tilesToFetch } from '../../src/scene/tiles/select.ts';
+import { drawnHeightRangeKm, layerTilesToFetch, selectTiles, tilesToFetch } from '../../src/scene/tiles/select.ts';
 import { tileId } from '../../src/scene/tiles/cube.ts';
 import { TILES, SHADOW_MAP } from '../../src/scene/tiles/layout.ts';
 import { layerPath } from '../../src/scene/tiles/layers.ts';
@@ -25,10 +25,9 @@ const ASPECT = 16 / 9;
 const FOV = 50;
 const bodyArg = process.argv.indexOf('--body');
 const BODY = bodyById(bodyArg > 0 ? process.argv[bodyArg + 1] : 'mars');
-const RELIEF = BODY.relief;
 const BASE = join(TILE_DIR, BODY.id);
 const meta = JSON.parse(await import('node:fs/promises').then((fs) => fs.readFile(join(BASE, 'meta.json'), 'utf8')));
-const heightRangeKm = meta.heightRangeM.map((m) => (m / 1000) * RELIEF);
+const heightRangeKm = drawnHeightRangeKm(meta.heightRangeM, BODY);
 const LAYERS = BODY.tiles.layers;
 const MAX_LEVEL = Math.max(...LAYERS.map((l) => l.maxLevel));
 const LABELS = { color: 'colour' };
@@ -66,7 +65,7 @@ function run(shot, { tiltDeg, maxTexelPx, relaxBeyondKm }) {
     // The first view is fetched lean, as the renderer does before its first fade-in.
     const keys = tilesToFetch(selected, { lean: t === 0 });
     LAYERS.forEach((layer, i) => {
-      for (const k of layerTilesToFetch(keys, layer, s.sunBody)) {
+      for (const k of layerTilesToFetch(keys, layer, s.sunBody, meta.flatOcean)) {
         const id = tileId(k);
         if (fetched[i].has(id)) continue;
         fetched[i].add(id);

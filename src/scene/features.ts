@@ -35,3 +35,6 @@ export const MOON_FEATURES: Feature[] = [
   { id: 'tsiolkovskiy', name: 'Tsiolkovskiy', lat: -20.4, lon: 129.1 },
   { id: 'daedalus', name: 'Daedalus', lat: -5.9, lon: 179.4 },
 ];
+
+// None yet, so Earth's feature flyovers fall back to dawn-dusk.
+export const EARTH_FEATURES: Feature[] = [];
