@@ -97,9 +97,17 @@ const tilesOrigin = tilesBase && URL.canParse(tilesBase) ? new URL(tilesBase).or
 
       const root = document.documentElement;
       root.dataset.body = body;
-      // The client router replaces the root element's attributes on every navigation.
+      // The favicon takes the body's accent too. Mars keeps the plain path for crawlers and no-JS visits.
+      const setIcon = (doc) => {
+        const id = root.dataset.body;
+        doc.querySelector('link[rel="icon"]')?.setAttribute('href', id === 'mars' ? '/favicon.svg' : `/favicon-${id}.svg`);
+      };
+      setIcon(document);
+      new MutationObserver(() => setIcon(document)).observe(root, { attributeFilter: ['data-body'] });
+      // The client router replaces the root element's attributes and the head on every navigation.
       document.addEventListener('astro:before-swap', (e) => {
         e.newDocument.documentElement.dataset.body = root.dataset.body;
+        setIcon(e.newDocument);
       });
 
       let img = document.getElementById('poster');
