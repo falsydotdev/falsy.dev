@@ -8,6 +8,7 @@ import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { chromium } from 'playwright';
 import { bodyById } from '../../src/scene/bodies.ts';
+import { cloudsStale } from '../../src/scene/clouds.ts';
 
 const { values: args } = parseArgs({
   options: {
@@ -102,10 +103,20 @@ try {
         const s = window.__falsyLive.state;
         return {
           backend: s.backend,
+          clouds: s.clouds,
+          cloudSet: s.cloudSet,
           spans: [...document.querySelectorAll('#telemetry span')].map((el) => el.textContent),
         };
       });
       if (state.backend !== 'WebGPU') throw new Error(`Expected WebGPU, got ${state.backend}`);
+      // A pinned still must draw its own moment's clouds; the static map or no clouds would pass the wait.
+      if (bodyById(params.get('body')).clouds && !params.get('fx')?.split(',').includes('clouds')) {
+        const set = state.cloudSet;
+        const valid = set && new Date(set.valid);
+        if (state.clouds !== 'ready' || set.source !== 'live' || valid > at || cloudsStale(valid, at)) {
+          throw new Error(`${shot.id}: no cloud set for ${at.toISOString()} (clouds ${state.clouds}, set ${JSON.stringify(set)}). Run clouds/scripts/poster-sets.mjs.`);
+        }
+      }
       await page.addStyleTag({
         content:
           'header, main, footer, .skip, #telemetry, .sky .grid, .sky .scrim, astro-dev-toolbar { visibility: hidden !important } html { scrollbar-width: none }',
