@@ -7,6 +7,7 @@ export const FX_LAYERS = {
   glint: 'Sun glint on the sea',
   clouds: "Earth's cloud layer, with its shadows",
   cloudShadows: 'Cloud shadows on the ground',
+  atmosphere: 'The atmosphere shell: limb glow, haze over the view, and the clouds drawn in it',
 } as const;
 
 export type FxLayer = keyof typeof FX_LAYERS;

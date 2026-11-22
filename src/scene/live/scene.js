@@ -16,7 +16,8 @@ import { sample } from '../orbit';
 import { chooseShot, dawnDusk, earthrise, orbitalSunrise, featureFlyover, seededRandom, wantsReshoot, SHOT_FOV_DEG } from '../shots';
 import { bodyById } from '../bodies.ts';
 import { telemetryParts } from '../telemetry';
-import { Governor, initialTier, renderPixelRatio, tier as tierByName } from '../quality.ts';
+import { Governor, initialTier, isIntegrated, renderPixelRatio, tier as tierByName } from '../quality.ts';
+import { atlasLayers, memoryClass, msaaSamples, sceneGpuBytes } from '../gpu-memory.ts';
 import { frameTimes } from '../perf.ts';
 import { solveFraming } from '../composition.ts';
 import { parseFx } from '../fx.ts';
@@ -52,7 +53,7 @@ function buildShot(body, kind, now, altKm, rand, featureId, rightDeg) {
  * Resolves to null when this machine should get the poster instead.
  * @param {{ dataUrl: string, meta: unknown, lean?: boolean, body?: string, settleTimeoutMs?: number, holdGovernor?: boolean, startTier?: import('../quality.ts').TierName, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void, onLost?: () => void, farKm?: number, altKm?: number, tiltDeg?: number, rollDeg?: number, fovDeg?: number, tier?: import('../quality.ts').TierName, at?: Date, seed?: number, feature?: string | null, scale?: number, fx?: string | null, benchRepeats?: number, skip?: number, layout?: () => { text: import('../composition.ts').Box, headerBottom: number } | null }} opts
  */
-// One tile per array layer; 512 layers hold a 4K view with headroom and cost about 180 MB of GPU memory.
+// One tile per array layer. Most scenes hold 512 (see atlasLayers in gpu-memory.ts).
 const WANTED_LAYERS = 512;
 // Show the scene once every visible tile has its own texels, or this long after the shadow map
 // arrives regardless. With no shadow map by twice this, it shows without one.
@@ -97,8 +98,9 @@ export async function startLiveScene(host, opts) {
   const probe = await probeAdapter(forceWebGL);
   let gpuLayers = probe.layers;
   const makeRenderer = async (layers) => {
+    // MSAA is set on the scene pass instead (see msaaSamples), so a tier change can switch it.
     const r = new THREE.WebGPURenderer({
-      antialias: true,
+      antialias: false,
       logarithmicDepthBuffer: true,
       forceWebGL,
       requiredLimits: layers ? { maxTextureArrayLayers: layers } : undefined,
@@ -121,6 +123,9 @@ export async function startLiveScene(host, opts) {
     return null;
   }
   let tier = tierByName(startTier);
+  const integrated = isIntegrated(hints);
+  // Each scene is sized for the ceiling of the tier it starts at; a body switch starts a new scene.
+  const memClass = memoryClass({ tier: startTier, backend: hints.backend, integrated });
   // `scale` is a preview override for comparing render resolutions on one screen.
   const pixelRatio = (t) => (opts.scale ? Math.min(devicePixelRatio, opts.scale) : renderPixelRatio(t, devicePixelRatio, innerWidth, innerHeight));
 
@@ -152,6 +157,7 @@ export async function startLiveScene(host, opts) {
     camera.updateProjectionMatrix();
     renderer.setPixelRatio(pixelRatio(tier));
     renderer.setSize(innerWidth, innerHeight);
+    setSamples();
     // Earthrise's orbit puts Earth where this screen shape can see it; a new shape needs a new orbit.
     if (shot?.kind === 'earthrise' && Math.abs(Math.log(camera.aspect / shotAspect)) > 0.2) reshootPending = true;
   };
@@ -226,7 +232,8 @@ export async function startLiveScene(host, opts) {
     setGlint(tier);
     if (!meta) throw new Error(`No tiles at ${opts.dataUrl}`);
     if (meta.body !== body.id || Math.abs(meta.radiusKm - body.radiusKm) > 1e-6) console.warn(`Tiles at ${opts.dataUrl} are for ${meta.body}, not ${body.id}.`);
-    layers = isWebGPU ? gpuLayers ?? 256 : Math.min(WANTED_LAYERS, renderer.backend.gl.getParameter(renderer.backend.gl.MAX_ARRAY_TEXTURE_LAYERS));
+    const deviceLayers = isWebGPU ? gpuLayers ?? 256 : Math.min(WANTED_LAYERS, renderer.backend.gl.getParameter(renderer.backend.gl.MAX_ARRAY_TEXTURE_LAYERS));
+    layers = atlasLayers({ cls: memClass, tier: tier.name, tileLayers: body.tiles.layers, clouds: Boolean(cloudSet), maxLayers: deviceLayers });
     if (cloudSet && tables) {
       clouds = createClouds({ body, lighting, tables, set: cloudSet });
       clouds.setTier(tier, fx.has('cloudShadows'));
@@ -236,17 +243,29 @@ export async function startLiveScene(host, opts) {
     planet.lean = opts.lean ?? true;
     // Tiles stream while the shadow map downloads; the first fade-in waits for it (see the loop).
     planet.init().then(() => (shadowAtMs = loadMs));
-    atmosphere = tables ? createAtmosphere({ tables, terrainHeight: (n) => tiledPlanet.coarseHeight(n), clouds }) : null;
+    atmosphere = tables && !fx.has('atmosphere') ? createAtmosphere({ tables, terrainHeight: (n) => tiledPlanet.coarseHeight(n), viewSteps: tier.atmosphereSteps, clouds }) : null;
     scene.add(planet.mesh);
     sun.useTerrain((n) => tiledPlanet.coarseHeight(n));
     if (atmosphere) scene.add(atmosphere.mesh);
   }
 
-  pipeline = new THREE.RenderPipeline(renderer);
-  const sceneColor = pass(scene, camera).getTextureNode('output');
-  const bloomed = sceneColor.add(bloom(sceneColor, 0.35, 0.5, 0.9));
   const blooms = (t) => t.bloom && !fx.has('bloom');
+  // The pass's sample count can change in place: the backend rebuilds its target on the next frame.
+  const memory = (msaa) => ({ canvasPx: renderer.domElement.width * renderer.domElement.height, msaa, bloom: blooms(tier), atlasLayers: layers, tileLayers: body.tiles.layers, clouds: Boolean(clouds) });
+  const wantedSamples = () => msaaSamples({ cls: memClass, tier: tier.name, integrated, preview: Boolean(opts.scale), ...memory(false) });
+  pipeline = new THREE.RenderPipeline(renderer);
+  const scenePass = pass(scene, camera, { samples: 0 });
+  const setSamples = () => {
+    const n = wantedSamples();
+    if (scenePass.options.samples === n) return;
+    scenePass.options.samples = n;
+    scenePass.renderTarget.samples = n;
+    pipeline.needsUpdate = true;
+  };
+  const sceneColor = scenePass.getTextureNode('output');
+  const bloomed = sceneColor.add(bloom(sceneColor, 0.35, 0.5, 0.9));
   pipeline.outputNode = blooms(tier) ? bloomed : sceneColor;
+  setSamples();
 
   const applyTier = (next) => {
     if (blooms(next) !== blooms(tier)) {
@@ -256,8 +275,10 @@ export async function startLiveScene(host, opts) {
     tier = next;
     setGlint(next);
     clouds?.setTier(next, fx.has('cloudShadows'));
+    atmosphere?.setSteps(next.atmosphereSteps);
     renderer.setPixelRatio(pixelRatio(next));
     renderer.setSize(innerWidth, innerHeight);
+    setSamples();
     state.tier = next.name;
   };
 
@@ -358,6 +379,10 @@ export async function startLiveScene(host, opts) {
     get stopped() { return stopped; },
     get held() { return governorHeld; },
     get pixelRatio() { return renderer.getPixelRatio(); },
+    integrated,
+    get msaa() { return scenePass.options.samples; },
+    /** Estimated GPU memory in MB, tallied in gpu-memory.ts. */
+    get gpuMemoryMB() { return Math.round(sceneGpuBytes(memory(scenePass.options.samples > 0)) / 1e6); },
     get throttled() { return throttled; },
   };
   const started = performance.now();
