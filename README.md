@@ -87,7 +87,7 @@ node scripts/posters/bench.mjs --tier low --toggles shadows,bloom,shadows+bloom
 | `--tier` | `high` | Quality tier to force |
 | `--toggles` | every layer in `src/scene/fx.ts` | Comma-separated `fx=` values to compare. `a+b` turns several layers off in one run. |
 | `--rounds`, `--samples` | 5, 90 | Rounds of every toggle, and frame times kept per run (at most 120) |
-| `--repeat` | 8 | Renders per frame (`bench=`). Use 1 to measure frames exactly as the governor does. |
+| `--repeat` | 16 | Renders per frame (`bench=`). Use 1 to measure frames exactly as the governor does. |
 | `--width`, `--height`, `--dpr` | 1440, 900, 2 | Viewport in CSS pixels and the browser's device pixel ratio |
 | `--scale` | the tier's own | Render at this pixel ratio. The scene never renders above the screen's ratio, so the browser's ratio is raised to match. |
 
@@ -95,10 +95,9 @@ Each run checks that the scene turned off the layers it asked for and that the c
 
 GPU time is the time from submitting a frame until the GPU reports it done (`onSubmittedWorkDone`), the same measure the governor and the `scene_perf` event use. WebGPU timestamp queries aren't used: three.js adds up per-pass spans, which overlap on Apple GPUs and read several times high. Read the numbers with these limits in mind:
 
-- The measure includes a fixed delay, about 4 ms on an M-series Mac, while the browser reports completion. A frame at the tier's frame rate also starts with the GPU at idle clocks. On a fast GPU, both swamp the frame's real cost: Mars at High reads about 4 to 9 ms, with almost all of that in the delay.
-- `--repeat` spreads that delay over several renders and keeps the GPU busy, so differences between toggles show. The figure per frame still includes the delay divided by the repeat count, and CPU time to encode the frame if the CPU is the slower side.
-- A GPU that isn't kept busy picks its clock from the load, so turning a layer off can read slower. On an M-series Mac, `fx=shadows` read 0.3 ms slower than all on at `--repeat 8`, and level with it at `--repeat 32`. A positive Δ means the GPU wasn't kept busy enough: raise `--repeat`.
-- Results are steadier on slower GPUs, where a frame takes longer than the delay. On an M-series Mac, Mars's layers each cost less than the run-to-run noise. The last line of the output gives that noise.
+- At the tier's frame rate, a fast GPU idles most of each frame and drops its clocks, so one frame's time says more about the clock than the work. On an M5 Max, Mars at High read a 6 ms median that way, against 1.7 ms per frame with `--repeat 16`, and turning shadows or bloom off made frames read slower, not faster.
+- `--repeat` renders each frame several times back to back, which keeps the GPU busy and its clock up. Raise it until the all-on run medians agree to within about 0.2 ms, and until no toggle reads slower than all on. On an M5 Max that took 16; at 8, runs still varied by 0.5 ms. A slower GPU needs fewer.
+- The time per frame still includes the browser's delay in reporting completion, divided by the repeat count, and the CPU's time to encode each render if the CPU is the slower side. Compare toggles within one run of the script, not absolute numbers across repeat counts or machines.
 - Close other GPU work first. Other browser tabs, a second dev server rendering posters, or a video call all show up in the numbers.
 
 ## Deploy

@@ -1,7 +1,7 @@
 // Measures what each scene layer costs the GPU per frame: renders one pinned poster shot with
 // every `fx=` toggle in turn, in alternating rounds, and prints p10, median, and p90 frame times.
 // Usage: node scripts/posters/bench.mjs [--url <running dev server>] [--shot mars-olympus] [--rounds 5]
-//   [--samples 90] [--tier high] [--scale N] [--dpr 2] [--width 1440] [--height 900] [--repeat 8]
+//   [--samples 90] [--tier high] [--scale N] [--dpr 2] [--width 1440] [--height 900] [--repeat 16]
 //   [--toggles shadows,bloom,shadows+bloom]
 // Needs the local tiles, like render.mjs. Without --url it starts `astro dev` itself.
 import { spawn } from 'node:child_process';
@@ -26,7 +26,7 @@ const { values: args } = parseArgs({
     width: { type: 'string', default: '1440' },
     height: { type: 'string', default: '900' },
     toggles: { type: 'string' },
-    repeat: { type: 'string', default: '8' },
+    repeat: { type: 'string', default: '16' },
   },
 });
 
@@ -123,8 +123,8 @@ try {
   console.log(`${rounds} rounds × ${toggles.length} toggles × ${samples} samples`);
   console.log(
     repeat > 1
-      ? `Each sample renders the frame ${repeat}× back to back and divides submit-to-done time by ${repeat}, which spreads the fixed completion delay and keeps the GPU busier`
-      : 'Each sample is one frame at the tier frame rate, submit-to-done, as the governor and scene_perf measure it: it includes the GPU waking from idle clocks',
+      ? `Each sample renders the frame ${repeat}× back to back and divides submit-to-done time by ${repeat}, to keep the GPU busy and its clock up`
+      : 'Each sample is one frame at the tier frame rate, submit-to-done, as the governor and scene_perf measure it: on a fast GPU it mostly reads the idle clock',
   );
   for (const [i, fx] of order.entries()) {
     const r = await run(fx);

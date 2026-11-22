@@ -312,8 +312,8 @@ export async function startLiveScene(host, opts) {
   // three.js timestamp queries add up per-pass spans, which overlap on Apple GPUs and read several times high.
   // Submit-to-done time is the frame's real GPU cost whenever the GPU starts the frame idle.
   const gpuTiming = isWebGPU;
-  // `bench=N` renders each frame N times back to back, so the GPU holds its full clock and the
-  // log reads a frame's cost rather than the clock's (scripts/posters/bench.mjs).
+  // `bench=N` renders each frame N times back to back, so a fast GPU stays busy and keeps its
+  // clock up, and the log reads a frame's cost rather than the clock's (scripts/posters/bench.mjs).
   const repeats = Math.max(1, Math.round(opts.benchRepeats ?? 1));
   const governor = opts.tier ? null : new Governor(tier.name, gpuTiming ? GPU_LIMITS : CADENCE_LIMITS);
   // While two scenes overlap in a body switch, each sees the other's GPU time as its own load.
@@ -452,7 +452,11 @@ export async function startLiveScene(host, opts) {
     if (first) loadMs += Math.min(interval, 250);
     const s = frame();
     const renderStart = performance.now();
-    for (let i = 0; i < repeats; i++) pipeline.render();
+    for (let i = 0; i < repeats; i++) {
+      // Passes and bloom render once per node frame, which only the animation loop advances.
+      if (i) renderer._nodes.nodeFrame.update();
+      pipeline.render();
+    }
     state.frames++;
     updateTelemetry(s, t);
     measure(interval, renderStart);
