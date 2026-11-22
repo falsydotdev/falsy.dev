@@ -128,6 +128,7 @@ GPU time is the time from submitting a frame until the GPU reports it done (`onS
 
 - At the tier's frame rate, a fast GPU idles most of each frame and drops its clocks, so one frame's time says more about the clock than the work. On an M5 Max, Mars at High read a 6 ms median that way, against 1.7 ms per frame with `--repeat 16`, and turning shadows or bloom off made frames read slower, not faster.
 - `--repeat` renders each frame several times back to back, which keeps the GPU busy and its clock up. Raise it until the all-on run medians agree to within about 0.2 ms, and until no toggle reads slower than all on. On an M5 Max that took 16; at 8, runs still varied by 0.5 ms. A slower GPU needs fewer.
+- Each batch waits for the GPU to finish the one before. Before it did, a batch that took longer than the frame interval queued behind the last one and was timed with its backlog, which read slow layers several times too high (an Earth limb view read 11 ms instead of 2.7).
 - The time per frame still includes the browser's delay in reporting completion, divided by the repeat count, and the CPU's time to encode each render if the CPU is the slower side. Compare toggles within one run of the script, not absolute numbers across repeat counts or machines.
 - Close other GPU work first. Other browser tabs, a second dev server rendering posters, or a video call all show up in the numbers.
 

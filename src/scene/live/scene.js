@@ -499,8 +499,11 @@ export async function startLiveScene(host, opts) {
     });
   };
 
+  // A bench batch that outruns the frame interval would queue behind the last one and be timed
+  // with its backlog, so the next batch waits for the GPU to finish.
+  let batchInFlight = false;
   renderer.setAnimationLoop((t) => {
-    if (!running) return;
+    if (!running || batchInFlight) return;
     // 0.9 absorbs rAF jitter so a 120 Hz display renders every 4th vsync, and a 60 Hz one every 2nd.
     if (t - lastRender < (throttled ? THROTTLED_FRAME_MS : 1000 / tier.fps) * 0.9) return;
     const interval = lastRender ? t - lastRender : 0;
@@ -513,6 +516,10 @@ export async function startLiveScene(host, opts) {
       // Passes and bloom render once per node frame, which only the animation loop advances.
       if (i) renderer._nodes.nodeFrame.update();
       pipeline.render();
+    }
+    if (repeats > 1 && gpuTiming) {
+      batchInFlight = true;
+      renderer.backend.device.queue.onSubmittedWorkDone().finally(() => (batchInFlight = false));
     }
     state.frames++;
     updateTelemetry(s, t);
