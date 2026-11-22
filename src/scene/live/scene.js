@@ -13,7 +13,7 @@ import { createEarth } from './earth.js';
 import { createOcean } from './ocean.js';
 import { bodyFrame, vec } from '../ephemeris';
 import { sample } from '../orbit';
-import { chooseShot, dawnDusk, earthrise, orbitalSunrise, featureFlyover, seededRandom, wantsReshoot, SHOT_FOV_DEG } from '../shots';
+import { chooseShot, dawnDusk, earthrise, orbitalSunrise, featureFlyover, nightPass, seededRandom, wantsReshoot, SHOT_FOV_DEG } from '../shots';
 import { bodyById } from '../bodies.ts';
 import { telemetryParts } from '../telemetry';
 import { Governor, initialTier, renderPixelRatio, tier as tierByName } from '../quality.ts';
@@ -38,14 +38,15 @@ const WIDE_FROM = 4;
 // Earth rises this far right of centre: clear of the text in a wide view, still on a phone screen.
 const earthRightDeg = (fovDeg, aspect) => Math.min(15, Math.max(4, 0.45 * Math.atan(Math.tan((fovDeg * DEG) / 2) * aspect) / DEG));
 
-function buildShot(body, kind, now, altKm, rand, featureId, rightDeg) {
-  const o = { body, altKm, rand, rightDeg };
+function buildShot(body, kind, now, altKm, rand, featureId, rightDeg, ctx) {
+  const o = { body, altKm, rand, rightDeg, ctx };
   const feature = body.features.find((f) => f.id === featureId);
   if (feature) return featureFlyover(now, { ...o, features: [feature], anySun: true });
   if (kind === 'dawn-dusk') return dawnDusk(now, o);
   if (kind === 'orbital-sunrise') return orbitalSunrise(now, o);
   if (kind === 'earthrise') return earthrise(now, o) ?? featureFlyover(now, o) ?? dawnDusk(now, o);
   if (kind === 'feature-flyover') return featureFlyover(now, o) ?? dawnDusk(now, o);
+  if (kind === 'night-pass') return nightPass(now, o) ?? featureFlyover(now, o) ?? dawnDusk(now, o);
   return chooseShot(now, o);
 }
 
@@ -298,7 +299,9 @@ export async function startLiveScene(host, opts) {
   const simNow = () => new Date(simStart + (opts.skip ?? 0) * 1000 + (Date.now() - wallStart) * timeScale);
   const rand = opts.seed === undefined ? Math.random : seededRandom(opts.seed);
   const lensFor = (kind) => opts.fovDeg ?? SHOT_FOV_DEG[kind] ?? CAMERA_DEFAULTS.fovDeg;
-  const nextShot = (at) => buildShot(body, opts.shot, at, cam.altKm, rand, opts.feature, earthRightDeg(lensFor('earthrise'), innerWidth / innerHeight));
+  // With city lights off (`fx=lights`), shot planning doesn't look for them either.
+  const viewContext = body.lights && !fx.has('lights') ? { lightsAround } : {};
+  const nextShot = (at) => buildShot(body, opts.shot, at, cam.altKm, rand, opts.feature, earthRightDeg(lensFor('earthrise'), innerWidth / innerHeight), viewContext);
   // Each shot brings its own lens. The change happens before the first frame shows, or under a crossfade.
   const applyLens = () => {
     cam.fovDeg = lensFor(shot.kind);
@@ -311,7 +314,6 @@ export async function startLiveScene(host, opts) {
   let reshootPending = false;
   // A view pinned by the URL (posters, previews) stays put even after it goes dark.
   const pinned = Boolean(opts.at || opts.seed !== undefined || opts.skip || opts.feature);
-  const viewContext = { lightsAround };
   // A URL that picks the view never gets the home pass, so posters don't depend on this machine's timezone.
   const homeEligible = body.id === 'earth' && !pinned && !opts.shot;
   const wantsHome = !opts.feature && (opts.shot === 'home-pass' || (homeEligible && homePassDue()));
