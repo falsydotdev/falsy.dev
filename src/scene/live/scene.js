@@ -21,6 +21,9 @@ import { frameTimes } from '../perf.ts';
 import { solveFraming } from '../composition.ts';
 import { parseFx } from '../fx.ts';
 import { cloudCandidates, cloudReadout, overCloudCap } from '../clouds.ts';
+import { homePass } from '../home-pass.ts';
+import { lightsAround } from '../lights.ts';
+import { zoneCoords } from '../timezone.ts';
 
 const DEG = Math.PI / 180;
 // Camera defaults. Altitude comes from the body. Tilt (degrees below the horizon beyond the
@@ -45,6 +48,32 @@ function buildShot(body, kind, now, altKm, rand, featureId, rightDeg) {
   if (kind === 'feature-flyover') return featureFlyover(now, o) ?? dawnDusk(now, o);
   return chooseShot(now, o);
 }
+
+// The home pass plays on a visitor's first live Earth scene only. The flag records that much and no
+// location; the module-level copy covers storage that throws.
+const HOME_PASS_KEY = 'falsy:home-pass';
+let homePassSeen = false;
+function homePassDue() {
+  if (homePassSeen) return false;
+  try {
+    return localStorage.getItem(HOME_PASS_KEY) === null;
+  } catch {
+    return true;
+  }
+}
+function markHomePassSeen() {
+  homePassSeen = true;
+  try {
+    localStorage.setItem(HOME_PASS_KEY, '1');
+  } catch {}
+}
+const browserZone = () => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch {
+    return undefined;
+  }
+};
 
 /**
  * Starts the live scene of one body inside `host`.
@@ -280,10 +309,14 @@ export async function startLiveScene(host, opts) {
   let shotBuilt = new Date(simStart);
   let shotAspect = innerWidth / innerHeight;
   let reshootPending = false;
-  let shot = nextShot(shotBuilt);
-  applyLens();
   // A view pinned by the URL (posters, previews) stays put even after it goes dark.
   const pinned = Boolean(opts.at || opts.seed !== undefined || opts.skip || opts.feature);
+  const viewContext = { lightsAround };
+  // A URL that picks the view never gets the home pass, so posters don't depend on this machine's timezone.
+  const homeEligible = body.id === 'earth' && !pinned && !opts.shot;
+  const wantsHome = !opts.feature && (opts.shot === 'home-pass' || (homeEligible && homePassDue()));
+  let shot = (wantsHome && homePass(shotBuilt, { body, altKm: cam.altKm, home: zoneCoords(browserZone()), ctx: viewContext })) || nextShot(shotBuilt);
+  applyLens();
   const starMatrix = new THREE.Matrix4();
   let lastPose = null;
 
@@ -497,7 +530,7 @@ export async function startLiveScene(host, opts) {
     if (stopped) return;
     // A long visit, or a tab left in the background, ends up over the night side. Crossfade to a
     // new shot from here, waiting until the new view's tiles are in.
-    if (!first && !pinned && !governorHeld && (reshootPending || wantsReshoot(shot, shotBuilt, s.date))) {
+    if (!first && !pinned && !governorHeld && (reshootPending || wantsReshoot(shot, shotBuilt, s.date, viewContext))) {
       reshootPending = false;
       shotAspect = innerWidth / innerHeight;
       if (!resumeStarted) takeSnapshot();
@@ -524,6 +557,7 @@ export async function startLiveScene(host, opts) {
       state.firstFrameMs = Math.round(performance.now() - started);
       // Only the page's first scene measures the page load; later ones are body switches.
       window.__falsyPageReady ??= { body: body.id, sinceNavMs: Math.round(performance.now()), renderMs: Math.round(loadMs), hiddenDuringLoad: !!window.__falsyHiddenSinceNav };
+      if (homeEligible) markHomePassSeen();
       opts.onFirstFrame?.();
     }
   });

@@ -148,6 +148,7 @@ The readout sits in a corner, for example `MARS  18.4°N  226.0°E  LST 06:12  A
 ### Later bodies
 
 - **Earth:** shows real clouds from NOAA's GMGSI geostationary infrared composite, refreshed every 3 hours by the cloud job (a cron Worker that runs a Cloudflare Container). If the newest clouds are missing or more than about 6 hours old, it keeps the last good set and the readout says so; with no set at all, it falls back to a static cloud map. Night-side city lights come from NASA Black Marble.
+- **Earth's home pass:** on a visitor's first live Earth scene, a flyover passes about 150 km beside their timezone's principal city at their real local time. Coordinates come from IANA tzdb's `zone.tab` plus the `backward` aliases (both public domain), generated into `src/scene/zones.ts` by `scripts/zones.mjs`. The spec first named `zone1970.tab`, but that file merges countries: it gives Stockholm, Oslo, and Copenhagen Berlin's coordinates, and Amsterdam Brussels'. Browsers also report legacy names such as `Asia/Calcutta`, which only `backward` lists. UTC, `Etc/*`, unknown zones, and night passes over dark ground without city lights get the normal shot mix. The location stays in the browser and never reaches analytics.
 - **Jupiter and Saturn:** cloud bands drift at their real, latitude-dependent rotation rates, using Cassini and Juno maps with flow distortion. At real time that drift is slow, so the camera's orbit carries the motion. Saturn's rings and the planet shadow each other.
 
 ## Easter egg: the explorer (v2)
