@@ -60,7 +60,6 @@ function fixedBytes(m: Pick<SceneMemory, 'clouds'>) {
 
 const perPixel = (m: Pick<SceneMemory, 'msaa' | 'bloom'>) => CANVAS_BPP + PASS_BPP + (m.msaa ? MSAA_BPP : 0) + (m.bloom ? BLOOM_BPP : 0);
 
-/** Bytes one scene holds on the GPU. */
 export function sceneGpuBytes(m: SceneMemory) {
   return fixedBytes(m) + m.atlasLayers * bytesPerLayer(m.tileLayers) + m.canvasPx * perPixel(m);
 }

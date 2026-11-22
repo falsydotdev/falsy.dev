@@ -5,10 +5,7 @@ import { latLon, vec, type Vec3 } from './ephemeris.ts';
 /** The cloud texture's size: one single-channel map, within WebGPU's default 8192 px texture limit. */
 export const CLOUD_TEXTURE = { width: 4096, height: 2048 } as const;
 
-/**
- * Texture coordinates of a latitude and longitude (degrees, longitude east-positive in any range)
- * in the cloud map, whose row 0 is 90°N and column 0 is 180°W.
- */
+/** Longitude is east-positive in any range; the map's row 0 is 90°N and column 0 is 180°W. */
 export function cloudUv(latDeg: number, lonDeg: number): [number, number] {
   const u = (((lonDeg + 180) % 360) + 360) % 360 / 360;
   return [u, (90 - latDeg) / 180];
@@ -20,10 +17,7 @@ export interface CloudPolar {
   south: number;
 }
 
-/**
- * Whether the view looks at a polar cap the clouds don't cover. Judged at the ground under the
- * view's centre, or at the horizon ahead when the centre is sky, since the camera looks well ahead.
- */
+// Judged under the view's centre, or at the horizon ahead when the centre is sky, since the camera looks well ahead.
 export function overCloudCap(pose: { position: Vec3; forward: Vec3 }, radiusKm: number, polar: CloudPolar): boolean {
   const { lat } = latLon(viewGround(pose, radiusKm));
   return lat > polar.north || lat < polar.south;
@@ -51,7 +45,6 @@ export interface CloudReadoutInput {
   status: CloudStatus;
   /** The set on screen, once one has loaded. */
   set: CloudSetInfo | null;
-  /** The scene's clock. */
   now: Date;
   overCap: boolean;
 }
@@ -72,11 +65,8 @@ const HOUR_MS = 3_600_000;
 // The cloud job's object key for a valid time, e.g. 20261122T0900Z (clouds/worker/job.js).
 const stampOf = (d: Date) => d.toISOString().slice(0, 16).replace(/[-:]/g, '') + 'Z';
 
-/**
- * The cloud sets to try, best first; the static map always comes last. A pinned moment takes the
- * newest set valid in the 6 hours up to it, the rule the job keeps poster sets by. The bucket can't
- * be listed, so this probes each hour, as the job's sets are valid on the hour.
- */
+// A pinned moment takes the newest set valid in the 6 hours up to it, the job's rule for poster sets.
+// The bucket can't be listed, so this probes each hour, since sets are valid on the hour.
 export function cloudCandidates({ base, staticUrl, at }: { base: string | null; staticUrl: string; at?: Date }): CloudCandidate[] {
   const fallback: CloudCandidate = { url: staticUrl, source: 'static' };
   if (!base) return [fallback];

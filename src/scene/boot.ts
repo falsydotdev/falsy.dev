@@ -30,7 +30,6 @@ declare global {
     canvas: HTMLCanvasElement;
     /** Whether the GPU shares the CPU's memory (see isIntegrated). */
     integrated: boolean;
-    /** MSAA samples on the scene pass. */
     readonly msaa: number;
     readonly gpuMemoryMB: number;
   }

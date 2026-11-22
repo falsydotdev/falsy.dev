@@ -5,11 +5,8 @@ import type { Place } from './timezone.ts';
 // Far enough to the side that the readout never shows the home's own coordinates.
 const HOME_OFFSET_KM = 150;
 
-/**
- * A flyover beside the visitor's home region at its real local time, or null when there's no home,
- * the body offers no home pass, or the region would be dark ground without city lights.
- * The shot carries no feature, so the home's coordinates don't travel with it.
- */
+// Null where the home region would be dark ground without city lights. The shot carries no
+// feature, so the home's coordinates don't travel with it.
 export function homePass(now: Date, opts: ShotOptions & { home: Place | null; ctx?: ViewContext }): Shot | null {
   const { home, ctx = {}, ...rest } = opts;
   if (!home || !rest.body?.shots.homePass) return null;

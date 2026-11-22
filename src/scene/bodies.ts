@@ -166,9 +166,8 @@ export const MOON: Body = {
   listed: true,
 };
 
-// GM from the IERS conventions; radius is the sphere the GEBCO heights are drawn on. Latitude on
-// that sphere is read as geodetic, as the bake reads its source rasters, so local Sun elevation
-// and feature placement are exact; altitude in the readout is above this mean radius.
+// GM from the IERS conventions; radius is the sphere GEBCO heights are drawn on. Latitude on it is
+// geodetic, as the bake reads its rasters, so local Sun elevation and feature placement are exact.
 export const EARTH: Body = {
   id: 'earth',
   name: 'Earth',

@@ -132,11 +132,8 @@ const distanceToGround = (m: AtmosphereModel, r: number, mu: number) => {
   return -r * mu - Math.sqrt(disc);
 };
 
-/**
- * Optical depth per channel from radius r along cos-zenith μ to the top of the atmosphere, as RGBA
- * with A = 1. Transmittance is exp(−rgb); interpolating depth rather than transmittance keeps
- * grazing rays smooth, and half floats don't underflow at the horizon.
- */
+// Optical depth per channel from radius r along cos-zenith μ to the top of the air, as RGBA with A = 1.
+// Depth, not transmittance, so grazing rays interpolate smoothly and half floats don't underflow.
 export function buildTransmittance(m: AtmosphereModel) {
   const { width: W, height: Hh } = OPTICAL_DEPTH_SIZE;
   const steps = depthSteps(m);

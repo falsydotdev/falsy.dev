@@ -142,18 +142,12 @@ export function drawnHeightRangeKm(heightRangeM: readonly [number, number] | num
   return [km(heightRangeM[0]), km(heightRangeM[1])];
 }
 
-/**
- * Whether every height sample of tile `key` is sea, so it draws flat at sea level without its
- * height tile. An ancestor's coarser samples could bleed coastal land into it, so it borrows none.
- * Levels 0 and 1 always load, as the fallback for every other tile.
- */
+// Every height sample is sea, so the tile draws flat without its height tile. It borrows no ancestor,
+// whose coarser samples could bleed coastal land in; levels 0 and 1 always load as the fallback.
 export const isOpenSea = (key: TileKey, flatOcean?: FlatOcean): boolean => key.level > 1 && isFlatOcean(flatOcean, key);
 
-/**
- * Whether a layer's fetch rule wants tile `key` now. `sunDir` is the unit vector to the Sun in the
- * body frame. A tile wants a night-only layer while any of its ground sees the Sun below the limit.
- * Open-sea tiles skip their height tile (see `isOpenSea`).
- */
+// `sunDir` is the unit vector to the Sun in the body frame. A tile wants a night-only layer while
+// any of its ground sees the Sun below the limit.
 export function layerWants(key: TileKey, layer: TileLayer, sunDir?: Vec3, flatOcean?: FlatOcean): boolean {
   if (layer.format === 'height' && isOpenSea(key, flatOcean)) return false;
   if (layer.sunBelowDeg === undefined) return true;
@@ -163,10 +157,8 @@ export function layerWants(key: TileKey, layer: TileLayer, sunDir?: Vec3, flatOc
 }
 
 /**
- * The tiles layer `layer` fetches for a selection. A layer with a Sun rule is optional and only
- * lights ground in view, so it skips the pinned global fallbacks (which reach the night side from
- * any view). It takes each selected tile it wants, held to its cap, with every ancestor as a
- * fallback; an ancestor holds that tile's ground, so the Sun rule always wants it too.
+ * A Sun-rule layer only lights ground in view, so it skips the pinned global fallbacks. Each tile it
+ * wants brings its ancestors, which hold that tile's ground, so the Sun rule wants them too.
  */
 export function layerTilesFor(selected: Selected[], layer: TileLayer, { lean = false, sunDir, flatOcean }: { lean?: boolean; sunDir?: Vec3; flatOcean?: FlatOcean } = {}): TileKey[] {
   if (layer.sunBelowDeg === undefined) return layerTilesToFetch(tilesToFetch(selected, { lean }), layer, sunDir, flatOcean);

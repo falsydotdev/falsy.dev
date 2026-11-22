@@ -550,7 +550,8 @@ export async function startLiveScene(host, opts) {
     const s = frame();
     const renderStart = performance.now();
     for (let i = 0; i < repeats; i++) {
-      // Passes and bloom render once per node frame, which only the animation loop advances.
+      // Private three.js API, bench only: passes and bloom render once per node frame, and only the
+      // animation loop advances it, so each repeat steps it by hand.
       if (i) renderer._nodes.nodeFrame.update();
       pipeline.render();
     }
@@ -580,9 +581,8 @@ export async function startLiveScene(host, opts) {
       fadeSnapshot();
     }
     const settleMs = opts.settleTimeoutMs ?? SETTLE_TIMEOUT_MS;
-    // Without the shadow map, shadows and the Sun's halo would pop in, so the timeout runs from its
-    // arrival. Settled tiles also wait for the clouds, but the timeouts don't, so a slow cloud map
-    // can't hold the scene past the page's poster fallback.
+    // The timeout runs from the shadow map's arrival, so shadows and the Sun's halo don't pop in. Settled
+    // tiles wait for the clouds but the timeouts don't, so a slow cloud map can't outlast the poster fallback.
     const shadowIn = planet.shadow !== 'loading';
     const cloudsIn = clouds?.state.status !== 'loading';
     if (first && ((shadowIn && ((planet.settled() && cloudsIn) || loadMs - shadowAtMs > settleMs)) || loadMs > settleMs * 2)) {

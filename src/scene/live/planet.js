@@ -72,7 +72,6 @@ class Record {
   constructor(key, layerCount) {
     this.key = key;
     this.id = tileId(key);
-    /** One per tile layer, in the body's order. */
     this.slots = Array.from({ length: layerCount }, () => ({ state: 'idle', layer: -1 }));
     this.lastUsed = 0;
   }
@@ -83,8 +82,7 @@ class Record {
  * Tiles that are still loading borrow the texels of their nearest loaded ancestor.
  */
 export class TiledPlanet {
-  /** @param {THREE.WebGPURenderer} renderer */
-  /** `layers` is each atlas's depth; `tileLayers` is the body's list of streamed layers. */
+  /** @param {THREE.WebGPURenderer} renderer `layers` is each atlas's depth; `tileLayers` the body's streamed layers. */
   constructor(renderer, { baseUrl, meta, relief, seaLevel = false, layers, tileLayers, lighting, nightLights = null, atmosphere = null, clouds = null, ocean = null, relaxBeyondKm = 500 }) {
     this.lighting = lighting;
     this.nightLights = nightLights;
@@ -281,12 +279,8 @@ export class TiledPlanet {
     return mat;
   }
 
-  /**
-   * City lights as emission, or null on a body without them. They fade in over the twilight band of
-   * su (sine of the Sun's elevation). The atmosphere shell, blended over the terrain, already dims
-   * everything by the mean of its view throughput, which includes the clouds; this adds only the
-   * colour of that transmittance, so lights near the limb redden without being dimmed twice.
-   */
+  // The atmosphere shell already dims the terrain by its mean view throughput, clouds included, so
+  // the lights take only the transmittance's colour: they redden near the limb without dimming twice.
   buildLights() {
     const i = this.tileLayers.findIndex((l) => l.id === LIGHTS_LAYER.id);
     const cfg = this.nightLights;

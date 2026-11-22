@@ -14,7 +14,6 @@ export interface Tier {
   glint: 'cox-munk' | 'ggx';
   /** The camera moves slowly, so 30 looks the same as 60. A divisor of 60 and 120, so the cap lands on whole refreshes. */
   fps: number;
-  /** Clouds darken the ground under them. */
   cloudShadows: boolean;
   /** Clouds are shaded from the slope of their coverage. */
   cloudRelief: boolean;

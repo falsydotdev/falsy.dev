@@ -38,9 +38,8 @@ export async function createAtmosphereTables(atmosphere, radiusKm) {
   const Hd = Math.sqrt(Ra * Ra - R * R);
 
   /**
-   * RGB optical depth from radius r (km, from the planet's centre) along cos-zenith μ to the top of
-   * the atmosphere. Valid at any height; rays below the horizon read the horizon's value.
-   * Bruneton's mapping from atmosphere-luts.ts; ρ² is written as h(2R + h) to keep float precision.
+   * RGB optical depth from radius r (km) along cos-zenith μ to the top of the air; rays below the
+   * horizon read the horizon's value. Bruneton's mapping, with ρ² as h(2R + h) for float precision.
    */
   const opticalDepth = (r, mu) => {
     const h = r.sub(R);
@@ -52,7 +51,6 @@ export async function createAtmosphereTables(atmosphere, radiusKm) {
     const uv = vec2(x.mul(W - 1).add(0.5).div(W), rho.div(Hd).mul(H - 1).add(0.5).div(H));
     return texture(depthTex, uv).level(0).rgb;
   };
-  /** RGB sunlight transmittance along the same ray. */
   const transmittance = (r, mu) => exp(opticalDepth(r, mu).negate());
   /** Light scattered more than once, per unit sunlight, at height h (km) with the Sun at cos-zenith μs. */
   const multiScatter = (h, muS) => {
