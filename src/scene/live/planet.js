@@ -83,9 +83,10 @@ class Record {
 export class TiledPlanet {
   /** @param {THREE.WebGPURenderer} renderer */
   /** `layers` is each atlas's depth; `tileLayers` is the body's list of streamed layers. */
-  constructor(renderer, { baseUrl, meta, relief, seaLevel = false, layers, tileLayers, lighting, atmosphere = null, relaxBeyondKm = 500 }) {
+  constructor(renderer, { baseUrl, meta, relief, seaLevel = false, layers, tileLayers, lighting, atmosphere = null, clouds = null, relaxBeyondKm = 500 }) {
     this.lighting = lighting;
     this.atmosphere = atmosphere;
+    this.clouds = clouds;
     this.relaxBeyondKm = relaxBeyondKm > 0 ? relaxBeyondKm : Infinity;
     this.renderer = renderer;
     this.baseUrl = baseUrl;
@@ -258,6 +259,7 @@ export class TiledPlanet {
         const risen = clamp(su.div(lighting.sunDiameter).add(0.5), 0, 1);
         direct = direct.mul(exp(depth.negate())).mul(risen);
       }
+      if (this.clouds) direct = direct.mul(this.clouds.shadowAt(positionWorld, s));
       const sky = albedo.mul(lighting.skyTint).mul(lighting.ambient).mul(smoothstep(-0.2, 0.25, su));
       return vec4(direct.add(sky), 1);
     })();

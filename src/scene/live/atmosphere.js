@@ -27,10 +27,11 @@ function densityAt(profile, h) {
 
 /**
  * The scattering shell, lit through the body's atmosphere tables.
- * @param {{ tables: Awaited<ReturnType<typeof import('./atmosphere-tables.js').createAtmosphereTables>>, terrainHeight?: (dir: any) => any, viewSteps?: number }} opts
+ * @param {{ tables: Awaited<ReturnType<typeof import('./atmosphere-tables.js').createAtmosphereTables>>, terrainHeight?: (dir: any) => any, viewSteps?: number, clouds?: ReturnType<typeof import('./clouds.js').createClouds> | null }} opts
  * `terrainHeight` maps a world-space unit direction to terrain height in km, for light shafts.
+ * `clouds` puts a cloud shell inside the march.
  */
-export function createAtmosphere({ tables, terrainHeight, viewSteps = VIEW_STEPS }) {
+export function createAtmosphere({ tables, terrainHeight, viewSteps = VIEW_STEPS, clouds = null }) {
   const { model, transmittance: sunTransmittance, multiScatter } = tables;
   const u = {
     sunDir: uniform(new THREE.Vector3(1, 0, 0)),
@@ -109,9 +110,13 @@ export function createAtmosphere({ tables, terrainHeight, viewSteps = VIEW_STEPS
     const seg = max(tEnd.sub(tStart), 0).div(viewSteps);
     const throughput = vec3(1).toVar();
     const light = vec3(0).toVar();
+    // Cloud light is in the ground's units, so it's kept apart from the shell's scaled light.
+    const cloudList = clouds ? clouds.crossings(ro, rd, tEnd, sun) : [];
+    const cloudLight = vec3(0).toVar();
 
     Loop({ start: 0, end: viewSteps, name: 'i' }, ({ i }) => {
       const t = tStart.add(seg.mul(float(i).add(0.5)));
+      if (clouds) clouds.composite(cloudList, t, throughput, cloudLight);
       const p = ro.add(rd.mul(t));
       const r = length(p);
       const h = r.sub(R);
@@ -138,8 +143,9 @@ export function createAtmosphere({ tables, terrainHeight, viewSteps = VIEW_STEPS
       throughput.mulAssign(stepT);
     });
 
+    if (clouds) clouds.composite(cloudList, tEnd, throughput, cloudLight, true);
     const alpha = throughput.x.add(throughput.y).add(throughput.z).div(3).oneMinus();
-    return vec4(light.mul(u.sunIntensity), alpha);
+    return vec4(clouds ? light.mul(u.sunIntensity).add(cloudLight) : light.mul(u.sunIntensity), alpha);
   });
 
   const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false });

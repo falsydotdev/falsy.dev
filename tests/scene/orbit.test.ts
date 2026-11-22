@@ -63,4 +63,9 @@ describe("Earth's 400 km orbit", () => {
     const line = formatTelemetry(s, { body: EARTH.name, relief: EARTH.relief });
     expect(line).toMatch(/^EARTH {2}\d+\.\d°[NS] {2}\d+\.\d°E {2}LST \d\d:\d\d {2}ALT 400 km {2}v 7\.67 km\/s {2}relief×2\.5$/);
   });
+
+  it('ends the telemetry line with the clouds, after the positional items posters parse', () => {
+    const line = formatTelemetry(sample(earthOrbit, at(600)), { body: EARTH.name, relief: EARTH.relief, clouds: 'clouds: static map, detail synthesised' });
+    expect(line).toMatch(/ {2}ALT 400 km {2}v 7\.67 km\/s {2}relief×2\.5 {2}clouds: static map, detail synthesised$/);
+  });
 });

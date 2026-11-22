@@ -1,6 +1,6 @@
 // Measures what each scene layer costs the GPU per frame: renders one pinned poster shot with
 // every `fx=` toggle in turn, in alternating rounds, and prints p10, median, and p90 frame times.
-// Usage: node scripts/posters/bench.mjs [--url <running dev server>] [--shot mars-olympus] [--rounds 5]
+// Usage: node scripts/posters/bench.mjs [--url <running dev server>] [--shot mars-olympus | --query <params>] [--rounds 5]
 //   [--samples 90] [--tier high] [--scale N] [--dpr 2] [--width 1440] [--height 900] [--repeat 16]
 //   [--toggles shadows,bloom,shadows+bloom]
 // Needs the local tiles, like render.mjs. Without --url it starts `astro dev` itself.
@@ -18,6 +18,8 @@ const { values: args } = parseArgs({
     url: { type: 'string' },
     port: { type: 'string', default: '4350' },
     shot: { type: 'string', default: 'mars-olympus' },
+    // A view that isn't in shots.json, such as an Earth scene before Earth has posters.
+    query: { type: 'string' },
     rounds: { type: 'string', default: '5' },
     samples: { type: 'string', default: '90' },
     tier: { type: 'string', default: 'high' },
@@ -46,7 +48,7 @@ for (const t of toggles.slice(1)) {
   if (parseFx(t).size !== t.split(',').length) throw new Error(`Unknown layer in "${t}"; known: ${Object.keys(FX_LAYERS).join(', ')}`);
 }
 
-const shot = JSON.parse(await readFile(resolve(import.meta.dirname, 'shots.json'), 'utf8')).find((s) => s.id === args.shot);
+const shot = args.query ? { id: 'query', query: args.query } : JSON.parse(await readFile(resolve(import.meta.dirname, 'shots.json'), 'utf8')).find((s) => s.id === args.shot);
 if (!shot) throw new Error(`No shot ${args.shot} in shots.json`);
 const query = new URLSearchParams(shot.query);
 query.set('t', '0');
@@ -85,7 +87,7 @@ async function run(fx) {
       () => {
         const s = window.__falsyLive?.state;
         if (s?.shadow === 'failed') throw new Error('The shadow map failed to load.');
-        return s && s.tiles.pending === 0 && s.tiles.inFlight === 0 && s.frames > 30 && s.earth !== 'loading' && s.shadow === 'ready';
+        return s && s.tiles.pending === 0 && s.tiles.inFlight === 0 && s.frames > 30 && s.earth !== 'loading' && s.clouds !== 'loading' && s.shadow === 'ready';
       },
       null,
       { timeout: TIMEOUT, polling: 250 },
