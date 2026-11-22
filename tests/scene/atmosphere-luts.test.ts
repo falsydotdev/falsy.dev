@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   type AtmosphereComponent, type AtmosphereModel, MULTI_SCATTER_SIZE, buildMultiScatter, buildTables, buildTransmittance, sunTransmittance,
 } from '../../src/scene/atmosphere-luts';
+import { EARTH as EARTH_BODY } from '../../src/scene/bodies';
 
 const MARS: AtmosphereModel = {
   radiusKm: 3396.19,
@@ -29,6 +30,13 @@ const expectClose = (actual: number[], expected: number[], rel: number) =>
   actual.forEach((x, i) => expect(Math.abs(x - expected[i])).toBeLessThanOrEqual(expected[i] * rel + 1e-9));
 
 describe("Earth's atmosphere tables", () => {
+  it("are built from Hillaire's components with a 100 km top on Earth's 6371 km sphere", () => {
+    expect(EARTH_BODY.atmosphere?.components).toEqual([RAYLEIGH, MIE, OZONE]);
+    expect(EARTH_BODY.atmosphere?.topKm).toBe(100);
+    expect(EARTH_BODY.radiusKm).toBe(6371);
+    expect(EARTH_BODY.atmosphere?.groundHaze).toBeUndefined();
+  });
+
   it('give each component its zenith optical depth: scale height × extinction, or the ozone tent’s area', () => {
     expectClose(zenith(only(RAYLEIGH)), [5.802e-3 * 8, 13.558e-3 * 8, 33.1e-3 * 8], 0.01);
     expectClose(zenith(only(MIE)), [4.44e-3 * 1.2, 4.44e-3 * 1.2, 4.44e-3 * 1.2], 0.01);

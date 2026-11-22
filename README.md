@@ -32,6 +32,14 @@ Earth's sources ship as tiles, so its bake adds a mosaic step and an optional Se
 - Colour tiles stop at level 6 and carry the mask in alpha (opaque is land). `meta.json` gains `flatOcean`, a per-tile bitmap of open-ocean height tiles (layout in `src/scene/tiles/flat-ocean.ts`).
 - `node scripts/tiles/masked-decode/check.mjs --url http://localhost:4321` checks, against a running dev server, that the browser keeps colour under alpha 0 in Chromium and WebKit, on WebGPU and WebGL2.
 
+Earth is in `BODIES` but has `listed: false` in `src/scene/bodies.ts`, so production's first-visit picks and the body button leave it out until its production tiles and clouds exist. `?body=earth` still shows it, and development lists every body. Flip `listed` to `true` once `earth/v1` is uploaded.
+
+To run the dev server against a test bake for one body, point `FALSY_TILES_<BODY>` at its tile folder; other bodies keep loading from `~/.cache/falsy-dev/tiles`:
+
+```bash
+FALSY_TILES_EARTH=~/.cache/falsy-dev/earth-test/tiles/earth npm run dev
+```
+
 A small test bake, without the full downloads, sets `FALSY_DATA_DIR=~/.cache/falsy-dev/earth-test` and runs:
 
 ```bash
@@ -48,14 +56,14 @@ Production builds read the tile base URL from `PUBLIC_TILES_BASE` in `.env.produ
 
 | Parameter | Effect |
 |---|---|
-| `body=mars`, `body=moon` | Show this body instead of the usual alternation. The body name in the readout switches to the other one, live or as a poster. |
+| `body=mars`, `body=moon`, `body=earth` | Show this body instead of the usual alternation. The body name in the readout switches to the next one, live or as a poster. Works for a body that isn't listed yet (see below). |
 | `live=1` / `live=0` | Force the live scene on or off, ignoring screen width and reduced motion |
 | `shot=dawn-dusk`, `shot=orbital-sunrise`, `shot=feature-flyover` | Pick the orbit instead of a weighted random one |
 | `t=N` | Preview at N× real time, or `t=0` to hold one moment. The readout shows `t×N` whenever it isn't 1. |
 | `at=2026-11-03T20:00:00Z` | Start at this moment instead of now. Lighting and orbit follow from it. |
 | `feature=olympus-mons` | Fly over this feature whatever its time of day. IDs are in `src/scene/features.ts`. |
 | `seed=N` | Make the random choices (shot type, orbit direction) repeatable. With `at=`, the same URL gives the same view. |
-| `alt=N` | Orbit altitude in km (120 to 2000, default 200). Orbital speed follows from it. |
+| `alt=N` | Orbit altitude in km (120 to 2000). The default is per body: 200 for Mars, 100 for the Moon, 400 for Earth. Orbital speed follows from it. |
 | `tilt=N` | Degrees the camera looks below the horizon, beyond the geometric dip. Higher shows more ground moving. By default the framing solver picks it for the viewport. |
 | `skip=N` | Starts the clock N seconds into the shot, for stills of a chosen moment (for example `skip=50` on an orbital sunrise). |
 | `roll=N` | Degrees the camera banks right, dropping the horizon on the left. By default the framing solver picks it, so the limb passes below the hero text and rises to the right. |

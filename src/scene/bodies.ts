@@ -149,11 +149,12 @@ export const EARTH: Body = {
   sunDiameterRad: 0.0093,
   showsEarth: false,
   glowKm: 55,
-  // Hillaire (2020), table 1.
+  // Hillaire (2020), table 1. The ground matches the shell at about π × sunIntensity, 10.7, which
+  // read milky over the sea in renders; 8 keeps coastlines clear and the limb bright.
   atmosphere: {
     topKm: 100,
     groundAlbedo: [0.3, 0.3, 0.3],
-    intensity: 16,
+    intensity: 8,
     components: [
       { scattering: [5.802e-3, 13.558e-3, 33.1e-3], absorption: [0, 0, 0], profile: { scaleHeightKm: 8 }, phase: 'rayleigh' },
       { scattering: [3.996e-3, 3.996e-3, 3.996e-3], absorption: [0.444e-3, 0.444e-3, 0.444e-3], profile: { scaleHeightKm: 1.2 }, phase: [0.8, 0.8, 0.8] },
