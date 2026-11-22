@@ -72,7 +72,7 @@ Production builds read the tile base URL from `PUBLIC_TILES_BASE` in `.env.produ
 | `tier=high`, `tier=medium`, `tier=low` | Force a quality tier and stop the automatic step-down, to compare them. `window.__falsyLive.state` shows the tier, `gpuMs`, and any tier changes. |
 | `scale=N` | Render at N device pixels per CSS pixel (0.5 to 3, never above the screen's own), overriding the tier's resolution. For comparing sharpness. |
 | `webgl` | Force the WebGL2 backend |
-| `fx=shadows,bloom` | Turn these scene layers off, to measure what each costs. Layers are listed in `src/scene/fx.ts`; unknown names are ignored. `window.__falsyLive.state.fx` shows which layers are off. |
+| `fx=shadows,bloom` | Turn these scene layers off (on Earth also `clouds` and `cloudShadows`), to measure what each costs. Layers are listed in `src/scene/fx.ts`; unknown names are ignored. `window.__falsyLive.state.fx` shows which layers are off. |
 | `bench=N` | Render each frame N times back to back (1 to 64) and log the GPU time per frame, for the frame-time benchmark. |
 | `ph=1` | Turn on PostHog analytics off the production host. Events go through the `/uplink` relay, which only the Worker serves, so test a build with `npm run build && npx wrangler dev`, not `astro preview` or `astro dev`. Headless browsers also need `navigator.webdriver` masked, or posthog-js drops their events as bots. |
 
@@ -114,6 +114,7 @@ node scripts/posters/bench.mjs --tier low --toggles shadows,bloom,shadows+bloom
 | Option | Default | Effect |
 |---|---|---|
 | `--shot` | `mars-olympus` | Shot ID from `scripts/posters/shots.json`. Its pinned time and `t=0` hold the view still. |
+| `--query` | | URL parameters for a view not in `shots.json`, in place of `--shot`, such as `body=earth&shot=dawn-dusk&seed=1&at=2026-11-22T11:00:00Z`. Pin `at` to hold it still. |
 | `--tier` | `high` | Quality tier to force |
 | `--toggles` | every layer in `src/scene/fx.ts` | Comma-separated `fx=` values to compare. `a+b` turns several layers off in one run. |
 | `--rounds`, `--samples` | 5, 90 | Rounds of every toggle, and frame times kept per run (at most 120) |
@@ -154,5 +155,7 @@ curl "http://localhost:4437/__scheduled?cron=50+*/3+*+*+*"
 ```
 
 Deploy with `cd clouds && npm ci && npx wrangler deploy`. It builds and pushes the container image, so Docker must be running.
+
+Until the scene reads `latest.json`, Earth uses a static set in `public/clouds/` (`static.avif`, and `static.json` in the shape of `latest.json`), made by the container's own handler from the 2026-11-22 11:00 UTC file and the 14 days before it at the same hour. To remake it, download those files from `noaa-gmgsi-pds` and run `node clouds/scripts/make-static.mjs <newest .nc> public/clouds <earlier .nc>...`.
 
 Analytics go to the PostHog project `falsy.dev` (US Cloud). `src/analytics.ts` loads posthog-js after the page is idle, and only on `falsy.dev`, so dev, Lighthouse CI, and PR previews send nothing. Events go through `/uplink/*` on the site itself, which `worker/index.js` relays to PostHog, so ad blockers that block posthog.com don't drop them. That path is the only one that runs the Worker; everything else is served as static assets. The project token is in `.env.production`: it's public by design, since it can only send events and ships in the page anyway. It runs in cookieless mode: nothing is stored in the browser, and PostHog counts a returning visitor as new each day. Besides pageviews and clicks, a `scene_shown` event records whether each visitor got the live orbit or a poster, with the GPU backend and quality tier.

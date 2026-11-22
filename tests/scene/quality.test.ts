@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Governor, initialTier, renderPixelRatio, tier } from '../../src/scene/quality.ts';
+import { Governor, TIERS, initialTier, renderPixelRatio, tier } from '../../src/scene/quality.ts';
 
 const opts = { warmup: 2, window: 4, patience: 2, limit: 0.5, giveUpLimit: 0.75 };
 const feed = (g: Governor, load: number, n: number, showing = true) => Array.from({ length: n }, () => g.sample(load, showing));
@@ -91,3 +91,15 @@ describe('renderPixelRatio', () => {
   });
 });
 
+
+describe('cloud effects per tier', () => {
+  it('casts cloud shadows on High and Medium, not on Low', () => {
+    expect(tier('high').cloudShadows).toBe(true);
+    expect(tier('medium').cloudShadows).toBe(true);
+    expect(tier('low').cloudShadows).toBe(false);
+  });
+
+  it('keeps cloud relief for High only', () => {
+    expect(TIERS.filter((t) => t.cloudRelief).map((t) => t.name)).toEqual(['high']);
+  });
+});

@@ -32,6 +32,15 @@ export interface Body {
     ambient: number;
     skyTint: RGB; // colour of the diffuse skylight on the ground
   };
+  // A cloud layer: one global coverage map drawn as a shell at a fixed height.
+  clouds?: {
+    url: string; // a cloud set pointer, shaped like the cloud bucket's latest.json
+    source: 'static';
+    heightKm: number;
+    albedo: number;
+    // How far full cover stands above clear sky when shading the clouds from their coverage's slope.
+    reliefKm: number;
+  };
   // Heights below 0 are sea, drawn flat at sea level; the sea floor stays in the tiles for shading.
   seaLevel?: boolean;
   // The streamed tile layers. Colour and height are required; the terrain draws without the rest.
@@ -169,6 +178,8 @@ export const EARTH: Body = {
     skyTint: [0.55, 0.7, 1],
   },
   seaLevel: true,
+  // Until the live clouds ship: GMGSI for 2026-11-22 11:00 UTC against the 14 days before it.
+  clouds: { url: '/clouds/static.json', source: 'static', heightKm: 8, albedo: 0.85, reliefKm: 12 },
   // Colour stops at level 6 and carries the water mask in alpha (opaque is land).
   tiles: { version: 'v1', layers: [{ ...COLOR_LAYER, format: 'masked', maxLevel: 6 }, HEIGHT_LAYER] },
   // Named places lead because visitors know them by sight; a flyover is on offer almost all the time.

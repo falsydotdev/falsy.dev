@@ -6,6 +6,7 @@ import { TiledPlanet } from './planet.js';
 import { orbitCameraPose } from '../camera.ts';
 import { createAtmosphere } from './atmosphere.js';
 import { createAtmosphereTables } from './atmosphere-tables.js';
+import { createClouds, loadCloudSet } from './clouds.js';
 import { createStars } from './stars.js';
 import { createSun } from './sun.js';
 import { createEarth } from './earth.js';
@@ -18,6 +19,7 @@ import { Governor, initialTier, renderPixelRatio, tier as tierByName } from '../
 import { frameTimes } from '../perf.ts';
 import { solveFraming } from '../composition.ts';
 import { parseFx } from '../fx.ts';
+import { cloudReadout, overCloudCap } from '../clouds.ts';
 
 const DEG = Math.PI / 180;
 // Camera defaults. Altitude comes from the body. Tilt (degrees below the horizon beyond the
@@ -124,6 +126,8 @@ export async function startLiveScene(host, opts) {
   let planet;
   let atmosphere;
   let atmosphereTables;
+  let clouds = null;
+  let cloudSet = null;
   let pipeline;
   let layers;
   // Time spent rendering before the first fade-in. A tab loaded in the background doesn't run it down.
@@ -159,6 +163,8 @@ export async function startLiveScene(host, opts) {
     clearTimeout(reframe);
     planet?.dispose();
     atmosphere?.dispose();
+    clouds?.dispose();
+    cloudSet?.cancel();
     atmosphereTables?.dispose();
     sun?.dispose();
     earth?.dispose();
@@ -204,18 +210,24 @@ export async function startLiveScene(host, opts) {
   // The device can be lost while tiles load; teardown has run, so nothing more may start.
   if (stopped) throw new Error('GPU device lost while the scene was loading');
   async function loadPlanet() {
+    // The cloud map downloads with the tiles; the scene's first fade-in waits for it.
+    if (body.clouds && !fx.has('clouds')) cloudSet = loadCloudSet(body.clouds.url);
     // The terrain material reads sunlight through the atmosphere, so its tables come first.
     const [meta, tables] = await Promise.all([opts.meta, body.atmosphere ? createAtmosphereTables(body.atmosphere, body.radiusKm) : null]);
     atmosphereTables = tables;
     if (!meta) throw new Error(`No tiles at ${opts.dataUrl}`);
     if (meta.body !== body.id || Math.abs(meta.radiusKm - body.radiusKm) > 1e-6) console.warn(`Tiles at ${opts.dataUrl} are for ${meta.body}, not ${body.id}.`);
     layers = isWebGPU ? gpuLayers ?? 256 : Math.min(WANTED_LAYERS, renderer.backend.gl.getParameter(renderer.backend.gl.MAX_ARRAY_TEXTURE_LAYERS));
-    planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: body.relief, seaLevel: body.seaLevel, layers, tileLayers: body.tiles.layers, lighting, atmosphere: tables, relaxBeyondKm: opts.farKm });
+    if (cloudSet && tables) {
+      clouds = createClouds({ body, lighting, tables, set: cloudSet });
+      clouds.setTier(tier, fx.has('cloudShadows'));
+    }
+    planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: body.relief, seaLevel: body.seaLevel, layers, tileLayers: body.tiles.layers, lighting, atmosphere: tables, clouds, relaxBeyondKm: opts.farKm });
     const tiledPlanet = planet;
     planet.lean = opts.lean ?? true;
     // Tiles stream while the shadow map downloads; the first fade-in waits for it (see the loop).
     planet.init().then(() => (shadowAtMs = loadMs));
-    atmosphere = tables ? createAtmosphere({ tables, terrainHeight: (n) => tiledPlanet.coarseHeight(n) }) : null;
+    atmosphere = tables ? createAtmosphere({ tables, terrainHeight: (n) => tiledPlanet.coarseHeight(n), clouds }) : null;
     scene.add(planet.mesh);
     sun.useTerrain((n) => tiledPlanet.coarseHeight(n));
     if (atmosphere) scene.add(atmosphere.mesh);
@@ -233,6 +245,7 @@ export async function startLiveScene(host, opts) {
       pipeline.needsUpdate = true;
     }
     tier = next;
+    clouds?.setTier(next, fx.has('cloudShadows'));
     renderer.setPixelRatio(pixelRatio(next));
     renderer.setSize(innerWidth, innerHeight);
     state.tier = next.name;
@@ -260,6 +273,7 @@ export async function startLiveScene(host, opts) {
   // A view pinned by the URL (posters, previews) stays put even after it goes dark.
   const pinned = Boolean(opts.at || opts.seed !== undefined || opts.skip || opts.feature);
   const starMatrix = new THREE.Matrix4();
+  let lastPose = null;
 
   function frame() {
     const date = simNow();
@@ -271,6 +285,8 @@ export async function startLiveScene(host, opts) {
     camera.position.copy(toWorld(s.rBody));
     camera.up.copy(toWorld(pose.up));
     camera.lookAt(toWorld(vec.add(s.rBody, pose.forward)));
+    lastPose = pose;
+    if (clouds) clouds.uniforms.pixelAngle.value = (cam.fovDeg * DEG) / renderer.domElement.height;
     planet.update(pose, { fovYRad: cam.fovDeg * DEG, aspect: camera.aspect, viewportHeightPx: renderer.domElement.height }, s.sunBody);
 
     const sunW = toWorld(s.sunBody);
@@ -292,7 +308,8 @@ export async function startLiveScene(host, opts) {
   function updateTelemetry(s, t) {
     if (!telemetryEl || t - lastTelemetry < 500) return;
     lastTelemetry = t;
-    const parts = telemetryParts(s, { body: body.name, relief: body.relief });
+    const cloudItem = clouds && cloudReadout({ source: body.clouds.source, status: clouds.state.status, overCap: Boolean(clouds.state.polar && overCloudCap(lastPose, body.radiusKm, clouds.state.polar)) });
+    const parts = telemetryParts(s, { body: body.name, relief: body.relief, clouds: cloudItem });
     if (timeScale !== 1) parts.push(`t×${timeScale}`);
     // Nodes are updated in place, so the body switch button keeps focus and hover.
     const label = telemetryEl.querySelector('.body-switch');
@@ -324,7 +341,7 @@ export async function startLiveScene(host, opts) {
   // While two scenes overlap in a body switch, each sees the other's GPU time as its own load.
   let governorHeld = opts.holdGovernor ?? false;
   const state = {
-    frames: 0, body: body.id, shot: shot.kind, get earth() { return earth?.status ?? 'none'; }, get shadow() { return planet.shadow; }, backend: hints.backend, gpu: hints.vendor ?? hints.description, canvas: renderer.domElement, layers, tiles: planet.stats, firstFrameMs: 0, startTier: tier.name,
+    frames: 0, body: body.id, shot: shot.kind, get earth() { return earth?.status ?? 'none'; }, get shadow() { return planet.shadow; }, get clouds() { return clouds?.state.status ?? 'none'; }, backend: hints.backend, gpu: hints.vendor ?? hints.description, canvas: renderer.domElement, layers, tiles: planet.stats, firstFrameMs: 0, startTier: tier.name,
     tier: tier.name, timing: governor ? (gpuTiming ? 'gpu' : 'cadence') : 'forced', gpuMs: 0, gpuLog: [], load: 0, tierChanges: [],
     framing: cam,
     fx: [...fx],
@@ -484,9 +501,12 @@ export async function startLiveScene(host, opts) {
       fadeSnapshot();
     }
     const settleMs = opts.settleTimeoutMs ?? SETTLE_TIMEOUT_MS;
-    // Without the shadow map, shadows and the Sun's halo would pop in, so the timeout runs from its arrival.
+    // Without the shadow map, shadows and the Sun's halo would pop in, so the timeout runs from its
+    // arrival. Settled tiles also wait for the clouds, but the timeouts don't, so a slow cloud map
+    // can't hold the scene past the page's poster fallback.
     const shadowIn = planet.shadow !== 'loading';
-    if (first && ((shadowIn && (planet.settled() || loadMs - shadowAtMs > settleMs)) || loadMs > settleMs * 2)) {
+    const cloudsIn = clouds?.state.status !== 'loading';
+    if (first && ((shadowIn && ((planet.settled() && cloudsIn) || loadMs - shadowAtMs > settleMs)) || loadMs > settleMs * 2)) {
       first = false;
       planet.lean = false;
       state.firstFrameMs = Math.round(performance.now() - started);
