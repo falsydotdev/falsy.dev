@@ -3,7 +3,7 @@ import { EARTH } from '../../src/scene/bodies';
 import { bodyFrame, bodyVector, fromBody, sunElevationAt, sunFrom, vec } from '../../src/scene/ephemeris';
 import { EARTH_FEATURES, type Feature } from '../../src/scene/features';
 import { sample } from '../../src/scene/orbit';
-import { cameraRight, featureFlyover, flyoverFeatures, seededRandom, type Shot, worthShowing } from '../../src/scene/shots';
+import { cameraRight, chooseShot, dawnDusk, featureFlyover, flyoverFeatures, orbitalSunrise, seededRandom, type Shot, worthShowing } from '../../src/scene/shots';
 
 const equator: Feature = { id: 'equator', name: 'Equator', lat: 0, lon: 0 };
 
@@ -82,5 +82,39 @@ describe('Earth feature flyover', () => {
     const c = sample(shot.orbit, shot.keyMoment!);
     expect(vec.dot(sunFrom(EARTH, shot.keyMoment!), cameraRight(c.r, c.v))).toBeGreaterThan(0);
     expect(worthShowing(shot, shot.keyMoment!)).toBe(true);
+  });
+});
+
+describe("Earth's shot mix", () => {
+  const loads = Array.from({ length: 400 }, (_, i) => chooseShot(new Date(Date.UTC(2026, 0, 1) + i * 0.913 * 86400e3), { body: EARTH, rand: seededRandom(i) }));
+  const share = (kind: string) => loads.filter((s) => s.kind === kind).length / loads.length;
+
+  it('favours flying past a named place, with terminator passes and sunrises for the rest', () => {
+    expect(share('feature-flyover')).toBeGreaterThan(0.33);
+    expect(share('feature-flyover')).toBeLessThan(0.47);
+    expect(share('dawn-dusk')).toBeGreaterThan(0.24);
+    expect(share('orbital-sunrise')).toBeGreaterThan(0.24);
+    expect(share('dawn-dusk') + share('orbital-sunrise') + share('feature-flyover')).toBe(1);
+  });
+
+  it('builds every shot from the 400 km orbit', () => {
+    for (const s of loads) expect(s.orbit.a).toBeCloseTo(EARTH.radiusKm + 400, 6);
+  });
+
+  it.each(DATES)('runs the terminator pass 3 to 5° into daylight, from %s', (now) => {
+    const { orbit } = dawnDusk(now, { body: EARTH, rand: seededRandom(now.getTime()) });
+    for (let t = 0; t <= 300; t += 60) {
+      const c = sample(orbit, plus(now, t));
+      const elevation = Math.asin(vec.dot(vec.norm(c.rBody), c.sunBody)) / (Math.PI / 180);
+      expect(elevation).toBeGreaterThan(3);
+      expect(elevation).toBeLessThan(5);
+    }
+  });
+
+  it.each(DATES)('starts the sunrise in shadow a minute before the Sun clears the limb, from %s', (now) => {
+    const { orbit, keyMoment } = orbitalSunrise(now, { body: EARTH, rand: seededRandom(now.getTime()) });
+    expect(keyMoment!.getTime() - now.getTime()).toBe(60e3);
+    expect(sample(orbit, plus(now, 55)).shadow).toBe(true);
+    expect(sample(orbit, plus(now, 65)).shadow).toBe(false);
   });
 });
