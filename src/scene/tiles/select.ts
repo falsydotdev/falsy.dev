@@ -165,16 +165,18 @@ export function layerWants(key: TileKey, layer: TileLayer, sunDir?: Vec3, flatOc
 /**
  * The tiles layer `layer` fetches for a selection. A layer with a Sun rule is optional and only
  * lights ground in view, so it skips the pinned global fallbacks (which reach the night side from
- * any view) and takes just the selected tiles and their parents.
+ * any view). It takes each selected tile it wants, held to its cap, with every ancestor as a
+ * fallback; an ancestor holds that tile's ground, so the Sun rule always wants it too.
  */
 export function layerTilesFor(selected: Selected[], layer: TileLayer, { lean = false, sunDir, flatOcean }: { lean?: boolean; sunDir?: Vec3; flatOcean?: FlatOcean } = {}): TileKey[] {
-  let keys: TileKey[];
-  if (layer.sunBelowDeg === undefined) keys = tilesToFetch(selected, { lean });
-  else {
-    keys = selected.map((s) => s.key);
-    for (const s of selected) if (s.key.level > 0) keys.push(parent(s.key)!);
+  if (layer.sunBelowDeg === undefined) return layerTilesToFetch(tilesToFetch(selected, { lean }), layer, sunDir, flatOcean);
+  const out = new Map<string, TileKey>();
+  for (const s of selected) {
+    const k = layerTile(s.key, layer);
+    if (out.has(tileId(k)) || !layerWants(k, layer, sunDir, flatOcean)) continue;
+    for (let a: TileKey | null = k; a && !out.has(tileId(a)); a = parent(a)) out.set(tileId(a), a);
   }
-  return layerTilesToFetch(keys, layer, sunDir, flatOcean);
+  return [...out.values()];
 }
 
 /** One layer's share of `tilesToFetch`: held to the layer's level cap, minus tiles its fetch rule skips. */

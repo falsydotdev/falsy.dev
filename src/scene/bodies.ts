@@ -41,6 +41,13 @@ export interface Body {
     // How far full cover stands above clear sky when shading the clouds from their coverage's slope.
     reliefKm: number;
   };
+  // City lights, from a tile layer with id 'lights': emission in the ground's own light units.
+  lights?: {
+    color: RGB;
+    intensity: number; // emission of a full-white source pixel
+    // Sine of the Sun's elevation at the ground over which the lights fade in, from none to full.
+    fadeSin: readonly [number, number];
+  };
   // Heights below 0 are sea, drawn flat at sea level; the sea floor stays in the tiles for shading.
   seaLevel?: boolean;
   // The streamed tile layers. Colour and height are required; the terrain draws without the rest.
@@ -178,6 +185,8 @@ export const EARTH: Body = {
     skyTint: [0.55, 0.7, 1],
   },
   seaLevel: true,
+  // The spec's twilight: Sun 2.9° up to 8.6° down. Warm white, between sodium and LED street lighting.
+  lights: { color: [1, 0.82, 0.6], intensity: 3, fadeSin: [0.05, -0.15] },
   // Until the live clouds ship: GMGSI for 2026-11-22 11:00 UTC against the 14 days before it.
   clouds: { url: '/clouds/static.json', source: 'static', heightKm: 8, albedo: 0.85, reliefKm: 12 },
   // Colour stops at level 6 and carries the water mask in alpha (opaque is land).

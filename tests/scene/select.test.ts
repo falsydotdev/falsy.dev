@@ -231,9 +231,11 @@ describe("Earth's city lights", () => {
     }
   });
 
-  it('fetches every visible tile at night, from its ancestor at level 6', () => {
+  it('fetches every visible tile at night from its ancestor at level 6, and every coarser ancestor to borrow from', () => {
     const ids = new Set(layerTilesFor(selected, lights, { sunDir: midnight }).map(tileId));
-    for (const s of selected) expect(ids.has(tileId(layerTile(s.key, lights)))).toBe(true);
+    for (const s of selected) {
+      for (let k: TileKey | null = layerTile(s.key, lights); k; k = parent(k)) expect(ids.has(tileId(k))).toBe(true);
+    }
     expect(Math.max(...[...ids].map((id) => Number(id.split('/')[0])))).toBe(6);
   });
 

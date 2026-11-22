@@ -21,6 +21,10 @@ describe('parseFx', () => {
     expect(Object.keys(FX_LAYERS)).toEqual(expect.arrayContaining(['shadows', 'bloom', 'clouds', 'cloudShadows']));
   });
 
+  it("turns off Earth's city lights", () => {
+    expect([...parseFx('Lights')]).toEqual(['lights']);
+  });
+
   it('turns off Earth\'s clouds and their shadows by their camel-case names, in any case', () => {
     expect([...parseFx('clouds,cloudShadows')].sort()).toEqual(['cloudShadows', 'clouds']);
     expect([...parseFx('CLOUDSHADOWS')]).toEqual(['cloudShadows']);

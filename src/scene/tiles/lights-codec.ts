@@ -1,6 +1,7 @@
 // City-light tiles store Black Marble's display grey as published. Averaging greys would dim a
 // city that shrinks below a texel, so coarser levels (bake parents, mips) average light instead.
-const GAMMA = 2.2;
+export const LIGHTS_GAMMA = 2.2;
+const GAMMA = LIGHTS_GAMMA;
 const LIGHT = Float32Array.from({ length: 256 }, (_, v) => (v / 255) ** GAMMA);
 
 /** Light of a stored grey level, 0 to 1 (full white). */

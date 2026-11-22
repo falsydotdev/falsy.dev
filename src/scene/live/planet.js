@@ -1,8 +1,10 @@
 import * as THREE from 'three/webgpu';
 import {
   Fn, If, Loop, asin, atan, attribute, clamp, cos, cross, dot, exp, float, instancedDynamicBufferAttribute, int, max, min,
-  normalize, positionWorld, round, select, sin, smoothstep, sqrt, tan, texture, uniform, uniformArray, uv, varying, vec2, vec3, vec4,
+  normalize, positionWorld, pow, round, select, sin, smoothstep, sqrt, tan, texture, uniform, uniformArray, uv, varying, vec2, vec3, vec4,
+  cameraPosition,
 } from 'three/tsl';
+import { LIGHTS_GAMMA } from '../tiles/lights-codec.ts';
 import { FACES, parent, tileId } from '../tiles/cube.ts';
 import { drawnHeightRangeKm, isOpenSea, layerTile, layerTilesFor, layerWants, selectTiles, tilesToFetch } from '../tiles/select.ts';
 import { TILES, HEIGHT_SIZE, SHADOW_MAP } from '../tiles/layout.ts';
@@ -83,8 +85,9 @@ class Record {
 export class TiledPlanet {
   /** @param {THREE.WebGPURenderer} renderer */
   /** `layers` is each atlas's depth; `tileLayers` is the body's list of streamed layers. */
-  constructor(renderer, { baseUrl, meta, relief, seaLevel = false, layers, tileLayers, lighting, atmosphere = null, clouds = null, relaxBeyondKm = 500 }) {
+  constructor(renderer, { baseUrl, meta, relief, seaLevel = false, layers, tileLayers, lighting, nightLights = null, atmosphere = null, clouds = null, relaxBeyondKm = 500 }) {
     this.lighting = lighting;
+    this.nightLights = nightLights;
     this.atmosphere = atmosphere;
     this.clouds = clouds;
     this.relaxBeyondKm = relaxBeyondKm > 0 ? relaxBeyondKm : Infinity;
@@ -193,6 +196,7 @@ export class TiledPlanet {
       return direction(aTile, f).mul(heightKm(aHeight, f).add(R).sub(drop));
     })();
 
+    const lights = this.buildLights();
     const vF = varying(uv());
     const vTile = varying(aTile);
     const vColor = varying(aColor);
@@ -261,9 +265,38 @@ export class TiledPlanet {
       }
       if (this.clouds) direct = direct.mul(this.clouds.shadowAt(positionWorld, s));
       const sky = albedo.mul(lighting.skyTint).mul(lighting.ambient).mul(smoothstep(-0.2, 0.25, su));
-      return vec4(direct.add(sky), 1);
+      const ground = direct.add(sky);
+      return vec4(lights ? ground.add(lights(f, n, su)) : ground, 1);
     })();
     return mat;
+  }
+
+  /**
+   * City lights as emission, or null on a body without them. They fade in over the twilight band of
+   * su (sine of the Sun's elevation). The atmosphere shell, blended over the terrain, already dims
+   * everything by the mean of its view throughput, which includes the clouds; this adds only the
+   * colour of that transmittance, so lights near the limb redden without being dimmed twice.
+   */
+  buildLights() {
+    const i = this.tileLayers.findIndex((l) => l.id === 'lights');
+    const cfg = this.nightLights;
+    if (i < 0 || !cfg) return null;
+    const vLights = varying(instancedDynamicBufferAttribute(this.layerAttrs[i]));
+    const tex = this.atlases[i].texture;
+    const air = this.atmosphere;
+    const R = this.radiusKm;
+    return (f, n, su) => {
+      // Sampled outside any branch so its mip comes from screen derivatives; a tile with no lights loaded reads 0.
+      const grey = texture(tex, vLights.zw.add(f.mul(vLights.y))).depth(int(round(max(vLights.x, 0)))).r;
+      const light = select(vLights.x.lessThan(0), float(0), pow(grey, LIGHTS_GAMMA));
+      const night = smoothstep(cfg.fadeSin[1], cfg.fadeSin[0], su).oneMinus();
+      let glow = vec3(...cfg.color).mul(cfg.intensity).mul(light).mul(night);
+      if (air) {
+        const t = air.transmittance(float(R), max(dot(n, normalize(cameraPosition.sub(positionWorld))), 0));
+        glow = glow.mul(t.div(max(t.x.add(t.y).add(t.z).div(3), 1e-4)));
+      }
+      return glow;
+    };
   }
 
   /** Loads the coarse shadow map. Resolves either way; without it the map stays zero, which reads as flat ground. */
