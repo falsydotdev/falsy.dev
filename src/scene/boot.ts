@@ -181,6 +181,9 @@ export async function boot() {
     scale: numberParam(params, 'scale', 0.5, 3),
     timeScale: Number.isFinite(tParam) ? Math.max(0, tParam) : 1,
     forceWebGL: params.has('webgl'),
+    // Parsed in the scene chunk, so the page's own script stays as small as it was.
+    fx: params.get('fx'),
+    benchRepeats: numberParam(params, 'bench', 1, 64),
     layout: measureLayout,
   };
 
