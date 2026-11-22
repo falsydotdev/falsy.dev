@@ -1,6 +1,5 @@
-// Fetches and decodes tiles off the main thread. Colour comes back as RGBA8 and mono as R8, each
-// with a box-filtered mip chain; masked colour comes back as an ImageBitmap; heights come back as
-// half floats in km, ready for an R16F array layer.
+// Decodes tiles off the main thread: colour as RGBA8 and mono as R8 with box-filtered mips, masked
+// colour as an ImageBitmap, and heights as half-float km for an R16F array layer.
 import { decodeHeights } from '../tiles/layout.ts';
 import { halveLights } from '../tiles/lights-codec.ts';
 

@@ -1,7 +1,5 @@
-// Where Earth has city lights, coarsely, for shot planning on the CPU (the night pass and the home
-// pass). The grid is NASA Black Marble 2016 averaged into 1° cells; scene code imports it, so it
-// ships with the scene chunk, never the page. Light is 0 to 1: the share of a cell's area at the
-// source's full white, so a cell whose every pixel is saturated reads 1.
+// Coarse city lights for shot planning on the CPU, in the scene chunk only. Light is 0 to 1: the
+// share of a 1° cell's area at Black Marble 2016's full white.
 import { EARTH } from './bodies.ts';
 import { LIGHTS_GRID_BASE64 } from './lights-grid.ts';
 
@@ -19,7 +17,6 @@ export interface LightsGrid {
 export const encodeLight = (light: number): number => Math.round(255 * Math.cbrt(Math.min(1, Math.max(0, light))));
 const decode = (b: number) => (b / 255) ** 3;
 
-/** A grid over `values`, `cellDeg` degrees a cell. */
 export function lightsGrid(values: Uint8Array, cellDeg: number): LightsGrid {
   return { cellDeg, cols: 360 / cellDeg, rows: 180 / cellDeg, values };
 }

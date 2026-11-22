@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import posters from '../../src/data/posters.json';
 import { BODIES, EARTH, MARS, MOON, bodyById, listedBodyIds, nextBodyId } from '../../src/scene/bodies';
+import { COLOR_LAYER, HEIGHT_LAYER } from '../../src/scene/tiles/layers';
 
 describe('per-body UI strings', () => {
   it('gives every body a loading label, spoken name, and data credit', () => {
@@ -69,5 +70,15 @@ describe('bodies offered before their production tiles exist', () => {
 
   it('still finds Earth by id, so `?body=earth` previews it', () => {
     expect(bodyById('earth')).toBe(EARTH);
+  });
+});
+
+describe('tile layers', () => {
+  it('streams colour and height for every body, which the terrain needs to draw', () => {
+    for (const body of Object.values(BODIES)) {
+      const ids = body.tiles.layers.map((l) => l.id);
+      expect(ids, body.id).toContain(COLOR_LAYER.id);
+      expect(ids, body.id).toContain(HEIGHT_LAYER.id);
+    }
   });
 });

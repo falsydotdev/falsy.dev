@@ -4,10 +4,8 @@ import {
   normalize, exp, dot, sqrt, max, min, length, pow, smoothstep, clamp, select,
 } from 'three/tsl';
 
-// Single scattering raymarched through a shell around the planet (units: km), with sunlight
-// transmittance and multiple scattering read from the body's tables (see atmosphere-tables.js).
-// Mars is dust-dominated: Mie scattering with a per-channel phase asymmetry scatters blue light
-// more tightly around the Sun, which gives the blue Martian sunset.
+// Single scattering raymarched through a shell around the planet (km), with transmittance and
+// multiple scattering read from the body's tables (atmosphere-tables.js).
 // Light shafts: a grazing sunbeam is checked against the terrain at its lowest point and this
 // far either side, where it has climbed only ~3 km on a Mars-sized planet. The soft edge hides
 // the coarse map's 10 km cells; a per-pixel dither did that too but left a visible hatch.

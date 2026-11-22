@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bmngMonth, mosaicQuarter, toneReflectance } from '../../scripts/tiles/earth/sentinel.ts';
+import { bmngMonth, colorPeriod, mosaicQuarter, toneReflectance } from '../../scripts/tiles/earth/sentinel.ts';
 
 describe('Sentinel-2 tone curve', () => {
   it('follows the Copernicus true-colour display mapping (DN / 10000 × 2.5) below the shoulder', () => {
@@ -31,5 +31,17 @@ describe('which mosaic and month to bake', () => {
   it('fills from the Blue Marble month of the bake date', () => {
     expect(bmngMonth(new Date('2026-11-23T00:00:00Z'))).toEqual({ name: 'november', stamp: '200411' });
     expect(bmngMonth(new Date('2026-01-31T23:00:00Z'))).toEqual({ name: 'january', stamp: '200401' });
+  });
+});
+
+describe('the colour period recorded in meta.json', () => {
+  const bake = new Date('2026-11-23T00:00:00Z');
+
+  it('names the Sentinel-2 quarter when the overlay wrote pixels', () => {
+    expect(colorPeriod(bake, 12_345)).toEqual({ source: 'sentinel-2', year: 2025, quarter: 4 });
+  });
+
+  it('names the Blue Marble month when Sentinel-2 was skipped or wrote nothing', () => {
+    expect(colorPeriod(bake, 0)).toEqual({ source: 'blue-marble', year: 2004, month: 11 });
   });
 });

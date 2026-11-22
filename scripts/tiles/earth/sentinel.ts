@@ -1,6 +1,8 @@
 // Sentinel-2 Global Mosaic choices that don't need the network: which quarter, which Blue
 // Marble month fills the gaps, and how surface reflectance becomes display colour.
 
+import type { ColorPeriod } from '../../../src/scene/telemetry.ts';
+
 const NODATA = -32768;
 
 /**
@@ -33,4 +35,13 @@ const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 
 export function bmngMonth(date: Date) {
   const m = date.getUTCMonth();
   return { name: MONTHS[m], stamp: `2004${String(m + 1).padStart(2, '0')}` };
+}
+
+/** The period the readout names: Sentinel-2's quarter once its overlay wrote any pixels, else Blue Marble's month. */
+export function colorPeriod(date: Date, sentinelPixels: number): ColorPeriod {
+  if (sentinelPixels > 0) {
+    const { year, quarter } = mosaicQuarter(date);
+    return { source: 'sentinel-2', year, quarter };
+  }
+  return { source: 'blue-marble', year: 2004, month: date.getUTCMonth() + 1 };
 }

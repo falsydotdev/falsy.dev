@@ -39,9 +39,8 @@ export const MOON_FEATURES: Feature[] = [
 // Seas, straits, and salt flats read by their colour, which a higher Sun shows better than long shadows.
 const WATER_SUN = { min: 10, max: 40 };
 
-// Geodetic, east-positive, as the bake reads its rasters; from each place's Wikipedia page (the
-// Galápagos from Isabela Island's). Spread round the globe so one is near the terminator most of
-// the time; places too small to read from 400 km are left out.
+// Geodetic, from each place's Wikipedia page (the Galápagos from Isabela Island's). Spread so one is
+// near the terminator most of the time; places too small to read from 400 km are left out.
 export const EARTH_FEATURES: Feature[] = [
   { id: 'strait-of-dover', name: 'Strait of Dover', lat: 51, lon: 1.5, sun: WATER_SUN },
   { id: 'mont-blanc', name: 'Mont Blanc', lat: 45.8328, lon: 6.865 },

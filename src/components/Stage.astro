@@ -9,6 +9,7 @@ const ui = Object.fromEntries(Object.values(BODIES).map((b) => [b.id, { name: b.
 const choices = posterChoices(posterData as Poster[], bodies);
 const fallback = choices[0];
 const withStills = new Set(choices.map((c) => c.body));
+const liveNext = Object.fromEntries(Object.keys(BODIES).map((id) => [id, nextBodyId(bodies, id)]));
 const posterNext = Object.fromEntries(Object.keys(BODIES).map((id) => [id, nextBodyId(bodies, id, (b) => withStills.has(b))]));
 // Production tiles live on their own host; in development they're served from this one.
 const tilesBase = import.meta.env.PUBLIC_TILES_BASE;
@@ -23,7 +24,7 @@ const tilesOrigin = tilesBase && URL.canParse(tilesBase) ? new URL(tilesBase).or
     <div class="scrim"></div>
   </div>
   <p id="telemetry" class="telemetry"><button type="button" class="body-switch"></button></p>
-  <script is:inline define:vars={{ choices, bodies, ui, posterNext, tilesOrigin }}>
+  <script is:inline define:vars={{ choices, bodies, ui, liveNext, posterNext, tilesOrigin }}>
     (() => {
       // Decide before anything paints: visitors who'll get the live scene see dark
       // space until it fades in, so a poster of somewhere else never flashes first.
@@ -44,7 +45,7 @@ const tilesOrigin = tilesBase && URL.canParse(tilesBase) ? new URL(tilesBase).or
       const asked = new URLSearchParams(location.search).get('body');
       const lastBody = read('falsy:body');
       let body = Object.keys(ui).includes(asked) ? asked
-        : bodies.includes(lastBody) ? bodies[(bodies.indexOf(lastBody) + 1) % bodies.length]
+        : bodies.includes(lastBody) ? liveNext[lastBody]
         : bodies[Math.floor(Math.random() * bodies.length)];
       // A body without posters can still be shown live, but not as a still.
       if (!willTryLive && !choices.some((c) => c.body === body)) body = choices[0].body;
@@ -71,7 +72,7 @@ const tilesOrigin = tilesBase && URL.canParse(tilesBase) ? new URL(tilesBase).or
       const sw = t.querySelector('.body-switch');
       const sky = img.closest('.sky');
       // Posters skip bodies that have no stills; the live scene can show any body.
-      const nextBody = (id) => (sky.dataset.scene === 'poster' ? posterNext[id] : bodies[(bodies.indexOf(id) + 1) % bodies.length]);
+      const nextBody = (id) => (sky.dataset.scene === 'poster' ? posterNext[id] : liveNext[id]);
       const labelSwitch = (id) => {
         sw.textContent = ui[id].name.toUpperCase();
         sw.setAttribute('aria-label', `${ui[id].name}. Switch to ${ui[nextBody(id)].spoken}`);

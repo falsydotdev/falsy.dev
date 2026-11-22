@@ -15,7 +15,7 @@ import { bodyFrame, vec } from '../ephemeris';
 import { sample } from '../orbit';
 import { chooseShot, dawnDusk, earthrise, orbitalSunrise, featureFlyover, nightPass, seededRandom, wantsReshoot, SHOT_FOV_DEG } from '../shots';
 import { bodyById } from '../bodies.ts';
-import { telemetryParts } from '../telemetry';
+import { surfaceReadout, telemetryParts } from '../telemetry';
 import { Governor, initialTier, isIntegrated, renderPixelRatio, tier as tierByName } from '../quality.ts';
 import { atlasLayers, memoryClass, msaaSamples, sceneGpuBytes } from '../gpu-memory.ts';
 import { frameTimes } from '../perf.ts';
@@ -336,7 +336,7 @@ export async function startLiveScene(host, opts) {
   // A view pinned by the URL (posters, previews) stays put even after it goes dark.
   const pinned = Boolean(opts.at || opts.seed !== undefined || opts.skip || opts.feature);
   // A URL that picks the view never gets the home pass, so posters don't depend on this machine's timezone.
-  const homeEligible = body.id === 'earth' && !pinned && !opts.shot;
+  const homeEligible = Boolean(body.shots.homePass) && !pinned && !opts.shot;
   const wantsHome = !opts.feature && (opts.shot === 'home-pass' || (homeEligible && homePassDue()));
   let shot = (wantsHome && homePass(shotBuilt, { body, altKm: cam.altKm, home: zoneCoords(browserZone()), ctx: viewContext })) || nextShot(shotBuilt);
   applyLens();
@@ -377,7 +377,7 @@ export async function startLiveScene(host, opts) {
     if (!telemetryEl || t - lastTelemetry < 500) return;
     lastTelemetry = t;
     const cloudItem = clouds && cloudReadout({ status: clouds.state.status, set: clouds.state.set, now: s.date, overCap: Boolean(clouds.state.polar && overCloudCap(lastPose, body.radiusKm, clouds.state.polar)) });
-    const parts = telemetryParts(s, { body: body.name, relief: body.relief, clouds: cloudItem });
+    const parts = telemetryParts(s, { body: body.name, relief: body.relief, surface: surfaceReadout(planet?.meta.colorPeriod), clouds: cloudItem });
     if (timeScale !== 1) parts.push(`t×${timeScale}`);
     // Nodes are updated in place, so the body switch button keeps focus and hover.
     const label = telemetryEl.querySelector('.body-switch');
@@ -550,7 +550,8 @@ export async function startLiveScene(host, opts) {
     const s = frame();
     const renderStart = performance.now();
     for (let i = 0; i < repeats; i++) {
-      // Passes and bloom render once per node frame, which only the animation loop advances.
+      // Private three.js API, bench only: passes and bloom render once per node frame, and only the
+      // animation loop advances it, so each repeat steps it by hand.
       if (i) renderer._nodes.nodeFrame.update();
       pipeline.render();
     }
@@ -580,9 +581,8 @@ export async function startLiveScene(host, opts) {
       fadeSnapshot();
     }
     const settleMs = opts.settleTimeoutMs ?? SETTLE_TIMEOUT_MS;
-    // Without the shadow map, shadows and the Sun's halo would pop in, so the timeout runs from its
-    // arrival. Settled tiles also wait for the clouds, but the timeouts don't, so a slow cloud map
-    // can't hold the scene past the page's poster fallback.
+    // The timeout runs from the shadow map's arrival, so shadows and the Sun's halo don't pop in. Settled
+    // tiles wait for the clouds but the timeouts don't, so a slow cloud map can't outlast the poster fallback.
     const shadowIn = planet.shadow !== 'loading';
     const cloudsIn = clouds?.state.status !== 'loading';
     if (first && ((shadowIn && ((planet.settled() && cloudsIn) || loadMs - shadowAtMs > settleMs)) || loadMs > settleMs * 2)) {

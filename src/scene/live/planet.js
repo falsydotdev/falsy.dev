@@ -8,7 +8,7 @@ import { LIGHTS_GAMMA } from '../tiles/lights-codec.ts';
 import { FACES, parent, tileId } from '../tiles/cube.ts';
 import { drawnHeightRangeKm, isOpenSea, layerTile, layerTilesFor, layerWants, selectTiles, tilesToFetch } from '../tiles/select.ts';
 import { TILES, HEIGHT_SIZE, SHADOW_MAP } from '../tiles/layout.ts';
-import { layerPath } from '../tiles/layers.ts';
+import { COLOR_LAYER, HEIGHT_LAYER, LIGHTS_LAYER, layerPath } from '../tiles/layers.ts';
 import { LayerArray } from './tile-atlas.js';
 import { toWorld } from './terrain.js';
 
@@ -72,7 +72,6 @@ class Record {
   constructor(key, layerCount) {
     this.key = key;
     this.id = tileId(key);
-    /** One per tile layer, in the body's order. */
     this.slots = Array.from({ length: layerCount }, () => ({ state: 'idle', layer: -1 }));
     this.lastUsed = 0;
   }
@@ -83,8 +82,7 @@ class Record {
  * Tiles that are still loading borrow the texels of their nearest loaded ancestor.
  */
 export class TiledPlanet {
-  /** @param {THREE.WebGPURenderer} renderer */
-  /** `layers` is each atlas's depth; `tileLayers` is the body's list of streamed layers. */
+  /** @param {THREE.WebGPURenderer} renderer `layers` is each atlas's depth; `tileLayers` the body's streamed layers. */
   constructor(renderer, { baseUrl, meta, relief, seaLevel = false, layers, tileLayers, lighting, nightLights = null, atmosphere = null, clouds = null, ocean = null, relaxBeyondKm = 500 }) {
     this.lighting = lighting;
     this.nightLights = nightLights;
@@ -100,11 +98,12 @@ export class TiledPlanet {
     this.seaLevel = seaLevel;
     this.heightRangeKm = drawnHeightRangeKm(meta.heightRangeM, { relief, seaLevel });
     this.tileLayers = tileLayers;
-    this.atlases = tileLayers.map((l) => new LayerArray(renderer, { size: l.sizePx, layers, format: l.format }));
-    this.colorIndex = tileLayers.findIndex((l) => l.id === 'color');
-    this.heightIndex = tileLayers.findIndex((l) => l.id === 'height');
+    this.colorIndex = tileLayers.findIndex((l) => l.id === COLOR_LAYER.id);
+    this.heightIndex = tileLayers.findIndex((l) => l.id === HEIGHT_LAYER.id);
     // The terrain can't draw a tile without colour and height; any other layer is optional.
+    if (this.colorIndex < 0 || this.heightIndex < 0) throw new Error(`Terrain needs '${COLOR_LAYER.id}' and '${HEIGHT_LAYER.id}' tile layers; got ${tileLayers.map((l) => `'${l.id}'`).join(', ')}.`);
     this.required = [this.colorIndex, this.heightIndex];
+    this.atlases = tileLayers.map((l) => new LayerArray(renderer, { size: l.sizePx, layers, format: l.format }));
     this.maxLevel = Math.max(...tileLayers.map((l) => l.maxLevel));
     this.sunDir = undefined;
     this.records = new Map();
@@ -280,14 +279,10 @@ export class TiledPlanet {
     return mat;
   }
 
-  /**
-   * City lights as emission, or null on a body without them. They fade in over the twilight band of
-   * su (sine of the Sun's elevation). The atmosphere shell, blended over the terrain, already dims
-   * everything by the mean of its view throughput, which includes the clouds; this adds only the
-   * colour of that transmittance, so lights near the limb redden without being dimmed twice.
-   */
+  // The atmosphere shell already dims the terrain by its mean view throughput, clouds included, so
+  // the lights take only the transmittance's colour: they redden near the limb without dimming twice.
   buildLights() {
-    const i = this.tileLayers.findIndex((l) => l.id === 'lights');
+    const i = this.tileLayers.findIndex((l) => l.id === LIGHTS_LAYER.id);
     const cfg = this.nightLights;
     if (i < 0 || !cfg) return null;
     const vLights = varying(instancedDynamicBufferAttribute(this.layerAttrs[i]));

@@ -38,9 +38,8 @@ export function loadCloudSet(candidates) {
 }
 
 /**
- * Earth's cloud layer: a coverage map on a shell at the body's cloud height, lit through the
- * atmosphere tables. The atmosphere march draws it (`crossings`, `composite`), the terrain
- * multiplies in its shadows (`shadowAt`), and anything else can read `coverage`.
+ * A coverage map on a shell at the body's cloud height. The atmosphere march draws it (`crossings`,
+ * `composite`), the terrain multiplies in its shadows (`shadowAt`), and anything can read `coverage`.
  * @param {{ body: import('../bodies.ts').Body, lighting: ReturnType<typeof import('./terrain.js').createLighting>, tables: Awaited<ReturnType<typeof import('./atmosphere-tables.js').createAtmosphereTables>>, set: ReturnType<typeof loadCloudSet> }} opts
  */
 export function createClouds({ body, lighting, tables, set }) {

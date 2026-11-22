@@ -70,6 +70,8 @@ export interface Body {
     // The night pass, for a body with city lights (light is 0 to 1). The track passes a city whose
     // 1° cell is above `cityAbove`, and holds while light within `reachKm` of the ground ahead is above `holdAbove`.
     nightPass?: { cityAbove: number; reachKm: number; holdAbove: number };
+    // The once-per-visitor flyover beside their home region. Only where visitors live.
+    homePass?: boolean;
   };
   // Offered in production's first-visit picks and the switch button. A body whose production
   // tiles aren't uploaded yet stays off; `?body=` and development still show it.
@@ -164,9 +166,8 @@ export const MOON: Body = {
   listed: true,
 };
 
-// GM from the IERS conventions; radius is the sphere the GEBCO heights are drawn on. Latitude on
-// that sphere is read as geodetic, as the bake reads its source rasters, so local Sun elevation
-// and feature placement are exact; altitude in the readout is above this mean radius.
+// GM from the IERS conventions; radius is the sphere GEBCO heights are drawn on. Latitude on it is
+// geodetic, as the bake reads its rasters, so local Sun elevation and feature placement are exact.
 export const EARTH: Body = {
   id: 'earth',
   name: 'Earth',
@@ -214,7 +215,7 @@ export const EARTH: Body = {
   tiles: { version: 'v1', layers: [{ ...COLOR_LAYER, format: 'masked', maxLevel: 6 }, HEIGHT_LAYER, LIGHTS_LAYER] },
   // Named places lead because visitors know them by sight; one load in five shows the night side's cities.
   // Heading into night, renders dim to 7 of 255 at −5° and are close to black by −6°.
-  shots: { weights: { 'dawn-dusk': 0.25, 'orbital-sunrise': 0.25, 'feature-flyover': 0.3, 'night-pass': 0.2 }, dawnDuskSunDeg: 4, sunriseLeadS: 60, sunriseLimbKm: 0, darkBelowDeg: -5, nightPass: { cityAbove: 1e-2, reachKm: 500, holdAbove: 3e-3 } },
+  shots: { weights: { 'dawn-dusk': 0.25, 'orbital-sunrise': 0.25, 'feature-flyover': 0.3, 'night-pass': 0.2 }, dawnDuskSunDeg: 4, sunriseLeadS: 60, sunriseLimbKm: 0, darkBelowDeg: -5, nightPass: { cityAbove: 1e-2, reachKm: 500, holdAbove: 3e-3 }, homePass: true },
   listed: false,
   memoryCeilings: true,
 };

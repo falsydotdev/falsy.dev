@@ -75,6 +75,13 @@ describe('the home pass', () => {
     expect(homePass(night, { body: MARS, home: amsterdam, ctx: lit })).toBeNull();
   });
 
+  it('follows the body config, not the body id', () => {
+    const withoutPass = { ...EARTH, shots: { ...EARTH.shots, homePass: false } };
+    expect(homePass(night, { body: withoutPass, home: amsterdam, ctx: lit })).toBeNull();
+    const renamed = { ...EARTH, id: 'terra' };
+    expect(homePass(night, { body: renamed, home: amsterdam, ctx: lit })?.kind).toBe('home-pass');
+  });
+
   it('leaves the normal shot mix exactly as it was when it falls back', () => {
     for (const seed of [1, 2, 3, 4, 5]) {
       const rand = seededRandom(seed);

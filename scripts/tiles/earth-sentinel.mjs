@@ -3,11 +3,13 @@
 // Reads each item's cloud-optimized GeoTIFF overview nearest 300 m, through presigned S3 URLs.
 //   COPERNICUS_S3_ACCESS_KEY=… COPERNICUS_S3_SECRET_KEY=… node scripts/tiles/earth-sentinel.mjs
 //   node scripts/tiles/earth-sentinel.mjs --list     search only; needs no keys
-// Without keys it says so and leaves Blue Marble in place. Never log the keys.
-import { open } from 'node:fs/promises';
-import { EARTH_BAKE_DATE } from './paths.mjs';
+// Without keys it says so and leaves Blue Marble in place. Never log the keys. Either way it
+// records the colour's period in the tiles' meta.json for the readout.
+import { mkdir, open, readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { EARTH_BAKE_DATE, TILE_DIR } from './paths.mjs';
 import { listRasters, pixelDeg } from './mosaic-rasters.mjs';
-import { mosaicQuarter, toneReflectance } from './earth/sentinel.ts';
+import { colorPeriod, mosaicQuarter, toneReflectance } from './earth/sentinel.ts';
 import { presignGet } from './earth/s3.ts';
 import { toUtm } from './earth/utm.ts';
 
@@ -19,8 +21,20 @@ const NODATA = -32768;
 
 const keys = { accessKeyId: process.env.COPERNICUS_S3_ACCESS_KEY, secretAccessKey: process.env.COPERNICUS_S3_SECRET_KEY };
 const listOnly = process.argv.includes('--list');
+
+async function recordPeriod(sentinelPixels) {
+  const out = join(TILE_DIR, 'earth');
+  const metaFile = join(out, 'meta.json');
+  const meta = await readFile(metaFile, 'utf8').then(JSON.parse).catch(() => ({}));
+  const period = colorPeriod(EARTH_BAKE_DATE, sentinelPixels);
+  await mkdir(out, { recursive: true });
+  await writeFile(metaFile, JSON.stringify({ ...meta, colorPeriod: period }, null, 2));
+  console.log(`Colour period: ${JSON.stringify(period)}`);
+}
+
 if (!listOnly && (!keys.accessKeyId || !keys.secretAccessKey)) {
   console.log('Sentinel-2 skipped: set COPERNICUS_S3_ACCESS_KEY and COPERNICUS_S3_SECRET_KEY to overlay it. Colour stays Blue Marble.');
+  await recordPeriod(0);
   process.exit(0);
 }
 
@@ -116,6 +130,7 @@ async function overlay(raster, item, src) {
 }
 
 console.log(`Sentinel-2 Global Mosaic ${q.year} Q${q.quarter}`);
+let total = 0;
 // Only rasters near Blue Marble's 1/240° gain from it; the coarse test fill doesn't.
 for (const raster of listRasters('colour').filter((r) => pixelDeg(r) <= 1 / 200)) {
   const items = await search([raster.west, raster.south, raster.east, raster.north]);
@@ -136,4 +151,6 @@ for (const raster of listRasters('colour').filter((r) => pixelDeg(r) <= 1 / 200)
     }
     process.stdout.write(`    ${i + 1}/${items.length} items, ${pixels} pixels from Sentinel-2${failed ? `, ${failed} skipped` : ''}\n`);
   }
+  total += pixels;
 }
+if (!listOnly) await recordPeriod(total);

@@ -15,9 +15,8 @@ export const fresnel = (cosTheta: number) => WATER_F0 + (1 - WATER_F0) * (1 - Ma
 const angle = (a: Vec3, b: Vec3) => Math.acos(Math.min(1, Math.max(-1, vec.dot(a, b))));
 
 /**
- * Unit direction from the centre to where a smooth sphere of radius `radiusKm` mirrors the Sun into
- * a camera at `camera` (km from the centre), or null when that point is unlit or out of sight.
- * `sun` is a unit vector toward the Sun.
+ * Unit direction from the centre to where a smooth sphere mirrors the Sun (unit vector `sun`) into a
+ * camera at `camera` (km from the centre), or null when that point is unlit or out of sight.
  */
 export function specularPoint(camera: Vec3, sun: Vec3, radiusKm: number): Vec3 | null {
   const c = vec.norm(camera);
