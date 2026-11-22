@@ -4,7 +4,7 @@
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import { TILE_DIR } from './paths.mjs';
-import { drawnHeightRangeKm, layerTilesToFetch, selectTiles, tilesToFetch } from '../../src/scene/tiles/select.ts';
+import { drawnHeightRangeKm, layerTilesFor, selectTiles } from '../../src/scene/tiles/select.ts';
 import { tileId } from '../../src/scene/tiles/cube.ts';
 import { TILES, SHADOW_MAP } from '../../src/scene/tiles/layout.ts';
 import { layerPath } from '../../src/scene/tiles/layers.ts';
@@ -63,9 +63,8 @@ function run(shot, { tiltDeg, maxTexelPx, relaxBeyondKm }) {
     );
     peakTiles = Math.max(peakTiles, selected.length);
     // The first view is fetched lean, as the renderer does before its first fade-in.
-    const keys = tilesToFetch(selected, { lean: t === 0 });
     LAYERS.forEach((layer, i) => {
-      for (const k of layerTilesToFetch(keys, layer, s.sunBody, meta.flatOcean)) {
+      for (const k of layerTilesFor(selected, layer, { lean: t === 0, sunDir: s.sunBody, flatOcean: meta.flatOcean })) {
         const id = tileId(k);
         if (fetched[i].has(id)) continue;
         fetched[i].add(id);

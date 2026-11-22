@@ -4,7 +4,7 @@ import {
   normalize, positionWorld, round, select, sin, smoothstep, sqrt, tan, texture, uniform, uniformArray, uv, varying, vec2, vec3, vec4,
 } from 'three/tsl';
 import { FACES, parent, tileId } from '../tiles/cube.ts';
-import { drawnHeightRangeKm, isOpenSea, layerTile, layerWants, selectTiles, tilesToFetch } from '../tiles/select.ts';
+import { drawnHeightRangeKm, isOpenSea, layerTile, layerTilesFor, layerWants, selectTiles, tilesToFetch } from '../tiles/select.ts';
 import { TILES, HEIGHT_SIZE, SHADOW_MAP } from '../tiles/layout.ts';
 import { layerPath } from '../tiles/layers.ts';
 import { LayerArray } from './tile-atlas.js';
@@ -386,20 +386,18 @@ export class TiledPlanet {
     }
     this.stats.texelBias = opts.maxTexelPx;
 
-    const wanted = tilesToFetch(selected, { lean: this.lean }).map((k) => this.record(k));
-    for (const r of wanted) r.lastUsed = this.frame;
+    for (const k of tilesToFetch(selected, { lean: this.lean })) this.record(k).lastUsed = this.frame;
     // Pending counts only slots a layer wants now, so a layer its rule skips never holds up a poster.
     const idleSlots = new Map();
-    for (const r of wanted) {
-      this.tileLayers.forEach((tileLayer, i) => {
-        const t = this.slotRecord(r, tileLayer);
-        if (!t) return;
+    this.tileLayers.forEach((tileLayer, i) => {
+      for (const k of layerTilesFor(selected, tileLayer, { lean: this.lean, sunDir: this.sunDir, flatOcean: this.meta.flatOcean })) {
+        const t = this.record(k);
         t.lastUsed = this.frame;
-        if (t.slots[i].state !== 'idle') return;
+        if (t.slots[i].state !== 'idle') continue;
         if (!idleSlots.has(t)) idleSlots.set(t, new Set());
         idleSlots.get(t).add(i);
-      });
-    }
+      }
+    });
     const idle = [...idleSlots.keys()];
     this.stats.pending = idle.length;
     this.stats.inFlight = this.inFlight;
@@ -435,16 +433,6 @@ export class TiledPlanet {
     this.stats.drawn = n;
     this.selected = selected;
     if (this.frame % 120 === 0) this.prune();
-  }
-
-  /**
-   * The record that holds tile layer `tileLayer`'s slot for record `r` (its ancestor at the layer's
-   * level cap), or null when the layer's rule doesn't want that tile now.
-   */
-  slotRecord(r, tileLayer) {
-    const k = layerTile(r.key, tileLayer);
-    if (!layerWants(k, tileLayer, this.sunDir, this.meta.flatOcean)) return null;
-    return k === r.key ? r : this.record(k);
   }
 
   prune() {

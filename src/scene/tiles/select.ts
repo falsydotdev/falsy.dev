@@ -162,6 +162,21 @@ export function layerWants(key: TileKey, layer: TileLayer, sunDir?: Vec3, flatOc
   return centreDeg - (tileAngularRadius(key) * 180) / Math.PI < layer.sunBelowDeg;
 }
 
+/**
+ * The tiles layer `layer` fetches for a selection. A layer with a Sun rule is optional and only
+ * lights ground in view, so it skips the pinned global fallbacks (which reach the night side from
+ * any view) and takes just the selected tiles and their parents.
+ */
+export function layerTilesFor(selected: Selected[], layer: TileLayer, { lean = false, sunDir, flatOcean }: { lean?: boolean; sunDir?: Vec3; flatOcean?: FlatOcean } = {}): TileKey[] {
+  let keys: TileKey[];
+  if (layer.sunBelowDeg === undefined) keys = tilesToFetch(selected, { lean });
+  else {
+    keys = selected.map((s) => s.key);
+    for (const s of selected) if (s.key.level > 0) keys.push(parent(s.key)!);
+  }
+  return layerTilesToFetch(keys, layer, sunDir, flatOcean);
+}
+
 /** One layer's share of `tilesToFetch`: held to the layer's level cap, minus tiles its fetch rule skips. */
 export function layerTilesToFetch(keys: TileKey[], layer: TileLayer, sunDir?: Vec3, flatOcean?: FlatOcean): TileKey[] {
   const out = new Map<string, TileKey>();

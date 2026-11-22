@@ -3,7 +3,7 @@ import type * as A from 'astronomy-engine';
 import type { Atmosphere } from './atmosphere-luts.ts';
 import { EARTH_FEATURES, type Feature, MARS_FEATURES, MOON_FEATURES } from './features.ts';
 import type { ShotKind } from './shots.ts';
-import { COLOR_LAYER, HEIGHT_LAYER, type TileLayer } from './tiles/layers.ts';
+import { COLOR_LAYER, HEIGHT_LAYER, LIGHTS_LAYER, type TileLayer } from './tiles/layers.ts';
 
 export type RGB = readonly [number, number, number];
 
@@ -181,7 +181,7 @@ export const EARTH: Body = {
   // Until the live clouds ship: GMGSI for 2026-11-22 11:00 UTC against the 14 days before it.
   clouds: { url: '/clouds/static.json', source: 'static', heightKm: 8, albedo: 0.85, reliefKm: 12 },
   // Colour stops at level 6 and carries the water mask in alpha (opaque is land).
-  tiles: { version: 'v1', layers: [{ ...COLOR_LAYER, format: 'masked', maxLevel: 6 }, HEIGHT_LAYER] },
+  tiles: { version: 'v1', layers: [{ ...COLOR_LAYER, format: 'masked', maxLevel: 6 }, HEIGHT_LAYER, LIGHTS_LAYER] },
   // Named places lead because visitors know them by sight; a flyover is on offer almost all the time.
   // Heading into night, renders dim to 7 of 255 at −5° and are close to black by −6°.
   shots: { weights: { 'dawn-dusk': 0.3, 'orbital-sunrise': 0.3, 'feature-flyover': 0.4 }, dawnDuskSunDeg: 4, sunriseLeadS: 60, sunriseLimbKm: 0, darkBelowDeg: -5 },
