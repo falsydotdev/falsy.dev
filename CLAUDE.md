@@ -13,7 +13,8 @@ npx astro build
 node scripts/check-html-size.mjs
 ```
 
-- Lighthouse CI then asserts the mobile budgets in `lighthouserc.json`: every category at 0.95 or higher, LCP 2 s or less, CLS 0.02 or less. Anything that adds weight before first paint can fail CI after the steps above pass.
+- Inside `.claude/worktrees/`, Astro fails with "Tsconfig not found astro/tsconfigs/strict". Copy the worktree outside the repo without `node_modules`, run `npm ci`, and run the steps there.
+- Lighthouse CI then enforces the mobile budgets in `lighthouserc.json`. Anything that adds weight before first paint can fail CI after the steps above pass.
 - Each page's gzipped HTML must stay under 13,600 bytes so it fits the first round trip. Stylesheets are inlined (`inlineStylesheets: 'always'`), so CSS counts against it.
 - Unit tests cover the scene's math (orbits, tiles, composition, quality tiers), not its pixels. Check live-scene changes in a browser.
 
@@ -27,9 +28,8 @@ node scripts/check-html-size.mjs
 
 ## Environment gotchas
 
-- Astro builds fail inside `.claude/worktrees/` with "Tsconfig not found astro/tsconfigs/strict", because resolution reaches the parent checkout. To build a worktree, copy it outside the repo and run `npm ci` there.
 - The tile pipeline (`npm run tiles*`) downloads about 15 GB for Mars and 3 GB for the Moon. Run it only when Justin asks.
-- Production tiles at `tiles.falsy.dev` allow only the `https://falsy.dev` origin, so local and preview builds can't load them. The local live scene needs tiles baked into `~/.cache/falsy-dev`; without them, work against posters (`?live=0`).
+- In development, the live scene loads tiles from `~/.cache/falsy-dev`, not from production. Without local tiles, work against posters (`?live=0`).
 - Analytics run only through the Worker's `/uplink` relay. The README's `ph=1` row explains how to test them.
 
 ## Git and pull requests
