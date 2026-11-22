@@ -7,6 +7,7 @@ declare global {
     __falsySwitchLive?: (body: string) => void;
     __falsyLabelSwitch?: (body: string) => void;
     __falsyLive?: { state: LiveState };
+    __falsyTierLog?: (TierChange & { body: string; gpuName: string | undefined })[];
   }
   interface LiveState {
     frames: number;

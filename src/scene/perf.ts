@@ -8,6 +8,7 @@ export interface FrameTimes {
 export function frameTimes(log: readonly number[]): FrameTimes {
   if (log.length === 0) return { p50: null, p90: null, samples: 0 };
   const sorted = [...log].sort((a, b) => a - b);
-  const at = (q: number) => Math.round(sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] * 10) / 10;
+  // Nearest rank, so a short window's p90 isn't simply its worst frame.
+  const at = (q: number) => Math.round(sorted[Math.max(0, Math.ceil(q * sorted.length) - 1)] * 10) / 10;
   return { p50: at(0.5), p90: at(0.9), samples: sorted.length };
 }

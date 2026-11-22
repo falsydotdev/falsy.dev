@@ -369,9 +369,14 @@ export async function startLiveScene(host, opts) {
       const verdict = governor.sample(load, !first);
       state.load = governor.lastMedian;
       if (verdict !== 'down' && verdict !== 'give-up') return;
-      const change = { from: tier.name, to: verdict === 'give-up' ? 'frozen' : governor.tier, atMs: Math.round(performance.now() - started), load: governor.lastMedian, gpu: frameTimes(state.gpuLog.slice(-20)) };
+      // Giving up before the first frame hands the visitor a poster; after it, the last frame stays up.
+      const to = verdict === 'down' ? governor.tier : first ? 'poster' : 'frozen';
+      const change = { from: tier.name, to, atMs: Math.round(performance.now() - started), load: governor.lastMedian, gpu: frameTimes(state.gpuLog.slice(-20)) };
       state.tierChanges.push(change);
-      document.dispatchEvent(new CustomEvent('falsy:tier-changed', { detail: { state, change } }));
+      // Page-wide, so analytics (which loads late) still sees changes from scenes already gone.
+      (window.__falsyTierLog ??= []).push({ ...change, body: state.body, gpuName: state.gpu });
+      document.dispatchEvent(new CustomEvent('falsy:tier-changed'));
+      state.gpuLog.length = 0;
       if (verdict === 'give-up') return giveUp();
       // Before the first frame shows, nobody sees the change; after, it crossfades like a tab return.
       if (!first) {

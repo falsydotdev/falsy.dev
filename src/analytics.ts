@@ -32,10 +32,19 @@ function frameProps(state: LiveState) {
 }
 
 // One frame-time reading per scene once its tier has settled, so every visit shows its headroom,
-// not only the ones that stepped down. Skipped if the tab was hidden, since the log would be stale.
+// not only the ones that stepped down. The clock restarts whenever the tab comes back, so the
+// sample never holds frames from before it was hidden.
 function samplePerf(posthog: PostHog, state: LiveState) {
-  setTimeout(() => {
-    if (document.visibilityState !== 'visible' || state.tier === 'frozen') return;
+  let timer = 0;
+  const arm = () => {
+    clearTimeout(timer);
+    if (document.visibilityState === 'visible') timer = window.setTimeout(fire, PERF_SAMPLE_AFTER_MS);
+  };
+  const fire = () => {
+    document.removeEventListener('visibilitychange', arm);
+    // A scene switched away from, or one still crossfading in, would report stale frames.
+    if (window.__falsyLive?.state !== state || state.tier === 'frozen') return;
+    if (document.documentElement.classList.contains('body-fade')) return arm();
     posthog.capture('scene_perf', {
       body: state.body,
       tier: state.tier,
@@ -44,7 +53,9 @@ function samplePerf(posthog: PostHog, state: LiveState) {
       dpr: devicePixelRatio,
       ...frameProps(state),
     });
-  }, PERF_SAMPLE_AFTER_MS);
+  };
+  document.addEventListener('visibilitychange', arm);
+  arm();
 }
 
 // Records once per visit whether the visitor got the live orbit or a poster, and on which GPU path,
@@ -52,12 +63,14 @@ function samplePerf(posthog: PostHog, state: LiveState) {
 function reportScene(posthog: PostHog) {
   const sky = document.querySelector<HTMLElement>('#stage .sky');
   if (!sky) return;
-  const sent = new WeakMap<LiveState, number>();
-  const sendTierChanges = (state: LiveState) => {
-    const changes = state.tierChanges;
-    for (const c of changes.slice(sent.get(state) ?? 0)) {
+  // Changes logged before analytics loaded, including from scenes already switched away or lost
+  // to a poster, go out on the first flush.
+  let sentChanges = 0;
+  const sendTierChanges = () => {
+    const log = window.__falsyTierLog ?? [];
+    for (const c of log.slice(sentChanges)) {
       posthog.capture('scene_tier_changed', {
-        body: state.body,
+        body: c.body,
         from: c.from,
         to: c.to,
         at_ms: c.atMs,
@@ -65,10 +78,10 @@ function reportScene(posthog: PostHog) {
         gpu_ms_p50: c.gpu.p50,
         gpu_ms_p90: c.gpu.p90,
         gpu_samples: c.gpu.samples,
-        gpu: state.gpu ?? null,
+        gpu: c.gpuName ?? null,
       });
     }
-    sent.set(state, changes.length);
+    sentChanges = log.length;
   };
   const send = () => {
     const mode = sky.dataset.scene;
@@ -79,22 +92,17 @@ function reportScene(posthog: PostHog) {
     posthog.capture('scene_shown', {
       ...props,
       ...(live && {
-        scene_ready_ms: live.readyAtMs || null,
+        scene_ready_since_nav_ms: live.readyAtMs || null,
         scene_load_ms: live.firstFrameMs || null,
         scene_gpu: live.gpu ?? null,
         scene_dpr: devicePixelRatio,
       }),
     });
-    if (live) {
-      // Analytics starts after load, so a step-down may already have happened.
-      sendTierChanges(live);
-      samplePerf(posthog, live);
-    }
+    sendTierChanges();
+    if (live) samplePerf(posthog, live);
     return true;
   };
-  document.addEventListener('falsy:tier-changed', (e) => {
-    sendTierChanges((e as CustomEvent<{ state: LiveState }>).detail.state);
-  });
+  document.addEventListener('falsy:tier-changed', sendTierChanges);
   document.addEventListener('falsy:body-switched', (e) => {
     const { from, to, mode } = (e as CustomEvent<{ from: string; to: string; mode: 'live' | 'poster' }>).detail;
     posthog.register(sceneProps(mode));
