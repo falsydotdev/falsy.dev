@@ -315,6 +315,9 @@ export async function startLiveScene(host, opts) {
     frames: 0, body: body.id, shot: shot.kind, get earth() { return earth?.status ?? 'none'; }, get shadow() { return planet.shadow; }, backend: hints.backend, gpu: hints.vendor ?? hints.description, canvas: renderer.domElement, layers, tiles: planet.stats, firstFrameMs: 0, startTier: tier.name,
     tier: tier.name, timing: governor ? (gpuTiming ? 'gpu' : 'cadence') : 'forced', gpuMs: 0, gpuLog: [], load: 0, tierChanges: [],
     framing: cam,
+    get stopped() { return stopped; },
+    get held() { return governorHeld; },
+    get pixelRatio() { return renderer.getPixelRatio(); },
   };
   const started = performance.now();
 
@@ -361,6 +364,7 @@ export async function startLiveScene(host, opts) {
   };
 
   let timingBusy = false;
+  let hiddenDuringLoad = false;
   // Bumped when the log restarts, so a frame still in flight from before can't land in the new one.
   let gpuLogGen = 0;
   const restartGpuLog = () => {
@@ -456,7 +460,7 @@ export async function startLiveScene(host, opts) {
       planet.lean = false;
       state.firstFrameMs = Math.round(performance.now() - started);
       // Only the page's first scene measures the page load; later ones are body switches.
-      window.__falsyPageReady ??= { sinceNavMs: Math.round(performance.now()), loadMs: state.firstFrameMs };
+      window.__falsyPageReady ??= { body: body.id, sinceNavMs: Math.round(performance.now()), renderMs: Math.round(loadMs), hiddenDuringLoad };
       opts.onFirstFrame?.();
     }
   });
@@ -495,6 +499,7 @@ export async function startLiveScene(host, opts) {
       governor?.reset();
       restartGpuLog();
       lastRender = 0;
+      if (!on && first) hiddenDuringLoad = true;
       if (!on) {
         hiddenAt = performance.now();
         if (!first) takeSnapshot();

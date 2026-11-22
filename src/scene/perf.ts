@@ -4,7 +4,6 @@ export interface FrameTimes {
   samples: number;
 }
 
-/** Median and 90th percentile of recent GPU frame times, in ms to one decimal. */
 export function frameTimes(log: readonly number[]): FrameTimes {
   if (log.length === 0) return { p50: null, p90: null, samples: 0 };
   const sorted = [...log].sort((a, b) => a - b);

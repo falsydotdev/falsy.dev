@@ -8,7 +8,7 @@ declare global {
     __falsyLabelSwitch?: (body: string) => void;
     __falsyLive?: { state: LiveState };
     __falsyTierLog?: (TierChange & { body: string; gpuName: string | undefined })[];
-    __falsyPageReady?: { sinceNavMs: number; loadMs: number };
+    __falsyPageReady?: { body: string; sinceNavMs: number; renderMs: number; hiddenDuringLoad: boolean };
   }
   interface LiveState {
     frames: number;
@@ -22,6 +22,9 @@ declare global {
     gpuLog: number[];
     tierChanges: TierChange[];
     firstFrameMs: number;
+    readonly stopped: boolean;
+    readonly held: boolean;
+    readonly pixelRatio: number;
     canvas: HTMLCanvasElement;
   }
   interface TierChange {

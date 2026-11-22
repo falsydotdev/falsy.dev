@@ -42,8 +42,9 @@ function samplePerf(posthog: PostHog, sky: HTMLElement, state: LiveState) {
   const stop = () => document.removeEventListener('visibilitychange', arm);
   const fire = () => {
     // A scene switched away from, lost to a poster, or frozen would report stale frames.
-    if (window.__falsyLive?.state !== state || sky.dataset.scene !== 'live' || state.tier === 'frozen') return stop();
-    if (document.documentElement.classList.contains('body-fade')) return arm();
+    if (window.__falsyLive?.state !== state || sky.dataset.scene !== 'live' || state.stopped || state.tier === 'frozen') return stop();
+    // Mid-switch, the governor is held and the log isn't this scene's alone.
+    if (state.held || document.documentElement.classList.contains('body-fade')) return arm();
     stop();
     posthog.capture('scene_perf', {
       body: state.body,
@@ -51,6 +52,7 @@ function samplePerf(posthog: PostHog, sky: HTMLElement, state: LiveState) {
       start_tier: state.startTier,
       gpu: state.gpu ?? null,
       dpr: devicePixelRatio,
+      render_ratio: state.pixelRatio,
       ...frameProps(state),
     });
   };
@@ -67,11 +69,20 @@ function reportScene(posthog: PostHog) {
   // to a poster, go out on the first flush.
   let sentChanges = 0;
   let shown = false;
+  const sampled = new WeakSet<LiveState>();
+  const sample = (state: LiveState) => {
+    if (sampled.has(state)) return;
+    sampled.add(state);
+    samplePerf(posthog, sky, state);
+  };
   const sendTierChanges = () => {
     if (!shown) return;
     const log = window.__falsyTierLog ?? [];
     for (const c of log.slice(sentChanges)) {
       posthog.capture('scene_tier_changed', {
+        // Sent late, after register() has moved on to the current scene.
+        scene_body: c.body,
+        scene_tier: c.to,
         body: c.body,
         from: c.from,
         to: c.to,
@@ -95,15 +106,19 @@ function reportScene(posthog: PostHog) {
     posthog.capture('scene_shown', {
       ...props,
       ...(live && {
+        // From the page's first scene, which may not be the one showing if the visitor already switched.
+        scene_load_body: page?.body ?? null,
         scene_ready_since_nav_ms: page?.sinceNavMs ?? null,
-        scene_load_ms: page?.loadMs ?? null,
+        scene_load_render_ms: page?.renderMs ?? null,
+        scene_hidden_during_load: page?.hiddenDuringLoad ?? null,
         scene_gpu: live.gpu ?? null,
         scene_dpr: devicePixelRatio,
+        scene_render_ratio: live.pixelRatio,
       }),
     });
     shown = true;
     sendTierChanges();
-    if (live) samplePerf(posthog, sky, live);
+    if (live) sample(live);
     return true;
   };
   document.addEventListener('falsy:tier-changed', sendTierChanges);
@@ -112,7 +127,7 @@ function reportScene(posthog: PostHog) {
     posthog.register(sceneProps(mode));
     posthog.capture('body_switched', { from, to, mode });
     const live = mode === 'live' ? window.__falsyLive?.state : undefined;
-    if (live) samplePerf(posthog, sky, live);
+    if (live) sample(live);
   });
   if (send()) return;
   const watch = new MutationObserver(() => send() && watch.disconnect());
