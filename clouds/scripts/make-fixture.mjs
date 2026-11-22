@@ -1,6 +1,5 @@
-// Writes a stride-decimated copy of a GMGSI file for the Node tests. Decimating instead of cropping
-// keeps the ±72.7° coverage, the wrapped column 0, and the fill row.
 // Usage: node clouds/scripts/make-fixture.mjs <GMGSI .nc> <out .nc> [stride]
+// Decimating instead of cropping keeps the ±72.7° coverage, the wrapped column 0, and the fill row.
 import h5wasm from 'h5wasm/node';
 
 const [input, output, strideArg = '16'] = process.argv.slice(2);

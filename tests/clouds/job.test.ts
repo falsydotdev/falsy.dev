@@ -228,6 +228,7 @@ describe('cloud job', () => {
 
   it('opens each download only when the container reads it, within the Worker connection limit', async () => {
     connections.max = 0;
+    connections.open = 0;
     const bucket = fakeBucket({ 'latest.json': JSON.stringify(previous) });
     const older = ['2026-11-21T09:00Z', '2026-11-20T09:00Z', '2026-11-19T09:00Z', '2026-11-18T09:00Z'];
     await runJob({ bucket, fetch: fakeNoaa(['2026-11-22T09:00Z', ...older]), container: fakeContainer(), now: at('2026-11-22T09:45Z'), log });
@@ -289,7 +290,12 @@ describe('poster moments', () => {
       { id: 'mars-a', query: 'body=mars&at=2026-11-03T20:24:00Z&skip=100' },
       { id: 'earth-a', query: 'body=earth&shot=sunrise&at=2026-11-21T05:00:00Z&skip=90' },
       { id: 'earth-b', query: 'body=earth&feature=x' },
+      { id: 'earth-c', query: 'body=earth&at=2026-11-21T08:00:00Z&skip=60', portraitQuery: 'skip=0' },
     ];
-    expect(posterMoments(shots)).toEqual(['2026-11-21T05:01:30.000Z']);
+    expect(posterMoments(shots)).toEqual([
+      '2026-11-21T05:01:30.000Z',
+      '2026-11-21T08:01:00.000Z',
+      '2026-11-21T08:00:00.000Z',
+    ]);
   });
 });

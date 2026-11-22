@@ -3,9 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import h5wasm from 'h5wasm/node';
 
-// Decodes one GMGSI longwave NetCDF-4 file into byte counts (0 = no data), the latitude of each
-// Mercator row, and the longitude of each column. Counts are 8-bit scaled brightness: cold is high.
-// Any nonzero quality flag is no data: flag 20 marks a block of saturated 255s beyond coverage.
+// Counts are GMGSI's 8-bit scaled brightness (cold is high), 0 for no data. Any nonzero quality
+// flag counts as no data: flag 20 marks a block of saturated 255s outside satellite coverage.
 export async function readGmgsi(bytes) {
   await h5wasm.ready;
   const dir = mkdtempSync(join(tmpdir(), 'gmgsi-'));
