@@ -11,4 +11,8 @@ export const CREDITS: Record<string, string> = {
 };
 
 /** The credits for the bodies a visitor can reach (`listedBodyIds`). */
-export const footerCredits = (ids: readonly string[]): string => ids.map((id) => CREDITS[id]).join(' ');
+export function footerCredits(ids: readonly string[]): string {
+  const missing = ids.filter((id) => !CREDITS[id]);
+  if (missing.length) throw new Error(`No footer credit for ${missing.join(', ')}; add one to src/config/credits.ts.`);
+  return ids.map((id) => CREDITS[id]).join(' ');
+}

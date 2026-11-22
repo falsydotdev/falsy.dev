@@ -33,4 +33,8 @@ describe('footer credits', () => {
   it('has a credit for every body', () => {
     for (const id of Object.keys(BODIES)) expect(CREDITS[id], id).toMatch(/\S/);
   });
+
+  it('fails the build rather than ship a footer missing a body', () => {
+    expect(() => footerCredits(['mars', 'pluto'])).toThrow(/pluto/);
+  });
 });
