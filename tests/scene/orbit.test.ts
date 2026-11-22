@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { vec } from '../../src/scene/ephemeris';
 import { circularOrbit, orbitalPeriod, orbitalSpeed, sample, stateAt } from '../../src/scene/orbit';
 import { EARTH, MARS } from '../../src/scene/bodies';
-import { formatTelemetry } from '../../src/scene/telemetry';
+import { formatTelemetry, surfaceReadout } from '../../src/scene/telemetry';
 
 const EPOCH = new Date('2026-11-02T12:00:00Z');
 const MARS_SIDEREAL_DAY_S = 88642.66;
@@ -67,5 +67,22 @@ describe("Earth's 400 km orbit", () => {
   it('ends the telemetry line with the clouds, after the positional items posters parse', () => {
     const line = formatTelemetry(sample(earthOrbit, at(600)), { body: EARTH.name, relief: EARTH.relief, clouds: 'clouds: static map, detail synthesised' });
     expect(line).toMatch(/ {2}ALT 400 km {2}v 7\.67 km\/s {2}relief×2\.5 {2}clouds: static map, detail synthesised$/);
+  });
+
+  it('names the surface imagery period after relief, before the clouds', () => {
+    const surface = surfaceReadout({ source: 'sentinel-2', year: 2025, quarter: 4 });
+    const line = formatTelemetry(sample(earthOrbit, at(600)), { body: EARTH.name, relief: EARTH.relief, surface, clouds: 'clouds: unavailable' });
+    expect(line).toMatch(/ {2}relief×2\.5 {2}surface 2025 Q4 {2}clouds: unavailable$/);
+  });
+});
+
+describe('surface imagery period', () => {
+  it('reads a Sentinel-2 quarter or the Blue Marble year', () => {
+    expect(surfaceReadout({ source: 'sentinel-2', year: 2025, quarter: 4 })).toBe('surface 2025 Q4');
+    expect(surfaceReadout({ source: 'blue-marble', year: 2004, month: 11 })).toBe('surface 2004 (Blue Marble)');
+  });
+
+  it('says nothing for tiles baked without a period, as Mars and the Moon are', () => {
+    expect(surfaceReadout(undefined)).toBeNull();
   });
 });

@@ -196,3 +196,4 @@ Justin hasn't approved this wording yet. It replaces the live lines above in the
 | About (`src/pages/index.astro`), sentence 1 | Behind this page is Mars or the Moon, rendered from real NASA and USGS data. | Behind this page is Mars, the Moon or Earth, rendered from real NASA, USGS, NOAA and Copernicus data. |
 | About, sentence 2 | …about 200 km up over Mars and 100 km over the Moon… | …about 200 km up over Mars, 100 km over the Moon and 400 km over Earth… |
 | About, new sentence after sentence 2 | (none) | Earth's clouds come from satellite images a few hours old, and its cities light up at night. |
+| Earth readout, surface item (after `relief×2.5`) | (none) | surface 2025 Q4 (Sentinel-2 quarter) · surface 2004 (Blue Marble) (bake without Sentinel-2) |

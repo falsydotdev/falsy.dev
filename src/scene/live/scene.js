@@ -15,7 +15,7 @@ import { bodyFrame, vec } from '../ephemeris';
 import { sample } from '../orbit';
 import { chooseShot, dawnDusk, earthrise, orbitalSunrise, featureFlyover, nightPass, seededRandom, wantsReshoot, SHOT_FOV_DEG } from '../shots';
 import { bodyById } from '../bodies.ts';
-import { telemetryParts } from '../telemetry';
+import { surfaceReadout, telemetryParts } from '../telemetry';
 import { Governor, initialTier, isIntegrated, renderPixelRatio, tier as tierByName } from '../quality.ts';
 import { atlasLayers, memoryClass, msaaSamples, sceneGpuBytes } from '../gpu-memory.ts';
 import { frameTimes } from '../perf.ts';
@@ -377,7 +377,7 @@ export async function startLiveScene(host, opts) {
     if (!telemetryEl || t - lastTelemetry < 500) return;
     lastTelemetry = t;
     const cloudItem = clouds && cloudReadout({ status: clouds.state.status, set: clouds.state.set, now: s.date, overCap: Boolean(clouds.state.polar && overCloudCap(lastPose, body.radiusKm, clouds.state.polar)) });
-    const parts = telemetryParts(s, { body: body.name, relief: body.relief, clouds: cloudItem });
+    const parts = telemetryParts(s, { body: body.name, relief: body.relief, surface: surfaceReadout(planet?.meta.colorPeriod), clouds: cloudItem });
     if (timeScale !== 1) parts.push(`t×${timeScale}`);
     // Nodes are updated in place, so the body switch button keeps focus and hover.
     const label = telemetryEl.querySelector('.body-switch');
