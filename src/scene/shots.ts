@@ -92,11 +92,11 @@ export function lowSunFeatures(body: Body, when: Date, features: Feature[] = bod
 }
 
 // Where the camera passes the feature, and its Sun elevation there.
-function flyoverTrack(body: Body, pass: Date, feature: Feature) {
+function flyoverTrack(body: Body, pass: Date, feature: Feature, offsetKm = FLYOVER_OFFSET_KM) {
   const f = fromBody(bodyFrame(body, pass), bodyVector(feature.lat, feature.lon));
   const sun = sunFrom(body, pass);
   const along = vec.norm(vec.cross(f, sun));
-  const offset = FLYOVER_OFFSET_KM / body.radiusKm;
+  const offset = offsetKm / body.radiusKm;
   const track = vec.sub(vec.scale(f, Math.cos(offset)), vec.scale(cameraRight(f, along), Math.sin(offset)));
   return { track, along, sunDeg: Math.asin(vec.dot(track, sun)) / DEG };
 }
@@ -110,14 +110,15 @@ export function flyoverFeatures(body: Body, pass: Date, features: Feature[] = bo
 // An orbit whose ground track passes a low-Sun feature a few minutes after load, with the
 // feature off to the right. It travels along the local terminator so the Sun stays to the
 // right too. `anySun` drops the low-Sun filter, for previewing one feature at any time of day.
-export function featureFlyover(now: Date, opts: ShotOptions & { features?: Feature[]; anySun?: boolean } = {}): Shot | null {
+// `offsetKm` sets how far to the side the feature passes.
+export function featureFlyover(now: Date, opts: ShotOptions & { features?: Feature[]; anySun?: boolean; offsetKm?: number } = {}): Shot | null {
   const { body, altKm } = resolve(opts);
   const rand = opts.rand ?? Math.random;
   const pass = new Date(now.getTime() + FLYOVER_LEAD_S * 1000);
   const candidates = opts.anySun ? (opts.features ?? body.features) : flyoverFeatures(body, pass, opts.features);
   if (candidates.length === 0) return null;
   const feature = candidates[Math.floor(rand() * candidates.length)];
-  const { track, along } = flyoverTrack(body, pass, feature);
+  const { track, along } = flyoverTrack(body, pass, feature, opts.offsetKm);
   const probe = circularOrbit(body, now, altKm, track, along, 0);
   const orbit = { ...probe, theta0: -probe.n * FLYOVER_LEAD_S };
   return { kind: 'feature-flyover', orbit, feature, keyMoment: pass };
