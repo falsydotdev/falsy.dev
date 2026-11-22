@@ -1,5 +1,6 @@
 ---
 import { ClientRouter } from 'astro:transitions';
+import og from '../data/og.json';
 import serifUrl from '@fontsource/instrument-serif/files/instrument-serif-latin-400-normal.woff2?url';
 import serifItalicUrl from '@fontsource/instrument-serif/files/instrument-serif-latin-400-italic.woff2?url';
 import sansUrl from '@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-400-normal.woff2?url';
@@ -16,7 +17,8 @@ interface Props {
 }
 const { title = site.title, description = site.description } = Astro.props;
 const canonical = new URL(Astro.url.pathname, site.url).href;
-const ogImage = new URL('/og.jpg', site.url).href;
+// LinkedIn and other link previews cache by image URL, so a new image needs a new URL.
+const ogImage = new URL(`/og.jpg?v=${og.version}`, site.url).href;
 ---
 
 <html lang="en-AU">

@@ -38,3 +38,17 @@ node scripts/check-html-size.mjs
 - Before you propose a merge, run `/code-review` until a pass has no important findings on common paths. List rare edge cases and pre-existing issues for Justin instead of chasing them. Merge only with Justin's OK.
 - Write commit subjects in sentence case and the imperative mood, with no type prefix: "Cap the load clock's step".
 - This repo is public. Keep account IDs, analytics project details, and other infrastructure identifiers out of code, commits, and PR text. The PostHog token in `.env.production` is public by design.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live in this repo's GitHub Issues, managed with the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five default triage labels, each named for its role (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
