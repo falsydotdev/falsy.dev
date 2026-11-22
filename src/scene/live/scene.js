@@ -384,8 +384,12 @@ export async function startLiveScene(host, opts) {
       state.tierChanges.push(change);
       // Page-wide, so analytics (which loads late) still sees changes from scenes already gone.
       (window.__falsyTierLog ??= []).push({ ...change, body: state.body, gpuName: state.gpu });
-      document.dispatchEvent(new CustomEvent('falsy:tier-changed'));
-      if (verdict === 'give-up') return giveUp();
+      // Announced once state.tier holds the new value, since listeners read it straight away.
+      const announce = () => document.dispatchEvent(new CustomEvent('falsy:tier-changed', { detail: { state } }));
+      if (verdict === 'give-up') {
+        giveUp();
+        return announce();
+      }
       // Before the first frame shows, nobody sees the change; after, it crossfades like a tab return.
       if (!first) {
         takeSnapshot();
@@ -394,6 +398,7 @@ export async function startLiveScene(host, opts) {
       applyTier(tierByName(governor.tier));
       // After the snapshot and resize, so their extra work isn't counted against the new tier.
       restartGpuLog();
+      announce();
     };
     if (!gpuTiming) {
       if (interval > 0) judge(interval / (throttled ? THROTTLED_FRAME_MS : 1000 / tier.fps));
@@ -491,6 +496,7 @@ export async function startLiveScene(host, opts) {
     },
     holdGovernor(on) {
       governorHeld = on;
+      restartGpuLog();
       if (!on) governor?.reset();
     },
     setRunning(on) {
@@ -511,6 +517,7 @@ export async function startLiveScene(host, opts) {
       if (on === throttled) return;
       throttled = on;
       governor?.reset();
+      restartGpuLog();
       lastRender = 0;
     },
   };

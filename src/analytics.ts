@@ -39,7 +39,12 @@ function samplePerf(posthog: PostHog, sky: HTMLElement, state: LiveState) {
     clearTimeout(timer);
     if (document.visibilityState === 'visible') timer = window.setTimeout(fire, PERF_SAMPLE_AFTER_MS);
   };
-  const stop = () => document.removeEventListener('visibilitychange', arm);
+  // A step-down restarts the scene's frame log, so the tier has to settle again.
+  const onTier = (e: Event) => (e as CustomEvent<{ state: LiveState }>).detail?.state === state && arm();
+  const stop = () => {
+    document.removeEventListener('visibilitychange', arm);
+    document.removeEventListener('falsy:tier-changed', onTier);
+  };
   const fire = () => {
     // A scene switched away from, lost to a poster, or frozen would report stale frames.
     if (window.__falsyLive?.state !== state || sky.dataset.scene !== 'live' || state.stopped || state.tier === 'frozen') return stop();
@@ -57,6 +62,7 @@ function samplePerf(posthog: PostHog, sky: HTMLElement, state: LiveState) {
     });
   };
   document.addEventListener('visibilitychange', arm);
+  document.addEventListener('falsy:tier-changed', onTier);
   arm();
 }
 
