@@ -52,7 +52,13 @@ const evenSamples = (tStart: number, tEnd: number, n: number) =>
 // Rays a quarter of a High-tier pixel apart (50° lens, 1125 px canvas) from 200 px inside the
 // limb out past the top of the air, where the Mie haze and the ozone layer are seen edge-on.
 const PX = (50 * Math.PI) / 180 / 1125;
-function limbRays(m: AtmosphereModel) {
+// The 4000-step references dominate the run time, so each model builds them once.
+const limbRayCache = new Map<AtmosphereModel, ReturnType<typeof buildLimbRays>>();
+const limbRays = (m: AtmosphereModel) => {
+  if (!limbRayCache.has(m)) limbRayCache.set(m, buildLimbRays(m));
+  return limbRayCache.get(m)!;
+};
+function buildLimbRays(m: AtmosphereModel) {
   const cam = m.radiusKm + EARTH.altKm;
   const top = Math.asin((m.radiusKm + m.topKm) / cam);
   const rays = [];
