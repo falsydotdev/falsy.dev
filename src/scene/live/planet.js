@@ -1,10 +1,10 @@
 import * as THREE from 'three/webgpu';
 import {
   Fn, If, Loop, asin, atan, attribute, clamp, cos, cross, dot, exp, float, instancedDynamicBufferAttribute, int, max, min,
-  normalize, positionWorld, round, sin, smoothstep, sqrt, tan, texture, uniform, uniformArray, uv, varying, vec2, vec3, vec4,
+  normalize, positionWorld, round, select, sin, smoothstep, sqrt, tan, texture, uniform, uniformArray, uv, varying, vec2, vec3, vec4,
 } from 'three/tsl';
 import { FACES, parent, tileId } from '../tiles/cube.ts';
-import { drawnHeightRangeKm, layerTile, layerWants, selectTiles, tilesToFetch } from '../tiles/select.ts';
+import { drawnHeightRangeKm, isOpenSea, layerTile, layerWants, selectTiles, tilesToFetch } from '../tiles/select.ts';
 import { TILES, HEIGHT_SIZE, SHADOW_MAP } from '../tiles/layout.ts';
 import { layerPath } from '../tiles/layers.ts';
 import { LayerArray } from './tile-atlas.js';
@@ -28,6 +28,8 @@ const SHADOW_STEPS = 12;
 const SHADOW_GROWTH = 1.617;
 // What an optional layer's instance attribute holds when no tile of it has loaded: a negative layer index.
 const NO_DATA = [-1, 0, 0, 0];
+// An open-sea tile's height attribute: no layer, and a whole-tile scale so normals difference over real distances.
+const OPEN_SEA = [-1, 1, 0, 0];
 
 /** A GRID×GRID patch in tile fractions, with a skirt hanging from each edge to hide LOD cracks. */
 function tileGeometry() {
@@ -176,7 +178,9 @@ export class TiledPlanet {
     const heightKm = Fn(([hs, f]) => {
       const g = hs.zw.add(f.mul(hs.y));
       const uvH = g.mul(cells).add(border + 0.5).div(HEIGHT_SIZE);
-      return this.aboveSea(texture(heightTex, uvH).depth(int(round(hs.x))).level(0).r).mul(exaggeration);
+      const h = texture(heightTex, uvH).depth(int(round(hs.x))).level(0).r;
+      // An open-sea tile has no height layer (index −1) and lies flat at sea level.
+      return (this.seaLevel ? select(hs.x.lessThan(0), float(0), max(h, 0)) : h).mul(exaggeration);
     });
     const surface = Fn(([tile, hs, f]) => direction(tile, f).mul(heightKm(hs, f).add(R)));
 
@@ -411,7 +415,8 @@ export class TiledPlanet {
     for (const s of selected) {
       if (n >= MAX_INSTANCES) break;
       const rec = this.records.get(s.id);
-      const sources = this.tileLayers.map((_, i) => this.source(rec, i));
+      const openSea = this.seaLevel && isOpenSea(s.key, this.meta.flatOcean);
+      const sources = this.tileLayers.map((_, i) => (openSea && i === this.heightIndex ? OPEN_SEA : this.source(rec, i)));
       if (this.required.some((i) => !sources[i])) continue;
       const size = 2 / 2 ** s.key.level;
       T.set([s.key.face, -1 + s.key.x * size, -1 + s.key.y * size, size], n * 4);

@@ -32,7 +32,7 @@ Earth's sources ship as tiles, so its bake adds a mosaic step and an optional Se
 - Colour tiles stop at level 6 and carry the mask in alpha (opaque is land). `meta.json` gains `flatOcean`, a per-tile bitmap of open-ocean height tiles (layout in `src/scene/tiles/flat-ocean.ts`).
 - `node scripts/tiles/masked-decode/check.mjs --url http://localhost:4321` checks, against a running dev server, that the browser keeps colour under alpha 0 in Chromium and WebKit, on WebGPU and WebGL2.
 
-Earth is in `BODIES` but has `listed: false` in `src/scene/bodies.ts`, so production's first-visit picks and the body button leave it out until its production tiles and clouds exist. `?body=earth` still shows it, and development lists every body. Flip `listed` to `true` once `earth/v1` is uploaded.
+Earth is in `BODIES` but has `listed: false` in `src/scene/bodies.ts`, so production's first-visit picks and the body button leave it out until its production tiles and clouds exist. `?body=earth` still shows it, and development lists every body, so without local Earth tiles a development visit can land on Earth and fall back to a poster, and the body button stops at Earth. Flip `listed` to `true` once `earth/v1` is uploaded.
 
 To run the dev server against a test bake for one body, point `FALSY_TILES_<BODY>` at its tile folder; other bodies keep loading from `~/.cache/falsy-dev/tiles`:
 

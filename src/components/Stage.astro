@@ -90,7 +90,7 @@ const tilesOrigin = tilesBase && URL.canParse(tilesBase) ? new URL(tilesBase).or
       const write = (key, value) => { try { localStorage.setItem(key, value); } catch {} };
       const asked = new URLSearchParams(location.search).get('body');
       const lastBody = read('falsy:body');
-      let body = Object.hasOwn(ui, asked) ? asked
+      let body = Object.keys(ui).includes(asked) ? asked
         : bodies.includes(lastBody) ? bodies[(bodies.indexOf(lastBody) + 1) % bodies.length]
         : bodies[Math.floor(Math.random() * bodies.length)];
       // A body without posters can still be shown live, but not as a still.

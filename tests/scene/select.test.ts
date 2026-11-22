@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { orbitCameraPose } from '../../src/scene/camera';
 import { vec, type Vec3 } from '../../src/scene/ephemeris';
 import { type TileKey, dirOf, tileAt, tileDir, tileId, parent } from '../../src/scene/tiles/cube';
-import { type CameraPose, drawnHeightRangeKm, layerTilesToFetch, layerWants, selectTiles, tilesToFetch } from '../../src/scene/tiles/select';
+import { type CameraPose, drawnHeightRangeKm, isOpenSea, layerTilesToFetch, layerWants, selectTiles, tilesToFetch } from '../../src/scene/tiles/select';
 import { FlatOceanBuilder } from '../../src/scene/tiles/flat-ocean';
 import type { TileLayer } from '../../src/scene/tiles/layers';
 import { EARTH, MARS, MOON } from '../../src/scene/bodies';
@@ -192,6 +192,12 @@ describe("Earth's tiles", () => {
 
   it('keeps the pinned fallback levels, which every drawn tile can borrow heights from', () => {
     expect(layerWants({ face: 4, level: 1, x: 0, y: 0 }, height, undefined, flatOcean)).toBe(true);
+  });
+
+  it('marks open-sea tiles, which draw at sea level without any height tile', () => {
+    expect(isOpenSea(sea, flatOcean)).toBe(true);
+    expect(isOpenSea({ ...sea, x: 4 }, flatOcean)).toBe(false);
+    expect(isOpenSea({ face: 4, level: 1, x: 0, y: 0 }, flatOcean)).toBe(false);
   });
 
   it('reads no flat ocean on a body without the bitmap', () => {
