@@ -336,7 +336,7 @@ export async function startLiveScene(host, opts) {
   // A view pinned by the URL (posters, previews) stays put even after it goes dark.
   const pinned = Boolean(opts.at || opts.seed !== undefined || opts.skip || opts.feature);
   // A URL that picks the view never gets the home pass, so posters don't depend on this machine's timezone.
-  const homeEligible = body.id === 'earth' && !pinned && !opts.shot;
+  const homeEligible = Boolean(body.shots.homePass) && !pinned && !opts.shot;
   const wantsHome = !opts.feature && (opts.shot === 'home-pass' || (homeEligible && homePassDue()));
   let shot = (wantsHome && homePass(shotBuilt, { body, altKm: cam.altKm, home: zoneCoords(browserZone()), ctx: viewContext })) || nextShot(shotBuilt);
   applyLens();
