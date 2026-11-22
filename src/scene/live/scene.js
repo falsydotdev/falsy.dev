@@ -202,7 +202,7 @@ export async function startLiveScene(host, opts) {
     if (!meta) throw new Error(`No tiles at ${opts.dataUrl}`);
     if (meta.body !== body.id || Math.abs(meta.radiusKm - body.radiusKm) > 1e-6) console.warn(`Tiles at ${opts.dataUrl} are for ${meta.body}, not ${body.id}.`);
     layers = isWebGPU ? gpuLayers ?? 256 : Math.min(WANTED_LAYERS, renderer.backend.gl.getParameter(renderer.backend.gl.MAX_ARRAY_TEXTURE_LAYERS));
-    planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: body.relief, layers, lighting, relaxBeyondKm: opts.farKm });
+    planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: body.relief, layers, tileLayers: body.tiles.layers, lighting, relaxBeyondKm: opts.farKm });
     const tiledPlanet = planet;
     planet.lean = opts.lean ?? true;
     // Tiles stream while the shadow map downloads; the first fade-in waits for it (see the loop).
@@ -262,7 +262,7 @@ export async function startLiveScene(host, opts) {
     camera.position.copy(toWorld(s.rBody));
     camera.up.copy(toWorld(pose.up));
     camera.lookAt(toWorld(vec.add(s.rBody, pose.forward)));
-    planet.update(pose, { fovYRad: cam.fovDeg * DEG, aspect: camera.aspect, viewportHeightPx: renderer.domElement.height });
+    planet.update(pose, { fovYRad: cam.fovDeg * DEG, aspect: camera.aspect, viewportHeightPx: renderer.domElement.height }, s.sunBody);
 
     const sunW = toWorld(s.sunBody);
     sun.update(camera, sunW, earth?.update(camera, f, sunW, date));

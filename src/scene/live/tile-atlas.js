@@ -1,35 +1,36 @@
 import * as THREE from 'three/webgpu';
 
+// Per tile-layer format: colour is sRGB RGBA8 with mips, height is R16F km without, mono is R8 with mips.
+const FORMATS = {
+  color: { empty: () => new Uint8Array(4), format: THREE.RGBAFormat, type: THREE.UnsignedByteType, srgb: true, bpp: 4, mips: true, anisotropy: 8, gl: ['RGBA', 'UNSIGNED_BYTE'] },
+  height: { empty: () => new Uint16Array(1), format: THREE.RedFormat, type: THREE.HalfFloatType, srgb: false, bpp: 2, mips: false, anisotropy: 1, gl: ['RED', 'HALF_FLOAT'] },
+  mono: { empty: () => new Uint8Array(1), format: THREE.RedFormat, type: THREE.UnsignedByteType, srgb: false, bpp: 1, mips: true, anisotropy: 8, gl: ['RED', 'UNSIGNED_BYTE'] },
+};
+
 // Array textures that hold one tile per layer. three.js only uploads whole array textures
 // (and regenerates mips for every layer), so single layers are written through the backend.
 export class LayerArray {
   /**
    * @param {THREE.WebGPURenderer} renderer
-   * @param {{ size: number, layers: number, kind: 'color' | 'height' }} opts
+   * @param {{ size: number, layers: number, format: 'color' | 'height' | 'mono' }} opts
    */
-  constructor(renderer, { size, layers, kind }) {
+  constructor(renderer, { size, layers, format }) {
     this.renderer = renderer;
     this.size = size;
     this.layers = layers;
-    this.kind = kind;
-    const color = kind === 'color';
-    const tex = new THREE.DataArrayTexture(
-      color ? new Uint8Array(4) : new Uint16Array(1),
-      size,
-      size,
-      layers,
-    );
-    tex.format = color ? THREE.RGBAFormat : THREE.RedFormat;
-    tex.type = color ? THREE.UnsignedByteType : THREE.HalfFloatType;
-    if (color) tex.colorSpace = THREE.SRGBColorSpace;
+    const f = (this.format = FORMATS[format]);
+    const tex = new THREE.DataArrayTexture(f.empty(), size, size, layers);
+    tex.format = f.format;
+    tex.type = f.type;
+    if (f.srgb) tex.colorSpace = THREE.SRGBColorSpace;
     tex.generateMipmaps = false;
-    const levels = color ? Math.log2(size) + 1 : 1;
+    const levels = f.mips ? Math.log2(size) + 1 : 1;
     // Placeholder entries only set the GPU mip count; data never goes through three.js.
     tex.mipmaps = Array.from({ length: levels > 1 ? levels : 0 }, (_, i) => ({ data: null, width: size >> i, height: size >> i }));
-    tex.minFilter = color ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter;
+    tex.minFilter = f.mips ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter;
     tex.magFilter = THREE.LinearFilter;
     tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
-    tex.anisotropy = color ? 8 : 1;
+    tex.anisotropy = f.anisotropy;
     tex.source.dataReady = false;
     tex.needsUpdate = true;
     renderer.initTexture(tex);
@@ -48,8 +49,7 @@ export class LayerArray {
   /** @param {number} layer @param {ArrayBufferView[]} levels mip 0 first */
   write(layer, levels) {
     const backend = this.renderer.backend;
-    const color = this.kind === 'color';
-    const bpp = color ? 4 : 2;
+    const { bpp, gl: [glFormat, glType] } = this.format;
     if (backend.isWebGPUBackend) {
       const gpuTexture = backend.get(this.texture).texture;
       levels.forEach((data, mip) => {
@@ -66,7 +66,7 @@ export class LayerArray {
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
     levels.forEach((data, mip) => {
       const s = this.size >> mip;
-      gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, mip, 0, 0, layer, s, s, 1, color ? gl.RGBA : gl.RED, color ? gl.UNSIGNED_BYTE : gl.HALF_FLOAT, data);
+      gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, mip, 0, 0, layer, s, s, 1, gl[glFormat], gl[glType], data);
     });
   }
 

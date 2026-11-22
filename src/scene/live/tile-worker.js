@@ -1,5 +1,5 @@
-// Fetches and decodes tiles off the main thread. Colour comes back as RGBA8 with a box-filtered
-// mip chain; heights come back as half floats in km, ready for an R16F array layer.
+// Fetches and decodes tiles off the main thread. Colour comes back as RGBA8 and mono as R8, each
+// with a box-filtered mip chain; heights come back as half floats in km, ready for an R16F array layer.
 import { decodeHeights } from '../tiles/layout.ts';
 
 const toHalf = (() => {
@@ -16,18 +16,19 @@ const toHalf = (() => {
   };
 })();
 
-function mipChain(rgba, size) {
-  const levels = [rgba];
-  let prev = rgba;
+function mipChain(pixels, size, channels = 4) {
+  const levels = [pixels];
+  let prev = pixels;
+  const n = channels;
   for (let s = size >> 1; s >= 1; s >>= 1) {
-    const next = new Uint8Array(s * s * 4);
+    const next = new Uint8Array(s * s * n);
     const p = s * 2;
     for (let y = 0; y < s; y++) {
       for (let x = 0; x < s; x++) {
-        const a = (2 * y * p + 2 * x) * 4;
-        const b = a + p * 4;
-        const o = (y * s + x) * 4;
-        for (let c = 0; c < 4; c++) next[o + c] = (prev[a + c] + prev[a + 4 + c] + prev[b + c] + prev[b + 4 + c] + 2) >> 2;
+        const a = (2 * y * p + 2 * x) * n;
+        const b = a + p * n;
+        const o = (y * s + x) * n;
+        for (let c = 0; c < n; c++) next[o + c] = (prev[a + c] + prev[a + n + c] + prev[b + c] + prev[b + n + c] + 2) >> 2;
       }
     }
     levels.push(next);
@@ -36,9 +37,9 @@ function mipChain(rgba, size) {
   return levels;
 }
 
-async function loadColor(url) {
+async function decodeImage(url) {
   const res = await fetch(url);
-  if (!res.ok) return { missing: true, bytes: 0 };
+  if (!res.ok) return null;
   const blob = await res.blob();
   const bmp = await createImageBitmap(blob, { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
   const canvas = new OffscreenCanvas(bmp.width, bmp.height);
@@ -46,7 +47,22 @@ async function loadColor(url) {
   ctx.drawImage(bmp, 0, 0);
   bmp.close();
   const rgba = new Uint8Array(ctx.getImageData(0, 0, canvas.width, canvas.height).data.buffer);
-  return { levels: mipChain(rgba, canvas.width), bytes: blob.size };
+  return { rgba, size: canvas.width, bytes: blob.size };
+}
+
+async function loadColor(url) {
+  const img = await decodeImage(url);
+  if (!img) return { missing: true, bytes: 0 };
+  return { levels: mipChain(img.rgba, img.size), bytes: img.bytes };
+}
+
+// Single-channel images (city lights) keep their first channel.
+async function loadMono(url) {
+  const img = await decodeImage(url);
+  if (!img) return { missing: true, bytes: 0 };
+  const mono = new Uint8Array(img.size * img.size);
+  for (let i = 0; i < mono.length; i++) mono[i] = img.rgba[i * 4];
+  return { levels: mipChain(mono, img.size, 1), bytes: img.bytes };
 }
 
 async function loadHeight(url, shape) {
@@ -67,12 +83,14 @@ async function loadHeight(url, shape) {
   return { data: half, minKm: min / 1000, maxKm: max / 1000, bytes: packed.length };
 }
 
-self.onmessage = async ({ data: { id, kind, url, shape } }) => {
+const LOADERS = { color: loadColor, height: loadHeight, mono: loadMono };
+
+self.onmessage = async ({ data: { id, format, url, shape } }) => {
   try {
-    const out = kind === 'color' ? await loadColor(url) : await loadHeight(url, shape);
+    const out = await LOADERS[format](url, shape);
     const transfer = out.levels ? out.levels.map((l) => l.buffer) : out.data ? [out.data.buffer] : [];
-    self.postMessage({ id, kind, ...out }, transfer);
+    self.postMessage({ id, format, ...out }, transfer);
   } catch (err) {
-    self.postMessage({ id, kind, error: String(err) });
+    self.postMessage({ id, format, error: String(err) });
   }
 };
