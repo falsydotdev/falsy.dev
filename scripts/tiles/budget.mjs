@@ -73,6 +73,7 @@ function run(shot, { tiltDeg, maxTexelPx, relaxBeyondKm }) {
   const bytes = LAYERS.map((l) => (l.id === 'height' ? size(SHADOW_MAP.path) : 0));
   let missing = 0;
   let estimated = 0;
+  let unestimated = 0;
   let firstView = 0;
   let peakTiles = 0;
   for (let t = 0; t <= SECONDS; t += 1) {
@@ -95,13 +96,15 @@ function run(shot, { tiltDeg, maxTexelPx, relaxBeyondKm }) {
         const b = size(layerPath(layer, k));
         if (Number.isNaN(b)) {
           missing++;
-          estimated += meanSize(layer, k.level);
+          const mean = meanSize(layer, k.level);
+          estimated += mean;
+          if (!mean) unestimated++;
         } else bytes[i] += b;
       }
     });
     if (t === 0) firstView = bytes.reduce((a, b) => a + b, 0) + estimated + CLOUD_BYTES;
   }
-  return { firstView, total: bytes.reduce((a, b) => a + b, 0) + estimated + CLOUD_BYTES, bytes, peakTiles, missing, estimated };
+  return { firstView, total: bytes.reduce((a, b) => a + b, 0) + estimated + CLOUD_BYTES, bytes, peakTiles, missing, estimated, unestimated };
 }
 
 const now = new Date();
@@ -115,9 +118,11 @@ for (let i = 0; i < SHOTS; i++) {
 const MB = (b) => (b / 1e6).toFixed(1);
 console.log(`viewport ${Math.round(HEIGHT_PX * ASPECT)}×${HEIGHT_PX}, ${SHOTS} shots, ${SECONDS} s of orbit each\n`);
 const rows = [];
+let unestimatedTiles = 0;
 for (const tiltDeg of [12, 15, 18, 25, 35]) {
   for (const [maxTexelPx, relaxBeyondKm] of [[1, Infinity], [1.5, Infinity], [2, Infinity], [1, 500], [1, 300]]) {
     const runs = shots.map((s) => run(s, { tiltDeg, maxTexelPx, relaxBeyondKm }));
+    unestimatedTiles += runs.reduce((a, r) => a + r.unestimated, 0);
     const avg = (k) => runs.reduce((a, r) => a + r[k], 0) / runs.length;
     rows.push({
       tilt: `${tiltDeg}°`,
@@ -135,3 +140,4 @@ for (const tiltDeg of [12, 15, 18, 25, 35]) {
   }
 }
 console.table(rows);
+if (unestimatedTiles) console.warn(`${unestimatedTiles} missing tiles belong to a layer with no baked tiles at all and count as 0 bytes.`);

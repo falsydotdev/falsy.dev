@@ -63,8 +63,8 @@ export function initialTier(h: GpuHints): TierName | 'poster' {
   return 'medium';
 }
 
-// Arc cards carry a model number (A770, B580); Core Ultra chips call their integrated GPU Arc too.
-const ARC_CARD = /xe2?-hpg|\barc(\(tm\))?\s+[ab]\d{3}\b/i;
+// Arc cards carry a model number (A770, A370M, Pro A60, B580); Core Ultra chips call their integrated GPU Arc too.
+const ARC_CARD = /xe2?-hpg|gen-12hp|\barc(\(tm\))?\s+(pro\s+)?[ab]\d{2,3}m?\b/i;
 // AMD's laptop chips report as "Radeon Graphics" or by an M model number (680M, 780M, 890M).
 const AMD_INTEGRATED = /radeon(\(tm\))? graphics|radeon \d{3}m\b|vega \d+ graphics/i;
 const INTEGRATED_VENDOR = /^(qualcomm|arm|imagination|samsung|broadcom)$/i;

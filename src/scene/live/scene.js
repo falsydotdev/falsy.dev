@@ -231,6 +231,7 @@ export async function startLiveScene(host, opts) {
   const stars = createStars();
   const lighting = createLighting(body);
   const fx = parseFx(opts.fx);
+  const streamedLayers = body.tiles.layers.filter((l) => !fx.has(l.id));
   if (fx.has('shadows')) lighting.shadows.value = 0;
   let setGlint = () => {};
   if (body.showsEarth) {
@@ -263,14 +264,13 @@ export async function startLiveScene(host, opts) {
     if (!meta) throw new Error(`No tiles at ${opts.dataUrl}`);
     if (meta.body !== body.id || Math.abs(meta.radiusKm - body.radiusKm) > 1e-6) console.warn(`Tiles at ${opts.dataUrl} are for ${meta.body}, not ${body.id}.`);
     const deviceLayers = isWebGPU ? gpuLayers ?? 256 : Math.min(WANTED_LAYERS, renderer.backend.gl.getParameter(renderer.backend.gl.MAX_ARRAY_TEXTURE_LAYERS));
-    layers = body.memoryCeilings ? atlasLayers({ cls: memClass, tier: tier.name, tileLayers: body.tiles.layers, clouds: Boolean(cloudSet && tables), maxLayers: deviceLayers }) : deviceLayers;
+    layers = body.memoryCeilings ? atlasLayers({ cls: memClass, tier: tier.name, tileLayers: streamedLayers, clouds: Boolean(cloudSet && tables), maxLayers: deviceLayers }) : deviceLayers;
     if (cloudSet && tables) {
       clouds = createClouds({ body, lighting, tables, set: cloudSet });
       clouds.setTier(tier, fx.has('cloudShadows'));
     }
     // A layer switched off with `fx=` (city lights) is neither fetched nor drawn.
-    const tileLayers = body.tiles.layers.filter((l) => !fx.has(l.id));
-    planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: body.relief, seaLevel: body.seaLevel, layers, tileLayers, lighting, nightLights: body.lights, atmosphere: tables, clouds, ocean, relaxBeyondKm: opts.farKm });
+    planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: body.relief, seaLevel: body.seaLevel, layers, tileLayers: streamedLayers, lighting, nightLights: body.lights, atmosphere: tables, clouds, ocean, relaxBeyondKm: opts.farKm });
     const tiledPlanet = planet;
     planet.lean = opts.lean ?? true;
     // Tiles stream while the shadow map downloads; the first fade-in waits for it (see the loop).
@@ -283,7 +283,7 @@ export async function startLiveScene(host, opts) {
 
   const blooms = (t) => t.bloom && !fx.has('bloom');
   // The pass's sample count can change in place: the backend rebuilds its target on the next frame.
-  const memory = (msaa) => ({ canvasPx: renderer.domElement.width * renderer.domElement.height, msaa, bloom: blooms(tier), atlasLayers: layers, tileLayers: body.tiles.layers, clouds: Boolean(clouds) });
+  const memory = (msaa) => ({ canvasPx: renderer.domElement.width * renderer.domElement.height, msaa, bloom: blooms(tier), atlasLayers: layers, tileLayers: streamedLayers, clouds: Boolean(clouds) });
   const wantedSamples = () => msaaSamples({ cls: memClass, tier: tier.name, integrated, ceilings: Boolean(body.memoryCeilings), preview: Boolean(opts.scale), ...memory(false) });
   pipeline = new THREE.RenderPipeline(renderer);
   const scenePass = pass(scene, camera, { samples: 0 });

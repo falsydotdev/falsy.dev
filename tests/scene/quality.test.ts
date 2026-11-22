@@ -119,6 +119,8 @@ describe('isIntegrated', () => {
     expect(isIntegrated({ backend: 'WebGL2', description: 'ANGLE (Intel, Intel(R) Iris(R) Xe Graphics (0x00009A49) Direct3D11 vs_5_0 ps_5_0, D3D11)' })).toBe(true);
     expect(isIntegrated({ backend: 'WebGPU', vendor: 'intel', architecture: 'xe-hpg', description: 'Intel(R) Arc(TM) A770 Graphics' })).toBe(false);
     expect(isIntegrated({ backend: 'WebGPU', vendor: 'intel', architecture: 'xe2-hpg' })).toBe(false);
+    expect(isIntegrated({ backend: 'WebGL2', description: 'ANGLE (Intel, Intel(R) Arc(TM) A370M Graphics (0x00005693) Direct3D11 vs_5_0 ps_5_0, D3D11)' })).toBe(false);
+    expect(isIntegrated({ backend: 'WebGL2', description: 'ANGLE (Intel, Intel(R) Arc(TM) Pro A60 Graphics Direct3D11 vs_5_0 ps_5_0, D3D11)' })).toBe(false);
     expect(isIntegrated({ backend: 'WebGL2', description: 'ANGLE (Intel, Intel(R) Arc(TM) B580 Graphics (0x0000E20B) Direct3D11 vs_5_0 ps_5_0, D3D11)' })).toBe(false);
   });
 
