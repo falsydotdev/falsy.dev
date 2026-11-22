@@ -1,23 +1,14 @@
 import * as THREE from 'three/webgpu';
 import {
-  Fn, Loop, If, uniform, texture, vec2, vec3, vec4, float, positionWorld, cameraPosition,
+  Fn, Loop, If, uniform, vec3, vec4, float, positionWorld, cameraPosition,
   normalize, exp, dot, sqrt, max, min, length, pow, smoothstep,
 } from 'three/tsl';
-import { MULTI_SCATTER_SIZE, OPTICAL_DEPTH_SIZE } from '../atmosphere-luts.ts';
 
 // Single scattering raymarched through a shell around the planet (units: km), with sunlight
-// transmittance and multiple scattering read from tables (see atmosphere-luts.ts). Mars is
-// dust-dominated: Mie scattering with a per-channel phase asymmetry scatters blue light more
-// tightly around the Sun, which gives the blue Martian sunset.
+// transmittance and multiple scattering read from the body's tables (see atmosphere-tables.js).
+// Mars is dust-dominated: Mie scattering with a per-channel phase asymmetry scatters blue light
+// more tightly around the Sun, which gives the blue Martian sunset.
 const VIEW_STEPS = 24;
-const SCALE_HEIGHT_KM = 11;
-const TOP_KM = SCALE_HEIGHT_KM * 10;
-const RAYLEIGH = [1.45e-4, 3.4e-4, 8.3e-4];
-const MIE_SCATTER = [0.042, 0.03, 0.019];
-const MIE_EXTINCTION = [0.046, 0.046, 0.046];
-const MIE_G = [0.62, 0.7, 0.82];
-// Dusty ground under the multiple-scattering table.
-const GROUND_ALBEDO = [0.3, 0.2, 0.13];
 // Light shafts: a grazing sunbeam is checked against the terrain at its lowest point and this
 // far either side, where it has climbed only ~3 km on a Mars-sized planet. The soft edge hides
 // the coarse map's 10 km cells; a per-pixel dither did that too but left a visible hatch.
@@ -25,74 +16,36 @@ const SHAFT_REACH_KM = 150;
 // Exaggerated relief tops out near 55 km, so beams that stay higher skip the terrain check.
 const SHAFT_CEILING_KM = 60;
 
-async function buildTables(model) {
-  const worker = new Worker(new URL('./atmosphere-worker.js', import.meta.url), { type: 'module' });
-  try {
-    return await new Promise((resolve, reject) => {
-      worker.onmessage = ({ data }) => resolve(data);
-      worker.onerror = reject;
-      worker.postMessage(model);
-    });
-  } finally {
-    worker.terminate();
-  }
-}
+const sum = (vs) => vs.reduce((a, b) => a.map((x, i) => x + b[i]));
 
-function halfFloatTexture(data, width, height, format) {
-  const half = new Uint16Array(data.length);
-  for (let i = 0; i < data.length; i++) half[i] = THREE.DataUtils.toHalfFloat(data[i]);
-  const tex = new THREE.DataTexture(half, width, height, format, THREE.HalfFloatType);
-  tex.magFilter = tex.minFilter = THREE.LinearFilter;
-  tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
-  tex.needsUpdate = true;
-  return tex;
+// TSL density of one profile at height h (km).
+function densityAt(profile, h) {
+  if ('scaleHeightKm' in profile) return exp(h.negate().div(profile.scaleHeightKm));
+  const { bottomKm, peakKm, topKm } = profile.tent;
+  return min(h.sub(bottomKm).div(peakKm - bottomKm), float(topKm).sub(h).div(topKm - peakKm)).clamp(0, 1);
 }
 
 /**
- * @param {{ planetRadius: number, density: number, terrainHeight?: (dir: any) => any }} opts
+ * The scattering shell, lit through the body's atmosphere tables.
+ * @param {{ tables: Awaited<ReturnType<typeof import('./atmosphere-tables.js').createAtmosphereTables>>, terrainHeight?: (dir: any) => any, viewSteps?: number }} opts
  * `terrainHeight` maps a world-space unit direction to terrain height in km, for light shafts.
  */
-export async function createAtmosphere({ planetRadius, density, terrainHeight }) {
+export function createAtmosphere({ tables, terrainHeight, viewSteps = VIEW_STEPS }) {
+  const { model, transmittance: sunTransmittance, multiScatter } = tables;
   const u = {
     sunDir: uniform(new THREE.Vector3(1, 0, 0)),
-    sunIntensity: uniform(16),
+    sunIntensity: uniform(model.intensity),
   };
-  const add = (a, b) => a.map((x, i) => (x + b[i]) * density);
-  const model = {
-    radiusKm: planetRadius,
-    topKm: TOP_KM,
-    scaleHeightKm: SCALE_HEIGHT_KM,
-    extinction: add(RAYLEIGH, MIE_EXTINCTION),
-    scattering: add(RAYLEIGH, MIE_SCATTER),
-    groundAlbedo: GROUND_ALBEDO,
-  };
-  const tables = await buildTables(model);
-  const depthTex = halfFloatTexture(tables.depth, OPTICAL_DEPTH_SIZE.width, OPTICAL_DEPTH_SIZE.height, THREE.RedFormat);
-  const msTex = halfFloatTexture(tables.multi, MULTI_SCATTER_SIZE, MULTI_SCATTER_SIZE, THREE.RGBAFormat);
+  const R = model.radiusKm;
+  const Ra = R + model.topKm;
+  // Components that share a profile share one density evaluation per step.
+  const groups = new Map();
+  for (const c of model.components) {
+    const key = JSON.stringify(c.profile);
+    if (!groups.has(key)) groups.set(key, { profile: c.profile, members: [] });
+    groups.get(key).members.push(c);
+  }
 
-  const R = planetRadius;
-  const Ra = R + TOP_KM;
-  const Hd = Math.sqrt(Ra * Ra - R * R);
-  const extinction = vec3(...model.extinction);
-  const rayleigh = vec3(...RAYLEIGH).mul(density);
-  const mie = vec3(...MIE_SCATTER).mul(density);
-
-  // Bruneton's mapping from atmosphere-luts.ts; ρ² is written as h(2R + h) to keep float precision.
-  const sunTransmittance = (r, mu) => {
-    const h = r.sub(R);
-    const rho = sqrt(max(h.mul(h.add(2 * R)), 0));
-    const d = max(r.mul(mu).negate().add(sqrt(max(r.mul(r).mul(mu.mul(mu).sub(1)).add(Ra * Ra), 0))), 0);
-    const dMin = float(Ra).sub(r);
-    const x = d.sub(dMin).div(max(rho.add(Hd).sub(dMin), 1e-6));
-    const { width: W, height: H } = OPTICAL_DEPTH_SIZE;
-    const uv = vec2(x.mul(W - 1).add(0.5).div(W), rho.div(Hd).mul(H - 1).add(0.5).div(H));
-    return exp(extinction.mul(texture(depthTex, uv).level(0).r).negate());
-  };
-  const multiScatter = (h, muS) => {
-    const N = MULTI_SCATTER_SIZE;
-    const uv = vec2(muS.mul(0.5).add(0.5).mul(N - 1).add(0.5).div(N), h.div(TOP_KM).clamp(0, 1).mul(N - 1).add(0.5).div(N));
-    return texture(msTex, uv).level(0).rgb;
-  };
   // 0 where the terrain blocks the sunbeam through p, 1 where it's clear. The beam is lowest
   // where it passes closest to the planet's centre, or at p itself if it's already climbing.
   const shaftLight = (p, sun) => {
@@ -136,23 +89,42 @@ export async function createAtmosphere({ planetRadius, density, terrainHeight })
     const sun = u.sunDir;
     const mu = dot(rd, sun);
     const phaseR = mu.mul(mu).add(1).mul(3 / (16 * Math.PI));
-    const g = vec3(...MIE_G);
-    const g2 = g.mul(g);
-    const phaseM = g2.oneMinus().div(pow(g2.add(1).sub(g.mul(mu).mul(2)), vec3(1.5)).mul(4 * Math.PI));
-    const phased = rayleigh.mul(phaseR).add(mie.mul(phaseM));
-    const scatter = rayleigh.add(mie);
+    const phaseHG = (gRGB) => {
+      const g = vec3(...gRGB);
+      const g2 = g.mul(g);
+      return g2.oneMinus().div(pow(g2.add(1).sub(g.mul(mu).mul(2)), vec3(1.5)).mul(4 * Math.PI));
+    };
+    // Per group, at unit density: phase-weighted scattering, plain scattering, and extinction.
+    const coeffs = [...groups.values()].map(({ profile, members }) => {
+      const scatterers = members.filter((c) => c.phase);
+      const phased = scatterers.map((c) => vec3(...c.scattering).mul(c.phase === 'rayleigh' ? phaseR : phaseHG(c.phase))).reduce((a, b) => a.add(b), vec3(0));
+      return {
+        profile,
+        phased,
+        scatter: vec3(...sum(members.map((c) => c.scattering))),
+        extinction: vec3(...sum(members.map((c) => c.scattering.map((x, i) => x + c.absorption[i])))),
+      };
+    });
 
-    const seg = max(tEnd.sub(tStart), 0).div(VIEW_STEPS);
+    const seg = max(tEnd.sub(tStart), 0).div(viewSteps);
     const throughput = vec3(1).toVar();
     const light = vec3(0).toVar();
 
-    Loop({ start: 0, end: VIEW_STEPS, name: 'i' }, ({ i }) => {
+    Loop({ start: 0, end: viewSteps, name: 'i' }, ({ i }) => {
       const t = tStart.add(seg.mul(float(i).add(0.5)));
       const p = ro.add(rd.mul(t));
       const r = length(p);
       const h = r.sub(R);
-      const dens = exp(h.negate().div(SCALE_HEIGHT_KM));
       const muS = dot(p, sun).div(r);
+      let phased = vec3(0);
+      let scatter = vec3(0);
+      let extinction = vec3(0);
+      for (const c of coeffs) {
+        const dens = densityAt(c.profile, h);
+        phased = phased.add(c.phased.mul(dens));
+        scatter = scatter.add(c.scatter.mul(dens));
+        extinction = extinction.add(c.extinction.mul(dens));
+      }
 
       const direct = vec3(0).toVar();
       const bl = dot(p, sun);
@@ -160,9 +132,9 @@ export async function createAtmosphere({ planetRadius, density, terrainHeight })
       If(shadowDisc.lessThan(0).or(bl.greaterThan(0)), () => {
         direct.assign(phased.mul(sunTransmittance(r, muS)).mul(shaftLight(p, sun)));
       });
-      const source = direct.add(scatter.mul(multiScatter(h, muS))).mul(dens);
-      const stepT = exp(extinction.mul(dens).mul(seg).negate());
-      light.addAssign(throughput.mul(source).mul(stepT.oneMinus()).div(max(extinction.mul(dens), 1e-7)));
+      const source = direct.add(scatter.mul(multiScatter(h, muS)));
+      const stepT = exp(extinction.mul(seg).negate());
+      light.addAssign(throughput.mul(source).mul(stepT.oneMinus()).div(max(extinction, 1e-7)));
       throughput.mulAssign(stepT);
     });
 
@@ -189,5 +161,5 @@ export async function createAtmosphere({ planetRadius, density, terrainHeight })
     mat.depthTest = !inside;
   }
 
-  return { mesh, uniforms: u, update, dispose: () => [depthTex, msTex, mat, mesh.geometry].forEach((x) => x.dispose()) };
+  return { mesh, uniforms: u, update, dispose: () => [mat, mesh.geometry].forEach((x) => x.dispose()) };
 }

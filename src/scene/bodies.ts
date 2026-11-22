@@ -1,5 +1,6 @@
 // Type-only, so the page's main bundle can read body configs without loading the ephemeris library.
 import type * as A from 'astronomy-engine';
+import type { Atmosphere } from './atmosphere-luts.ts';
 import { type Feature, MARS_FEATURES, MOON_FEATURES } from './features.ts';
 import { COLOR_LAYER, HEIGHT_LAYER, type TileLayer } from './tiles/layers.ts';
 
@@ -22,8 +23,8 @@ export interface Body {
   showsEarth: boolean; // Earth hangs in this body's sky and is drawn there
   // Height of the bright shell above the limb that framing keeps clear of the text. 0 without air.
   glowKm: number;
-  // Dust density for the scattering shell and the surface haze; null for an airless body.
-  atmosphere: { density: number } | null;
+  // The air's components, which light the scattering shell and the ground; null for an airless body.
+  atmosphere: Atmosphere | null;
   light: {
     sunColor: RGB;
     sunIntensity: number;
@@ -48,6 +49,10 @@ export interface Body {
   };
 }
 
+// Mars's dust load scales its clear-air values; 0.2 is a moderately dusty day.
+const MARS_DUST = 0.2;
+const dusty = (c: RGB): RGB => [c[0] * MARS_DUST, c[1] * MARS_DUST, c[2] * MARS_DUST];
+
 // GM from JPL DE440. Radius is the MOLA reference sphere.
 export const MARS: Body = {
   id: 'mars',
@@ -65,7 +70,16 @@ export const MARS: Body = {
   showsEarth: false,
   // About three scale heights of dust, 11 km each.
   glowKm: 35,
-  atmosphere: { density: 0.2 },
+  atmosphere: {
+    topKm: 110,
+    groundAlbedo: [0.3, 0.2, 0.13],
+    intensity: 16,
+    components: [
+      { scattering: dusty([1.45e-4, 3.4e-4, 8.3e-4]), absorption: [0, 0, 0], profile: { scaleHeightKm: 11 }, phase: 'rayleigh' },
+      // Dust scatters blue light more tightly around the Sun, which gives the blue Martian sunset.
+      { scattering: dusty([0.042, 0.03, 0.019]), absorption: dusty([0.004, 0.016, 0.027]), profile: { scaleHeightKm: 11 }, phase: [0.62, 0.7, 0.82] },
+    ],
+  },
   light: {
     sunColor: [1, 0.95, 0.88],
     sunIntensity: 3.4,

@@ -21,6 +21,6 @@ export function createLighting(body) {
     extinction: uniform(new THREE.Vector3(...l.extinction)),
     shadows: uniform(1),
     // The surface haze is thinner than the full limb path the scattering shell models.
-    opticalDepth: uniform((body.atmosphere?.density ?? 0) * 0.7),
+    opticalDepth: uniform(body.atmosphere ? 0.14 : 0),
   };
 }
