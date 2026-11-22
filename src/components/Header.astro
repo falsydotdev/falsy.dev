@@ -43,7 +43,7 @@ const links = [
   );
   // The nav wraps to two or three rows on narrow screens, so section jumps clear the measured height.
   const sized = new ResizeObserver(([entry]) => {
-    const height = Math.ceil(entry.borderBoxSize[0].blockSize);
+    const height = Math.ceil(entry.target.getBoundingClientRect().height);
     document.documentElement.style.setProperty('--header-h', `${height}px`);
   });
 

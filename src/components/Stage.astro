@@ -97,7 +97,7 @@ const tilesOrigin = tilesBase && URL.canParse(tilesBase) ? new URL(tilesBase).or
 
       const root = document.documentElement;
       root.dataset.body = body;
-      // The favicon takes the body's accent too. Resetting an unchanged href can make the browser refetch it.
+      // Resetting an unchanged href can make the browser refetch the icon.
       const setIcon = (doc) => {
         const link = doc.querySelector('link[rel="icon"]');
         const href = `/favicon-${root.dataset.body}.svg`;
