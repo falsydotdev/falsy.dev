@@ -7,6 +7,9 @@ export type RGB = readonly [number, number, number];
 export interface Body {
   id: string;
   name: string;
+  spokenName: string; // the name inside a sentence, as in "Switch to the Moon"
+  loadingLabel: string; // completes "Loading …" while the live scene starts
+  dataCredit: string; // completes "A still frame rendered from …" in a poster's description
   ae: A.Body;
   gm: number; // km³/s²
   radiusKm: number; // the reference sphere the terrain heights are measured from
@@ -47,6 +50,9 @@ export interface Body {
 export const MARS: Body = {
   id: 'mars',
   name: 'Mars',
+  spokenName: 'Mars',
+  loadingLabel: 'Mars terrain',
+  dataCredit: 'MOLA elevation and Viking colour data',
   ae: 'Mars' as A.Body,
   gm: 42828.37,
   radiusKm: 3396.19,
@@ -73,6 +79,9 @@ export const MARS: Body = {
 export const MOON: Body = {
   id: 'moon',
   name: 'Moon',
+  spokenName: 'the Moon',
+  loadingLabel: 'lunar terrain',
+  dataCredit: 'LOLA elevation and LROC colour data',
   ae: 'Moon' as A.Body,
   gm: 4902.8,
   radiusKm: 1737.4,
@@ -101,3 +110,13 @@ export const MOON: Body = {
 export const BODIES: Record<string, Body> = { mars: MARS, moon: MOON };
 
 export const bodyById = (id: string | null | undefined): Body => (id && BODIES[id]) || MARS;
+
+// Falls back to `id` itself when no other body is eligible.
+export function nextBodyId(ids: readonly string[], id: string, eligible: (id: string) => boolean = () => true): string {
+  const start = ids.indexOf(id);
+  for (let step = 1; step <= ids.length; step++) {
+    const next = ids[(start + step) % ids.length];
+    if (next !== id && eligible(next)) return next;
+  }
+  return id;
+}

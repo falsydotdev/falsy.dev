@@ -96,7 +96,7 @@ Claude drafts all copy in Justin's voice with the `sound-like-justin` skill, and
 | v1 launch | Mars and the Moon, which share the rocky terrain pipeline |
 | v1.x | Earth, then Jupiter, then Saturn, each its own release |
 
-Each load picks a body, with weights favoring the most striking ones. The site never shows the same body twice in a row for one visitor, using browser storage that tolerates being empty.
+A first visit picks a body at random, each equally likely, and later loads take the next body in turn. The site never shows the same body twice in a row for one visitor, using browser storage that tolerates being empty.
 
 ### Shots
 
@@ -127,12 +127,12 @@ Composition rules:
 
 ### Fidelity
 
-- **Terrain:** streaming terrain tiles give close-up quality everywhere. The tiles are a pyramid cut from the USGS and NASA source data, compressed to KTX2, and served from R2. Level of detail (LOD) is a quadtree on a cube-sphere.
+- **Terrain:** streaming terrain tiles give close-up quality everywhere. The tiles are a pyramid cut from the USGS and NASA source data and served from R2. Colour tiles ship as AVIF and height tiles in a custom lossless format (ADR 0004). Level of detail (LOD) is a quadtree on a cube-sphere.
 - **Relief:** height is exaggerated 2.5× by default on rocky bodies. The telemetry says so, for example `RELIEF ×2.5`.
 - **Shadows:** terrain shadows are raymarched through the height data.
 - **Atmosphere:** Hillaire-style physically based scattering, with dust-dominated Mie scattering for Mars and no atmosphere for the Moon. It includes light shafts (volumetric shadowing) for the orbital sunrise shot.
 - **Heavy effects:** precomputed lookup tables keep the atmosphere to about 0.5 ms per frame, so temporal accumulation isn't needed. It stays an option if a heavier effect arrives, because the scene changes slowly.
-- **Scale:** the renderer uses a floating origin and reversed depth from day one, so the v2 zoom across 17 orders of magnitude works without a rewrite.
+- **Scale:** the renderer uses a logarithmic depth buffer, without a floating origin. ADR 0001 planned a floating origin and reversed depth for the v2 zoom across 17 orders of magnitude; neither is built yet.
 
 ### Telemetry readout
 
@@ -140,7 +140,7 @@ The readout sits in a corner, for example `MARS  18.4°N  226.0°E  LST 06:12  A
 
 ### Fallback poster
 
-- A still frame of our own scene, re-rendered daily by an automated job. It loads instantly and fades into the live scene on capable devices.
+- A fixed still frame of our own scene, rendered once at a pinned moment and committed with the site. It loads instantly and fades into the live scene on capable devices.
 - While a poster shows, the telemetry readout describes that frame and ends with `still DD MON HH:MM UTC`, the moment its lighting was computed for. That keeps the readout true when the frame isn't live.
 - Phones, low-power devices, devices without WebGPU or WebGL2, and reduced-motion visitors keep the poster.
 - The live scene picks a quality tier from the measured frame rate.
@@ -199,4 +199,4 @@ Credits appear in the about page or the footer:
 
 - **Baked shading:** the Viking color mosaic has shading from the original photos baked in, so some slopes look lit twice. Evaluate de-shading the mosaic, or using another color source, during Phase 2.
 - **Persisted canvas:** resolved. The Phase 1 spike showed a WebGPU canvas surviving navigation under `transition:persist` (ADR 0002).
-- **Payload:** the prototype downloads about 20 MB for mode A and 31 MB with the close-up, as unoptimized PNG and JPEG. Its GPU textures take about 220 MB uncompressed. KTX2 compression and tiling must bring a typical view under the Phase 2 budget.
+- **Payload:** the prototype downloads about 20 MB for mode A and 31 MB with the close-up, as unoptimized PNG and JPEG. Its GPU textures take about 220 MB uncompressed. Tile compression and tiling must bring a typical view under the Phase 2 budget.
