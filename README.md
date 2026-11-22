@@ -24,12 +24,14 @@ Then open http://localhost:4321. The live scene starts on desktop-width windows 
 
 #### Earth tiles
 
-Earth's sources ship as tiles, so its bake adds a mosaic step and an optional Sentinel-2 step: `npm run tiles -- --body earth` runs fetch, `earth-mosaic`, `earth-sentinel`, heights, and colour.
+Earth's sources ship as tiles, so its bake adds a mosaic step and an optional Sentinel-2 step: `npm run tiles -- --body earth` runs fetch, `earth-mosaic`, `earth-sentinel`, heights, colour, and lights.
 
-- Fetch downloads GEBCO_2026's eight ice-surface GeoTIFFs (about 7.5 GB), the eight Blue Marble Next Generation 500 m tiles for the bake month (about 0.5 GB), and Natural Earth's 1:10m land polygons.
-- `node scripts/tiles/earth-mosaic.mjs` writes rasters under `sources/earth-mosaic` (about 17 GB): heights at 1/120°, plus the water mask and Blue Marble colour at 1/240°. The mask is GEBCO height at or below sea level, except inside Natural Earth land.
+- Fetch downloads GEBCO_2026's eight ice-surface GeoTIFFs (about 7.5 GB), the eight Blue Marble Next Generation 500 m tiles for the bake month (about 0.5 GB), Black Marble 2016's eight 500 m greyscale tiles plus its 3 km map (about 0.2 GB), and Natural Earth's 1:10m land polygons.
+- `node scripts/tiles/earth-mosaic.mjs` writes rasters under `sources/earth-mosaic` (about 18 GB): heights and city lights at 1/120°, plus the water mask and Blue Marble colour at 1/240°. The mask is GEBCO height at or below sea level, except inside Natural Earth land.
 - `node scripts/tiles/earth-sentinel.mjs` overlays the Copernicus Sentinel-2 Global Mosaic, the latest quarter of the current season, through its cloud-optimized overviews at about 300 m. It needs the Copernicus Data Space S3 keys in `COPERNICUS_S3_ACCESS_KEY` and `COPERNICUS_S3_SECRET_KEY`; without them it skips, and colour stays Blue Marble. `--list` runs the item search without keys. `EARTH_BAKE_DATE` picks a different season. The tone curve is `TONE` in `scripts/tiles/earth/sentinel.ts`.
 - Colour tiles stop at level 6 and carry the mask in alpha (opaque is land). `meta.json` gains `flatOcean`, a per-tile bitmap of open-ocean height tiles (layout in `src/scene/tiles/flat-ocean.ts`).
+- `node scripts/tiles/lights.mjs --body earth` cuts the city-lights layer (`l/`): 128 px single-channel AVIF to level 6, averaged in light rather than in grey (`src/scene/tiles/lights-codec.ts`). The scene fetches it only for night-side tiles in view.
+- `node scripts/tiles/lights-grid.mjs` regenerates `src/scene/lights-grid.ts`, the committed 1° lights grid that shot planning reads. It needs only the 3 km map (`earth-mosaic.mjs --coarse lights`).
 - `node scripts/tiles/masked-decode/check.mjs --url http://localhost:4321` checks, against a running dev server, that the browser keeps colour under alpha 0 in Chromium and WebKit, on WebGPU and WebGL2.
 
 Earth is in `BODIES` but has `listed: false` in `src/scene/bodies.ts`, so production's first-visit picks and the body button leave it out until its production tiles and clouds exist. `?body=earth` still shows it, and development lists every body, so without local Earth tiles a development visit can land on Earth and fall back to a poster, and the body button stops at Earth. Flip `listed` to `true` once `earth/v1` is uploaded.
@@ -43,13 +45,16 @@ FALSY_TILES_EARTH=~/.cache/falsy-dev/earth-test/tiles/earth npm run dev
 A small test bake, without the full downloads, sets `FALSY_DATA_DIR=~/.cache/falsy-dev/earth-test` and runs:
 
 ```bash
-node scripts/tiles/fetch-sources.mjs --body earth naturalEarthLand,gebcoCoarse,bmngCoarse,bmngC1
+node scripts/tiles/fetch-sources.mjs --body earth naturalEarthLand,gebcoCoarse,bmngCoarse,bmngC1,blackMarbleCoarse,blackMarbleC1
 node scripts/tiles/earth-mosaic.mjs --coarse
 node scripts/tiles/earth-mosaic.mjs heights --box 44.3,-0.1,56.4,16.7 --remote   # crosses GEBCO's B1/C1 seam
 node scripts/tiles/earth-mosaic.mjs colour --box 44.3,0,56.4,16.7             # inside Blue Marble C1
+node scripts/tiles/earth-mosaic.mjs lights --box 44.3,0,56.4,16.7             # inside Black Marble C1
 node scripts/tiles/heights.mjs --body earth --near 52.3,5.3,500
 node scripts/tiles/colour.mjs --body earth --near 52.3,5.3,500
 node scripts/tiles/colour.mjs --body earth --leaf-level 3
+node scripts/tiles/lights.mjs --body earth --near 52.3,5.3,500
+node scripts/tiles/lights.mjs --body earth --leaf-level 3
 ```
 
 Production builds read the tile base URL from `PUBLIC_TILES_BASE` in `.env.production` (the R2 bucket at `tiles.falsy.dev`), and load `<base>/<body>/<version>`, for example `mars/v1`. In development, tiles come from `/data/<body>`. `doppler run -p falsy-dev -c prd -- npm run tiles:upload -- --body moon` sends a body's tiles to R2. Secrets live in the `falsy-dev` Doppler project.
@@ -72,7 +77,7 @@ Production builds read the tile base URL from `PUBLIC_TILES_BASE` in `.env.produ
 | `tier=high`, `tier=medium`, `tier=low` | Force a quality tier and stop the automatic step-down, to compare them. `window.__falsyLive.state` shows the tier, `gpuMs`, and any tier changes. |
 | `scale=N` | Render at N device pixels per CSS pixel (0.5 to 3, never above the screen's own), overriding the tier's resolution. For comparing sharpness. |
 | `webgl` | Force the WebGL2 backend |
-| `fx=shadows,bloom` | Turn these scene layers off (on Earth also `clouds` and `cloudShadows`), to measure what each costs. Layers are listed in `src/scene/fx.ts`; unknown names are ignored. `window.__falsyLive.state.fx` shows which layers are off. |
+| `fx=shadows,bloom` | Turn these scene layers off (on Earth also `glint`, `clouds`, `cloudShadows`, and `lights`), to measure what each costs. Layers are listed in `src/scene/fx.ts`; unknown names are ignored. `window.__falsyLive.state.fx` shows which layers are off. |
 | `bench=N` | Render each frame N times back to back (1 to 64) and log the GPU time per frame, for the frame-time benchmark. |
 | `ph=1` | Turn on PostHog analytics off the production host. Events go through the `/uplink` relay, which only the Worker serves, so test a build with `npm run build && npx wrangler dev`, not `astro preview` or `astro dev`. Headless browsers also need `navigator.webdriver` masked, or posthog-js drops their events as bots. |
 

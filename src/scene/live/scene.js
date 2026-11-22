@@ -231,7 +231,9 @@ export async function startLiveScene(host, opts) {
       clouds = createClouds({ body, lighting, tables, set: cloudSet });
       clouds.setTier(tier, fx.has('cloudShadows'));
     }
-    planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: body.relief, seaLevel: body.seaLevel, layers, tileLayers: body.tiles.layers, lighting, atmosphere: tables, clouds, ocean, relaxBeyondKm: opts.farKm });
+    // A layer switched off with `fx=` (city lights) is neither fetched nor drawn.
+    const tileLayers = body.tiles.layers.filter((l) => !fx.has(l.id));
+    planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: body.relief, seaLevel: body.seaLevel, layers, tileLayers, lighting, nightLights: body.lights, atmosphere: tables, clouds, ocean, relaxBeyondKm: opts.farKm });
     const tiledPlanet = planet;
     planet.lean = opts.lean ?? true;
     // Tiles stream while the shadow map downloads; the first fade-in waits for it (see the loop).

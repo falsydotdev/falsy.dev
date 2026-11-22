@@ -1,10 +1,12 @@
 import * as THREE from 'three/webgpu';
 import {
   Fn, If, Loop, asin, atan, attribute, clamp, cos, cross, dot, exp, float, instancedDynamicBufferAttribute, int, max, min,
-  normalize, positionWorld, round, select, sin, smoothstep, sqrt, tan, texture, uniform, uniformArray, uv, varying, vec2, vec3, vec4,
+  normalize, positionWorld, pow, round, select, sin, smoothstep, sqrt, tan, texture, uniform, uniformArray, uv, varying, vec2, vec3, vec4,
+  cameraPosition,
 } from 'three/tsl';
+import { LIGHTS_GAMMA } from '../tiles/lights-codec.ts';
 import { FACES, parent, tileId } from '../tiles/cube.ts';
-import { drawnHeightRangeKm, isOpenSea, layerTile, layerWants, selectTiles, tilesToFetch } from '../tiles/select.ts';
+import { drawnHeightRangeKm, isOpenSea, layerTile, layerTilesFor, layerWants, selectTiles, tilesToFetch } from '../tiles/select.ts';
 import { TILES, HEIGHT_SIZE, SHADOW_MAP } from '../tiles/layout.ts';
 import { layerPath } from '../tiles/layers.ts';
 import { LayerArray } from './tile-atlas.js';
@@ -83,8 +85,9 @@ class Record {
 export class TiledPlanet {
   /** @param {THREE.WebGPURenderer} renderer */
   /** `layers` is each atlas's depth; `tileLayers` is the body's list of streamed layers. */
-  constructor(renderer, { baseUrl, meta, relief, seaLevel = false, layers, tileLayers, lighting, atmosphere = null, clouds = null, ocean = null, relaxBeyondKm = 500 }) {
+  constructor(renderer, { baseUrl, meta, relief, seaLevel = false, layers, tileLayers, lighting, nightLights = null, atmosphere = null, clouds = null, ocean = null, relaxBeyondKm = 500 }) {
     this.lighting = lighting;
+    this.nightLights = nightLights;
     this.atmosphere = atmosphere;
     this.clouds = clouds;
     this.ocean = ocean;
@@ -194,6 +197,7 @@ export class TiledPlanet {
       return direction(aTile, f).mul(heightKm(aHeight, f).add(R).sub(drop));
     })();
 
+    const lights = this.buildLights();
     const vF = varying(uv());
     const vTile = varying(aTile);
     const vColor = varying(aColor);
@@ -270,9 +274,38 @@ export class TiledPlanet {
         const seaFloor = { map: shadowTex, size: [SHADOW_MAP.width, SHADOW_MAP.height], uv: vec2(lon.add(Math.PI).div(2 * Math.PI), float(Math.PI / 2).sub(lat).div(Math.PI)) };
         color = this.ocean.shade({ land: texel.a, color, n, su, shadow: cloudShadow ? shadow.mul(cloudShadow) : shadow, seaFloor });
       }
+      if (lights) color = color.add(lights(f, n, su));
       return vec4(color, 1);
     })();
     return mat;
+  }
+
+  /**
+   * City lights as emission, or null on a body without them. They fade in over the twilight band of
+   * su (sine of the Sun's elevation). The atmosphere shell, blended over the terrain, already dims
+   * everything by the mean of its view throughput, which includes the clouds; this adds only the
+   * colour of that transmittance, so lights near the limb redden without being dimmed twice.
+   */
+  buildLights() {
+    const i = this.tileLayers.findIndex((l) => l.id === 'lights');
+    const cfg = this.nightLights;
+    if (i < 0 || !cfg) return null;
+    const vLights = varying(instancedDynamicBufferAttribute(this.layerAttrs[i]));
+    const tex = this.atlases[i].texture;
+    const air = this.atmosphere;
+    const R = this.radiusKm;
+    return (f, n, su) => {
+      // Sampled outside any branch so its mip comes from screen derivatives; a tile with no lights loaded reads 0.
+      const grey = texture(tex, vLights.zw.add(f.mul(vLights.y))).depth(int(round(max(vLights.x, 0)))).r;
+      const light = select(vLights.x.lessThan(0), float(0), pow(grey, LIGHTS_GAMMA));
+      const night = smoothstep(cfg.fadeSin[1], cfg.fadeSin[0], su).oneMinus();
+      let glow = vec3(...cfg.color).mul(cfg.intensity).mul(light).mul(night);
+      if (air) {
+        const t = air.transmittance(float(R), max(dot(n, normalize(cameraPosition.sub(positionWorld))), 0));
+        glow = glow.mul(t.div(max(t.x.add(t.y).add(t.z).div(3), 1e-4)));
+      }
+      return glow;
+    };
   }
 
   /** Loads the coarse shadow map. Resolves either way; without it the map stays zero, which reads as flat ground. */
@@ -395,20 +428,18 @@ export class TiledPlanet {
     }
     this.stats.texelBias = opts.maxTexelPx;
 
-    const wanted = tilesToFetch(selected, { lean: this.lean }).map((k) => this.record(k));
-    for (const r of wanted) r.lastUsed = this.frame;
+    for (const k of tilesToFetch(selected, { lean: this.lean })) this.record(k).lastUsed = this.frame;
     // Pending counts only slots a layer wants now, so a layer its rule skips never holds up a poster.
     const idleSlots = new Map();
-    for (const r of wanted) {
-      this.tileLayers.forEach((tileLayer, i) => {
-        const t = this.slotRecord(r, tileLayer);
-        if (!t) return;
+    this.tileLayers.forEach((tileLayer, i) => {
+      for (const k of layerTilesFor(selected, tileLayer, { lean: this.lean, sunDir: this.sunDir, flatOcean: this.meta.flatOcean })) {
+        const t = this.record(k);
         t.lastUsed = this.frame;
-        if (t.slots[i].state !== 'idle') return;
+        if (t.slots[i].state !== 'idle') continue;
         if (!idleSlots.has(t)) idleSlots.set(t, new Set());
         idleSlots.get(t).add(i);
-      });
-    }
+      }
+    });
     const idle = [...idleSlots.keys()];
     this.stats.pending = idle.length;
     this.stats.inFlight = this.inFlight;
@@ -444,16 +475,6 @@ export class TiledPlanet {
     this.stats.drawn = n;
     this.selected = selected;
     if (this.frame % 120 === 0) this.prune();
-  }
-
-  /**
-   * The record that holds tile layer `tileLayer`'s slot for record `r` (its ancestor at the layer's
-   * level cap), or null when the layer's rule doesn't want that tile now.
-   */
-  slotRecord(r, tileLayer) {
-    const k = layerTile(r.key, tileLayer);
-    if (!layerWants(k, tileLayer, this.sunDir, this.meta.flatOcean)) return null;
-    return k === r.key ? r : this.record(k);
   }
 
   prune() {

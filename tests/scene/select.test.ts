@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { orbitCameraPose } from '../../src/scene/camera';
 import { vec, type Vec3 } from '../../src/scene/ephemeris';
 import { type TileKey, dirOf, tileAt, tileDir, tileId, parent } from '../../src/scene/tiles/cube';
-import { type CameraPose, drawnHeightRangeKm, isOpenSea, layerTilesToFetch, layerWants, selectTiles, tilesToFetch } from '../../src/scene/tiles/select';
+import { type CameraPose, drawnHeightRangeKm, isOpenSea, layerTile, layerTilesFor, layerTilesToFetch, layerWants, selectTiles, tilesToFetch } from '../../src/scene/tiles/select';
 import { FlatOceanBuilder } from '../../src/scene/tiles/flat-ocean';
 import type { TileLayer } from '../../src/scene/tiles/layers';
 import { EARTH, MARS, MOON } from '../../src/scene/bodies';
@@ -202,5 +202,47 @@ describe("Earth's tiles", () => {
 
   it('reads no flat ocean on a body without the bitmap', () => {
     expect(layerWants(sea, height, undefined, undefined)).toBe(true);
+  });
+});
+
+describe("Earth's city lights", () => {
+  const ER = EARTH.radiusKm;
+  const lights = EARTH.tiles.layers.find((l) => l.id === 'lights')!;
+  const colour = EARTH.tiles.layers.find((l) => l.id === 'color')!;
+  const range = drawnHeightRangeKm([-10436, 7173], EARTH);
+  const overNetherlands = (): CameraPose => {
+    const rBody = vec.scale(dirOf(52.3, 5.3), ER + EARTH.altKm);
+    const { position, forward, up } = orbitCameraPose(rBody, vec.cross([0, 0, 1], rBody), ER, 12);
+    return { position, forward, up, fovYRad: (50 * Math.PI) / 180, aspect: 16 / 9, viewportHeightPx: 1080 };
+  };
+  const selected = selectTiles(overNetherlands(), { radiusKm: ER, heightRangeKm: range, tilePx: 256, maxLevel: 7 });
+  // The Sun overhead at 23.4°N 15°E is late morning of the June solstice; 180° away is midnight.
+  const noon = dirOf(23.4, 15);
+  const midnight = dirOf(-23.4, -165);
+
+  it('is a single-channel layer of 128 px tiles, capped at level 6 and fetched while the Sun is below 5°', () => {
+    expect(lights).toMatchObject({ format: 'mono', sizePx: 128, maxLevel: 6, sunBelowDeg: 5 });
+  });
+
+  it('fetches nothing in a daylight view, though colour still loads', () => {
+    for (const lean of [true, false]) {
+      expect(layerTilesFor(selected, lights, { lean, sunDir: noon })).toHaveLength(0);
+      expect(layerTilesFor(selected, colour, { lean, sunDir: noon }).length).toBeGreaterThan(30);
+    }
+  });
+
+  it('fetches every visible tile at night from its ancestor at level 6, and every coarser ancestor to borrow from', () => {
+    const ids = new Set(layerTilesFor(selected, lights, { sunDir: midnight }).map(tileId));
+    for (const s of selected) {
+      for (let k: TileKey | null = layerTile(s.key, lights); k; k = parent(k)) expect(ids.has(tileId(k))).toBe(true);
+    }
+    expect(Math.max(...[...ids].map((id) => Number(id.split('/')[0])))).toBe(6);
+  });
+
+  it('skips the far side of the planet, unlike the fallback levels every required layer pins', () => {
+    const far = tilesToFetch([], { pinnedLevel: 1 }).filter((k) => vec.dot(tileDir(k, 0.5, 0.5), dirOf(52.3, 5.3)) < -0.5);
+    const ids = new Set(layerTilesFor(selected, lights, { sunDir: midnight }).map(tileId));
+    expect(far.length).toBeGreaterThan(0);
+    for (const k of far) expect(ids.has(tileId(k))).toBe(false);
   });
 });

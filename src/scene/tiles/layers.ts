@@ -34,4 +34,7 @@ export interface TileLayer {
 export const COLOR_LAYER: TileLayer = { id: 'color', format: 'color', dir: 'c', ext: 'avif', sizePx: TILES.colorPx, maxLevel: TILES.maxLevel };
 export const HEIGHT_LAYER: TileLayer = { id: 'height', format: 'height', dir: 'h', ext: 'bin', sizePx: HEIGHT_SIZE, maxLevel: TILES.maxLevel };
 
+// City lights: NASA Black Marble 2016 greyscale, display-encoded as published.
+export const LIGHTS_LAYER: TileLayer = { id: 'lights', format: 'mono', dir: 'l', ext: 'avif', sizePx: 128, maxLevel: 6, sunBelowDeg: 5 };
+
 export const layerPath = (layer: TileLayer, k: TileKey) => `${layer.dir}/${k.level}/${k.face}/${k.x}_${k.y}.${layer.ext}`;

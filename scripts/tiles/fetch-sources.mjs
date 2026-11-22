@@ -54,9 +54,26 @@ async function headWithRetry(url, attempt = 0) {
   }
 }
 
-async function download({ url, file }) {
+// Some hosts (NASA's assets) gzip a HEAD response and drop its length; a one-byte range gives the size.
+async function sizeOf(url) {
   const head = await headWithRetry(url);
-  const size = Number(head.headers.get('content-length'));
+  const length = head.headers.get('content-length');
+  if (length && !head.headers.get('content-encoding')) return Number(length);
+  const probe = await fetchChunkResponse(url);
+  const size = Number(probe.headers.get('content-range')?.split('/')[1]);
+  if (!(size > 0)) throw new Error(`${url}: no size in HEAD or a range response`);
+  return size;
+}
+
+async function fetchChunkResponse(url) {
+  const res = await fetch(url, { headers: { Range: 'bytes=0-0' } });
+  await res.arrayBuffer();
+  if (res.status !== 206) throw new Error(`${url}: status ${res.status} for a range`);
+  return res;
+}
+
+async function download({ url, file }) {
+  const size = await sizeOf(url);
   const progressFile = `${file}.progress.json`;
   const done = new Set(existsSync(progressFile) ? JSON.parse(await readFile(progressFile, 'utf8')) : []);
   if (existsSync(file) && !existsSync(progressFile)) return console.log(`${file} already complete`);
