@@ -3,7 +3,7 @@ import type * as A from 'astronomy-engine';
 import type { Atmosphere } from './atmosphere-luts.ts';
 import { EARTH_FEATURES, type Feature, MARS_FEATURES, MOON_FEATURES } from './features.ts';
 import type { ShotKind } from './shots.ts';
-import { COLOR_LAYER, HEIGHT_LAYER, type TileLayer } from './tiles/layers.ts';
+import { COLOR_LAYER, HEIGHT_LAYER, LIGHTS_LAYER, type TileLayer } from './tiles/layers.ts';
 
 export type RGB = readonly [number, number, number];
 
@@ -42,6 +42,13 @@ export interface Body {
     // How far full cover stands above clear sky when shading the clouds from their coverage's slope.
     reliefKm: number;
   };
+  // City lights, from a tile layer with id 'lights': emission in the ground's own light units.
+  lights?: {
+    color: RGB;
+    intensity: number; // emission of a full-white source pixel
+    // Sine of the Sun's elevation at the ground over which the lights fade in, from none to full.
+    fadeSin: readonly [number, number];
+  };
   // Heights below 0 are sea, drawn flat at sea level; the sea floor stays in the tiles for shading.
   seaLevel?: boolean;
   // How the sea shades where the colour tiles' water mask says water. Needs `seaLevel`.
@@ -60,6 +67,9 @@ export interface Body {
     // Sun elevation on the ground ahead below which the view is close to black without city
     // lights, from renders. Haze keeps Mars lit past its terminator; the bare Moon goes dark before it.
     darkBelowDeg: number;
+    // The night pass, for a body with city lights (light is 0 to 1). The track passes a city whose
+    // 1° cell is above `cityAbove`, and holds while light within `reachKm` of the ground ahead is above `holdAbove`.
+    nightPass?: { cityAbove: number; reachKm: number; holdAbove: number };
   };
   // Offered in production's first-visit picks and the switch button. A body whose production
   // tiles aren't uploaded yet stays off; `?body=` and development still show it.
@@ -162,7 +172,7 @@ export const EARTH: Body = {
   name: 'Earth',
   spokenName: 'Earth',
   loadingLabel: 'Earth terrain',
-  dataCredit: 'GEBCO elevation and NASA Blue Marble colour data',
+  dataCredit: 'GEBCO elevation, Sentinel-2 and Blue Marble colour, Black Marble city lights, and GMGSI cloud data',
   ae: 'Earth' as A.Body,
   gm: 398600.4,
   radiusKm: 6371,
@@ -196,13 +206,15 @@ export const EARTH: Body = {
   seaLevel: true,
   // 7 m/s is roughly the global mean over the oceans (unsourced; Young et al. 2020 would confirm).
   ocean: { windMs: 7, deep: [0.004, 0.014, 0.035], shallow: [0.03, 0.09, 0.1], shallowDepthM: 30, skyLight: 0.3 },
+  // The spec's twilight: Sun 2.9° up to 8.6° down. Warm white, between sodium and LED street lighting.
+  lights: { color: [1, 0.82, 0.6], intensity: 3, fadeSin: [0.05, -0.15] },
   // The static map: GMGSI for 2026-11-22 11:00 UTC against the 14 days before it.
   clouds: { staticUrl: '/clouds/static.json', heightKm: 8, albedo: 0.85, reliefKm: 12 },
   // Colour stops at level 6 and carries the water mask in alpha (opaque is land).
-  tiles: { version: 'v1', layers: [{ ...COLOR_LAYER, format: 'masked', maxLevel: 6 }, HEIGHT_LAYER] },
-  // Named places lead because visitors know them by sight; a flyover is on offer almost all the time.
+  tiles: { version: 'v1', layers: [{ ...COLOR_LAYER, format: 'masked', maxLevel: 6 }, HEIGHT_LAYER, LIGHTS_LAYER] },
+  // Named places lead because visitors know them by sight; one load in five shows the night side's cities.
   // Heading into night, renders dim to 7 of 255 at −5° and are close to black by −6°.
-  shots: { weights: { 'dawn-dusk': 0.3, 'orbital-sunrise': 0.3, 'feature-flyover': 0.4 }, dawnDuskSunDeg: 4, sunriseLeadS: 60, sunriseLimbKm: 0, darkBelowDeg: -5 },
+  shots: { weights: { 'dawn-dusk': 0.25, 'orbital-sunrise': 0.25, 'feature-flyover': 0.3, 'night-pass': 0.2 }, dawnDuskSunDeg: 4, sunriseLeadS: 60, sunriseLimbKm: 0, darkBelowDeg: -5, nightPass: { cityAbove: 1e-2, reachKm: 500, holdAbove: 3e-3 } },
   listed: false,
   memoryCeilings: true,
 };

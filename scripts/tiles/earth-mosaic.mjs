@@ -2,8 +2,9 @@
 //   heights  GEBCO_2026's eight 90° GeoTIFFs, 2×2 averaged to 1/120° (about 926 m)
 //   mask     water (0) or land (255) at GEBCO's 1/240°: height ≤ 0 and outside Natural Earth land
 //   colour   Blue Marble's eight 500 m JPEGs as planar RGB at 1/240°
-//   node scripts/tiles/earth-mosaic.mjs [heights|colour] [--box s,w,n,e] [--remote]
-//   node scripts/tiles/earth-mosaic.mjs --coarse     global 1/12° heights and mask, 8 km colour
+//   lights   Black Marble 2016's eight 500 m grey GeoTIFFs, halved in light to 1/120°
+//   node scripts/tiles/earth-mosaic.mjs [heights|colour|lights] [--box s,w,n,e] [--remote]
+//   node scripts/tiles/earth-mosaic.mjs --coarse [lights]   global 1/12° heights and mask, 8 km colour, 3 km lights
 // --box limits a raster to a region (snapped out to 1/120°), for test bakes over a coarse fill;
 // --remote reads GEBCO rows with range requests instead of from downloaded files.
 import { open, mkdir, writeFile } from 'node:fs/promises';
@@ -16,6 +17,7 @@ import { SOURCES } from './paths.mjs';
 import { writeHeader } from './mosaic-rasters.mjs';
 import { quadTilesFor } from './earth/grid.ts';
 import { LandRaster, readShapefilePolygons, waterMaskRow } from './earth/land.ts';
+import { greyOf, lightOf } from '../../src/scene/tiles/lights-codec.ts';
 
 const sharp = createRequire(import.meta.url)('sharp');
 const FINE = 240;
@@ -199,6 +201,45 @@ async function fineColour(box) {
   await out.close();
 }
 
+/** Black Marble's 500 m grey tiles, halved in light (see lights-codec.ts) to one band at 1/120°. */
+async function fineLights(box) {
+  const w = Math.round((box.east - box.west) * 120);
+  const h = Math.round((box.north - box.south) * 120);
+  const out = await open(await writeHeader('lights', box.tag, { w, h, ...box }, 'uint8', 1), 'w');
+  await out.truncate(w * h);
+  const bx = Math.round((box.west + 180) * 120);
+  const by = Math.round((90 - box.north) * 120);
+  for (const p of quadTilesFor(box, QUAD)) {
+    const src = SOURCES[`blackMarble${p.tile.name}`];
+    if (!existsSync(src.file)) throw new Error(`${src.file} missing: fetch it, or keep --box inside the Black Marble tiles you have`);
+    const t0 = Date.now();
+    const width = p.x1 - p.x0;
+    const height = p.y1 - p.y0;
+    const grey = await sharp(src.file, { limitInputPixels: false, unlimited: true }).extract({ left: p.x0, top: p.y0, width, height }).extractChannel(0).raw().toBuffer();
+    const ox = (Math.round((p.tile.west + 180) * FINE) + p.x0) / 2 - bx;
+    const oy = (Math.round((90 - p.tile.north) * FINE) + p.y0) / 2 - by;
+    const row = Buffer.alloc(width / 2);
+    for (let r = 0; r < height / 2; r++) {
+      const a = 2 * r * width;
+      for (let x = 0; x < row.length; x++) {
+        const i = a + 2 * x;
+        row[x] = greyOf((lightOf(grey[i]) + lightOf(grey[i + 1]) + lightOf(grey[i + width]) + lightOf(grey[i + width + 1])) / 4);
+      }
+      await out.write(row, 0, row.length, (oy + r) * w + ox);
+    }
+    console.log(`  lights ${p.tile.name} ${width}×${height} in ${((Date.now() - t0) / 1000).toFixed(0)}s`);
+  }
+  await out.close();
+}
+
+async function coarseLights() {
+  const { data, info } = await sharp(SOURCES.blackMarbleCoarse.file, { limitInputPixels: false }).extractChannel(0).raw().toBuffer({ resolveWithObject: true });
+  const out = await open(await writeHeader('lights', 'coarse', { w: info.width, h: info.height, west: -180, south: -90, east: 180, north: 90 }, 'uint8', 1), 'w');
+  await out.write(data);
+  await out.close();
+  console.log(`coarse lights ${info.width}×${info.height}`);
+}
+
 /** OPeNDAP DAP2 binary: the DDS text, "Data:\n", then two big-endian counts and XDR int32 samples. */
 function readDods(file) {
   const buf = readFileSync(file);
@@ -239,12 +280,15 @@ async function coarse() {
   console.log(`coarse fill: heights and mask ${w}×${h}, colour ${info.width}×${info.height}`);
 }
 
-const kinds = ['heights', 'colour'].filter((k) => process.argv.includes(k));
+const kinds = ['heights', 'colour', 'lights'].filter((k) => process.argv.includes(k));
+const wants = (k) => !kinds.length || kinds.includes(k);
 if (process.argv.includes('--coarse')) {
-  await coarse();
+  if (wants('heights') || wants('colour')) await coarse();
+  if (wants('lights')) await coarseLights();
 } else {
   const box = boxArg();
   console.log(`mosaic ${box.tag}: ${box.south}..${box.north}°N, ${box.west}..${box.east}°E`);
-  if (!kinds.length || kinds.includes('heights')) await fineHeights(box, process.argv.includes('--remote'));
-  if (!kinds.length || kinds.includes('colour')) await fineColour(box);
+  if (wants('heights')) await fineHeights(box, process.argv.includes('--remote'));
+  if (wants('colour')) await fineColour(box);
+  if (wants('lights')) await fineLights(box);
 }

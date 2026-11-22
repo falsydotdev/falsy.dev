@@ -13,7 +13,7 @@ This is a first draft in Justin's voice for him to edit. It follows the `sound-l
 ## Meta
 
 - **Title:** Justin Powell · falsy.dev
-- **Description:** I'm not a trained developer, but I spend most days building software with AI. Here are my projects, my consulting work through RevOps Rocks, and a view of Mars or the Moon rendered from real data.
+- **Description:** I'm not a trained developer, but I spend most days building software with AI. Here are my projects, my consulting work through RevOps Rocks, and a view of Mars, the Moon or Earth rendered from real data.
 
 ## Hero
 
@@ -117,14 +117,14 @@ It checks more than 50,000 sources for new roles.
 ### falsy.dev
 
 - **Card label:** PRJ-04 / THIS SITE
-- **Card line:** This site, and the live orbit of Mars or the Moon behind it, rendered from real NASA data.
+- **Card line:** This site, and the live orbit of Mars, the Moon or Earth behind it, rendered from real data.
 - **Tags:** astro · three.js · webgpu · cloudflare
 
 **Detail page**
 
-The background is a live render of Mars or the Moon from a real orbit, about 200 km up over Mars and 100 km over the Moon. The Sun is where it actually is right now, so the lighting and time of day match the real planet. The readout at the bottom shows where you are.
+The background is a live render of Mars, the Moon or Earth from a real orbit, about 200 km up over Mars, 100 km over the Moon and 400 km over Earth. The Sun is where it actually is right now, so the lighting and time of day match the real planet. The readout at the bottom shows where you are.
 
-The terrain comes from NASA data: Mars Global Surveyor elevation and the Viking colour mosaic for Mars, and Lunar Reconnaissance Orbiter elevation and colour for the Moon. I cut each into about 130,000 small tiles, and the page streams only the ones in view, usually a few megabytes. Relief is exaggerated 2.5× so the mountains stand out from this height.
+The terrain comes from NASA data: Mars Global Surveyor elevation and the Viking colour mosaic for Mars, and Lunar Reconnaissance Orbiter elevation and colour for the Moon. Earth uses GEBCO elevation, Copernicus Sentinel-2 and NASA Blue Marble colour, and NASA Black Marble city lights. Its clouds come from NOAA satellite images, updated every three hours. I cut each into about 130,000 small tiles, and the page streams only the ones in view, usually a few megabytes. Relief is exaggerated 2.5× so the mountains stand out from this height.
 
 It checks how fast your graphics card is and turns the quality down if it needs to. On phones, or with reduced motion turned on, you get a still image instead.
 
@@ -141,9 +141,11 @@ I studied physics for four years, first at the University of Arizona and then at
 
 In JavaScript, a `falsy` value acts false without actually being false. That's kind of how I feel when I talk about being a “developer”. (Approved 2026-11-03.)
 
-Behind this page is Mars or the Moon, rendered from real NASA and USGS data. On a computer, you're watching it live from a real orbit, about 200 km up over Mars and 100 km over the Moon, moving as fast as a spacecraft would, with the Sun where it really is right now. On a phone, you get a still from the same renderer. The mountains are stretched 2.5 times taller so they show up from that height. I built it because I love space and physics, and I wanted my site to show the kind of work I do. (Updated 2026-11-04 to be accurate for both the live view and the stills, and 2026-11-08 for the Moon.)
+Behind this page is Mars, the Moon or Earth, rendered from real NASA, USGS, NOAA and Copernicus data. On a computer, you're watching it live from a real orbit, about 200 km up over Mars, 100 km over the Moon and 400 km over Earth, moving as fast as a spacecraft would, with the Sun where it really is right now. Earth's clouds come from satellite images a few hours old, and its cities light up at night. On a phone, you get a still from the same renderer. The mountains are stretched 2.5 times taller so they show up from that height. I built it because I love space and physics, and I wanted my site to show the kind of work I do. (Updated 2026-11-04 to be accurate for both the live view and the stills, 2026-11-08 for the Moon, and 2026-11-23 for Earth, pending approval.)
 
-**Credits (footer):** Terrain from USGS Astrogeology: MOLA elevation and the Viking MDIM 2.1 colour mosaic. Moon data from NASA's Scientific Visualization Studio.
+**Credits (footer):** Mars terrain from USGS Astrogeology: MOLA elevation and the Viking MDIM 2.1 colour mosaic. Moon terrain from NASA/GSFC/Arizona State University: LOLA elevation, and LROC colour by NASA's Scientific Visualization Studio. Earth from NASA's Blue Marble, by the Scientific Visualization Studio.
+
+Once Earth is listed, the footer adds (pending approval): Earth elevation from the GEBCO_2026 Grid (GEBCO Bathymetric Compilation Group 2026, doi:10.5285/4f68d5c7-45eb-f999-e063-7086abc036fa). Earth colour from Copernicus Sentinel-2 and NASA Blue Marble, and city lights from NASA Black Marble, by NASA Earth Observatory. Clouds from NOAA GMGSI (NESDIS). Contains modified Copernicus Sentinel data 2025.
 
 ## Contact
 
@@ -176,7 +178,7 @@ For consulting, the quickest way to start is a 30-minute call. I work Adelaide h
 | 404 heading | This page is falsy |
 | 404 body | There's nothing here but empty space. |
 | 404 link | Back to the home page |
-| Loading (live scene) | Loading Mars terrain… / Loading lunar terrain… |
+| Loading (live scene) | Loading Mars terrain… / Loading lunar terrain… / Loading Earth terrain… |
 | Telemetry example | MARS  18.6°N  226.2°E  LST 06:20  ALT 200 km  v 3.45 km/s  relief×2.5 |
 | Explorer edge (v2) | You've reached the edge of the observable universe. Past here, everything is undefined. |
 | Reduced-motion note (title text on the readout) | Orbit paused because your device prefers reduced motion. |

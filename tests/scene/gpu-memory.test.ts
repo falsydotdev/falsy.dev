@@ -16,9 +16,9 @@ function plan(cls: MemoryClass, tierName: TierName, canvasPx: number, opts: { in
 const cap = (t: TierName) => tier(t).maxMegapixels * 1e6;
 
 describe('GPU memory per scene', () => {
-  it("counts Earth's colour atlas with its mips and the height atlas without", () => {
-    // 256² + 128² + … + 1² = 87,381 RGBA8 texels, and 99² half floats.
-    expect(bytesPerLayer(earthLayers)).toBe(87_381 * 4 + 99 * 99 * 2);
+  it("counts Earth's colour and city-light atlases with their mips and the height atlas without", () => {
+    // 256² + 128² + … + 1² = 87,381 RGBA8 texels, 99² half floats, and 128² + … + 1² = 21,845 bytes of lights.
+    expect(bytesPerLayer(earthLayers)).toBe(87_381 * 4 + 99 * 99 * 2 + 21_845);
   });
 
   it('sorts scenes by the ceiling that applies', () => {

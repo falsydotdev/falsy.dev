@@ -13,7 +13,7 @@ import { createEarth } from './earth.js';
 import { createOcean } from './ocean.js';
 import { bodyFrame, vec } from '../ephemeris';
 import { sample } from '../orbit';
-import { chooseShot, dawnDusk, earthrise, orbitalSunrise, featureFlyover, seededRandom, wantsReshoot, SHOT_FOV_DEG } from '../shots';
+import { chooseShot, dawnDusk, earthrise, orbitalSunrise, featureFlyover, nightPass, seededRandom, wantsReshoot, SHOT_FOV_DEG } from '../shots';
 import { bodyById } from '../bodies.ts';
 import { telemetryParts } from '../telemetry';
 import { Governor, initialTier, isIntegrated, renderPixelRatio, tier as tierByName } from '../quality.ts';
@@ -22,6 +22,9 @@ import { frameTimes } from '../perf.ts';
 import { solveFraming } from '../composition.ts';
 import { parseFx } from '../fx.ts';
 import { cloudCandidates, cloudReadout, overCloudCap } from '../clouds.ts';
+import { homePass } from '../home-pass.ts';
+import { lightsAround } from '../lights.ts';
+import { zoneCoords } from '../timezone.ts';
 
 const DEG = Math.PI / 180;
 // Camera defaults. Altitude comes from the body. Tilt (degrees below the horizon beyond the
@@ -36,16 +39,43 @@ const WIDE_FROM = 4;
 // Earth rises this far right of centre: clear of the text in a wide view, still on a phone screen.
 const earthRightDeg = (fovDeg, aspect) => Math.min(15, Math.max(4, 0.45 * Math.atan(Math.tan((fovDeg * DEG) / 2) * aspect) / DEG));
 
-function buildShot(body, kind, now, altKm, rand, featureId, rightDeg) {
-  const o = { body, altKm, rand, rightDeg };
+function buildShot(body, kind, now, altKm, rand, featureId, rightDeg, ctx) {
+  const o = { body, altKm, rand, rightDeg, ctx };
   const feature = body.features.find((f) => f.id === featureId);
   if (feature) return featureFlyover(now, { ...o, features: [feature], anySun: true });
   if (kind === 'dawn-dusk') return dawnDusk(now, o);
   if (kind === 'orbital-sunrise') return orbitalSunrise(now, o);
   if (kind === 'earthrise') return earthrise(now, o) ?? featureFlyover(now, o) ?? dawnDusk(now, o);
   if (kind === 'feature-flyover') return featureFlyover(now, o) ?? dawnDusk(now, o);
+  if (kind === 'night-pass') return nightPass(now, o) ?? featureFlyover(now, o) ?? dawnDusk(now, o);
   return chooseShot(now, o);
 }
+
+// The home pass plays on a visitor's first live Earth scene only. The flag records that much and no
+// location; the module-level copy covers storage that throws.
+const HOME_PASS_KEY = 'falsy:home-pass';
+let homePassSeen = false;
+function homePassDue() {
+  if (homePassSeen) return false;
+  try {
+    return localStorage.getItem(HOME_PASS_KEY) === null;
+  } catch {
+    return true;
+  }
+}
+function markHomePassSeen() {
+  homePassSeen = true;
+  try {
+    localStorage.setItem(HOME_PASS_KEY, '1');
+  } catch {}
+}
+const browserZone = () => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch {
+    return undefined;
+  }
+};
 
 /**
  * Starts the live scene of one body inside `host`.
@@ -238,7 +268,9 @@ export async function startLiveScene(host, opts) {
       clouds = createClouds({ body, lighting, tables, set: cloudSet });
       clouds.setTier(tier, fx.has('cloudShadows'));
     }
-    planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: body.relief, seaLevel: body.seaLevel, layers, tileLayers: body.tiles.layers, lighting, atmosphere: tables, clouds, ocean, relaxBeyondKm: opts.farKm });
+    // A layer switched off with `fx=` (city lights) is neither fetched nor drawn.
+    const tileLayers = body.tiles.layers.filter((l) => !fx.has(l.id));
+    planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: body.relief, seaLevel: body.seaLevel, layers, tileLayers, lighting, nightLights: body.lights, atmosphere: tables, clouds, ocean, relaxBeyondKm: opts.farKm });
     const tiledPlanet = planet;
     planet.lean = opts.lean ?? true;
     // Tiles stream while the shadow map downloads; the first fade-in waits for it (see the loop).
@@ -288,7 +320,9 @@ export async function startLiveScene(host, opts) {
   const simNow = () => new Date(simStart + (opts.skip ?? 0) * 1000 + (Date.now() - wallStart) * timeScale);
   const rand = opts.seed === undefined ? Math.random : seededRandom(opts.seed);
   const lensFor = (kind) => opts.fovDeg ?? SHOT_FOV_DEG[kind] ?? CAMERA_DEFAULTS.fovDeg;
-  const nextShot = (at) => buildShot(body, opts.shot, at, cam.altKm, rand, opts.feature, earthRightDeg(lensFor('earthrise'), innerWidth / innerHeight));
+  // With city lights off (`fx=lights`), shot planning doesn't look for them either.
+  const viewContext = body.lights && !fx.has('lights') ? { lightsAround } : {};
+  const nextShot = (at) => buildShot(body, opts.shot, at, cam.altKm, rand, opts.feature, earthRightDeg(lensFor('earthrise'), innerWidth / innerHeight), viewContext);
   // Each shot brings its own lens. The change happens before the first frame shows, or under a crossfade.
   const applyLens = () => {
     cam.fovDeg = lensFor(shot.kind);
@@ -299,10 +333,13 @@ export async function startLiveScene(host, opts) {
   let shotBuilt = new Date(simStart);
   let shotAspect = innerWidth / innerHeight;
   let reshootPending = false;
-  let shot = nextShot(shotBuilt);
-  applyLens();
   // A view pinned by the URL (posters, previews) stays put even after it goes dark.
   const pinned = Boolean(opts.at || opts.seed !== undefined || opts.skip || opts.feature);
+  // A URL that picks the view never gets the home pass, so posters don't depend on this machine's timezone.
+  const homeEligible = body.id === 'earth' && !pinned && !opts.shot;
+  const wantsHome = !opts.feature && (opts.shot === 'home-pass' || (homeEligible && homePassDue()));
+  let shot = (wantsHome && homePass(shotBuilt, { body, altKm: cam.altKm, home: zoneCoords(browserZone()), ctx: viewContext })) || nextShot(shotBuilt);
+  applyLens();
   const starMatrix = new THREE.Matrix4();
   let lastPose = null;
 
@@ -372,7 +409,7 @@ export async function startLiveScene(host, opts) {
   // While two scenes overlap in a body switch, each sees the other's GPU time as its own load.
   let governorHeld = opts.holdGovernor ?? false;
   const state = {
-    frames: 0, body: body.id, shot: shot.kind, get earth() { return earth?.status ?? 'none'; }, get shadow() { return planet.shadow; }, get clouds() { return clouds?.state.status ?? 'none'; }, backend: hints.backend, gpu: hints.vendor ?? hints.description, canvas: renderer.domElement, layers, tiles: planet.stats, firstFrameMs: 0, startTier: tier.name,
+    frames: 0, body: body.id, shot: shot.kind, get earth() { return earth?.status ?? 'none'; }, get shadow() { return planet.shadow; }, get clouds() { return clouds?.state.status ?? 'none'; }, get cloudSet() { const set = clouds?.state.set; return set ? { source: set.source, valid: set.valid.toISOString() } : null; }, backend: hints.backend, gpu: hints.vendor ?? hints.description, canvas: renderer.domElement, layers, tiles: planet.stats, firstFrameMs: 0, startTier: tier.name,
     tier: tier.name, timing: governor ? (gpuTiming ? 'gpu' : 'cadence') : 'forced', gpuMs: 0, gpuLog: [], load: 0, tierChanges: [],
     framing: cam,
     fx: [...fx],
@@ -527,7 +564,7 @@ export async function startLiveScene(host, opts) {
     if (stopped) return;
     // A long visit, or a tab left in the background, ends up over the night side. Crossfade to a
     // new shot from here, waiting until the new view's tiles are in.
-    if (!first && !pinned && !governorHeld && (reshootPending || wantsReshoot(shot, shotBuilt, s.date))) {
+    if (!first && !pinned && !governorHeld && (reshootPending || wantsReshoot(shot, shotBuilt, s.date, viewContext))) {
       reshootPending = false;
       shotAspect = innerWidth / innerHeight;
       if (!resumeStarted) takeSnapshot();
@@ -554,6 +591,7 @@ export async function startLiveScene(host, opts) {
       state.firstFrameMs = Math.round(performance.now() - started);
       // Only the page's first scene measures the page load; later ones are body switches.
       window.__falsyPageReady ??= { body: body.id, sinceNavMs: Math.round(performance.now()), renderMs: Math.round(loadMs), hiddenDuringLoad: !!window.__falsyHiddenSinceNav };
+      if (homeEligible) markHomePassSeen();
       opts.onFirstFrame?.();
     }
   });
