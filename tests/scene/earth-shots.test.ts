@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { EARTH } from '../../src/scene/bodies';
-import { bodyFrame, bodyVector, fromBody, vec } from '../../src/scene/ephemeris';
-import type { Feature } from '../../src/scene/features';
+import { bodyFrame, bodyVector, fromBody, sunElevationAt, sunFrom, vec } from '../../src/scene/ephemeris';
+import { EARTH_FEATURES, type Feature } from '../../src/scene/features';
 import { sample } from '../../src/scene/orbit';
-import { cameraRight, featureFlyover, seededRandom, type Shot, worthShowing } from '../../src/scene/shots';
+import { cameraRight, featureFlyover, flyoverFeatures, seededRandom, type Shot, worthShowing } from '../../src/scene/shots';
 
 const equator: Feature = { id: 'equator', name: 'Equator', lat: 0, lon: 0 };
 
@@ -39,5 +39,48 @@ describe('a flyover past a place that is not in the feature list', () => {
     expect(km).toBeGreaterThan(140);
     expect(km).toBeLessThan(160);
     expect(right).toBeGreaterThan(0);
+  });
+});
+
+describe('Earth features', () => {
+  it('are named places with east longitudes and low-Sun windows', () => {
+    expect(EARTH_FEATURES.length).toBeGreaterThanOrEqual(20);
+    expect(new Set(EARTH_FEATURES.map((f) => f.id)).size).toBe(EARTH_FEATURES.length);
+    for (const f of EARTH_FEATURES) {
+      expect(f.name.length).toBeGreaterThan(0);
+      expect(Math.abs(f.lat)).toBeLessThan(90);
+      expect(f.lon).toBeGreaterThanOrEqual(0);
+      expect(f.lon).toBeLessThan(360);
+      if (f.sun) expect(f.sun.min).toBeLessThan(f.sun.max);
+    }
+  });
+
+  // Earth turns once a day, so each feature is in its window for a couple of hours; they need to
+  // be spread round the globe for a flyover to be on offer most of the time.
+  it('offer a flyover with lit ground in most hours of the year', () => {
+    const hours = Array.from({ length: 365 }, (_, d) => new Date(Date.UTC(2026, 0, 1) + d * 86400e3 + ((d * 7) % 24) * 3600e3 + (d % 4) * 900e3));
+    const covered = hours.filter((h) => flyoverFeatures(EARTH, h).length > 0).length;
+    expect(covered / hours.length).toBeGreaterThan(0.85);
+  });
+});
+
+// Spread over a year and round the clock.
+const DATES = Array.from({ length: 24 }, (_, i) => new Date(Date.UTC(2026, 0, 3) + i * 15.2 * 86400e3 + i * 5.3 * 3600e3));
+
+describe('Earth feature flyover', () => {
+  it.each(DATES)('passes about 100 km right of a feature in its Sun window, with the Sun on the right, from %s', (now) => {
+    const shot = featureFlyover(now, { body: EARTH, rand: seededRandom(now.getTime()) })!;
+    expect(shot.kind).toBe('feature-flyover');
+    const { km, right } = pass(shot);
+    expect(km).toBeGreaterThan(90);
+    expect(km).toBeLessThan(110);
+    expect(right).toBeGreaterThan(0);
+    const { min, max } = shot.feature!.sun ?? { min: 5, max: 25 };
+    const elevation = sunElevationAt(EARTH, shot.keyMoment!, shot.feature!.lat, shot.feature!.lon);
+    expect(elevation).toBeGreaterThanOrEqual(min);
+    expect(elevation).toBeLessThanOrEqual(max);
+    const c = sample(shot.orbit, shot.keyMoment!);
+    expect(vec.dot(sunFrom(EARTH, shot.keyMoment!), cameraRight(c.r, c.v))).toBeGreaterThan(0);
+    expect(worthShowing(shot, shot.keyMoment!)).toBe(true);
   });
 });
