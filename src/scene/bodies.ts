@@ -31,9 +31,9 @@ export interface Body {
     ambient: number;
     skyTint: RGB; // colour of the diffuse skylight on the ground
   };
-  // The streamed tile layers. Colour and height are required; the terrain draws without the rest.
   // Heights below 0 are sea, drawn flat at sea level; the sea floor stays in the tiles for shading.
   seaLevel?: boolean;
+  // The streamed tile layers. Colour and height are required; the terrain draws without the rest.
   tiles: { version: string; layers: TileLayer[] };
   shots: {
     weights: Partial<Record<'dawn-dusk' | 'orbital-sunrise' | 'feature-flyover' | 'earthrise', number>>;
