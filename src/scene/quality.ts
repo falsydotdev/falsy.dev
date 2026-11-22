@@ -10,6 +10,8 @@ export interface Tier {
   /** Upper bound on rendered pixels, so a 5K display doesn't render 6 MP at High. */
   maxMegapixels: number;
   bloom: boolean;
+  /** Sun glint on the sea: Cox-Munk's slope distribution, or GGX as a cheaper stand-in. */
+  glint: 'cox-munk' | 'ggx';
   /** The camera moves slowly, so 30 looks the same as 60. A divisor of 60 and 120, so the cap lands on whole refreshes. */
   fps: number;
 }
@@ -17,9 +19,9 @@ export interface Tier {
 // Terrain texels are about a screen pixel at best, so rendering past 1.25× mostly sharpens
 // stars; side by side, High at 2× and Low at 1× differed by under 1/255 per pixel.
 export const TIERS: readonly Tier[] = [
-  { name: 'high', pixelRatio: 1.25, maxMegapixels: 4.2, bloom: true, fps: 30 },
-  { name: 'medium', pixelRatio: 1, maxMegapixels: 3.7, bloom: true, fps: 30 },
-  { name: 'low', pixelRatio: 0.75, maxMegapixels: 2.1, bloom: false, fps: 20 },
+  { name: 'high', pixelRatio: 1.25, maxMegapixels: 4.2, bloom: true, glint: 'cox-munk', fps: 30 },
+  { name: 'medium', pixelRatio: 1, maxMegapixels: 3.7, bloom: true, glint: 'cox-munk', fps: 30 },
+  { name: 'low', pixelRatio: 0.75, maxMegapixels: 2.1, bloom: false, glint: 'ggx', fps: 20 },
 ];
 
 export function tier(name: TierName): Tier {

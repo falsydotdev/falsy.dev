@@ -18,6 +18,6 @@ describe('parseFx', () => {
   });
 
   it('knows the layers that exist today', () => {
-    expect(Object.keys(FX_LAYERS)).toEqual(expect.arrayContaining(['shadows', 'bloom']));
+    expect(Object.keys(FX_LAYERS)).toEqual(expect.arrayContaining(['shadows', 'bloom', 'glint']));
   });
 });

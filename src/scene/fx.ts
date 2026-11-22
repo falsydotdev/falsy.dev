@@ -4,6 +4,7 @@
 export const FX_LAYERS = {
   shadows: 'Terrain shadows cast across the surface',
   bloom: 'Bloom glow in post-processing',
+  glint: 'Sun glint on the sea',
 } as const;
 
 export type FxLayer = keyof typeof FX_LAYERS;
