@@ -1,0 +1,34 @@
+{
+  "valid": "2026-11-22T11:00:00.000Z",
+  "source": {
+    "name": "NOAA GMGSI longwave infrared",
+    "bucket": "noaa-gmgsi-pds",
+    "key": "GMGSI_LW/2026/11/22/11/GLOBCOMPLIR_v3r0_blend_s202611221100000_e202611221109599_c202611221133565.nc",
+    "created": "2026-11-22T11:33:56.000Z"
+  },
+  "texture": {
+    "width": 4096,
+    "height": 2048,
+    "projection": "equirectangular",
+    "origin": "row 0 at 90°N, column 0 at 180°W, east-positive",
+    "channel": "r",
+    "values": "cloud opacity, 0 clear to 255 opaque"
+  },
+  "polar": {
+    "north": 72.7154,
+    "south": -72.7368,
+    "beyond": "no data; opacity 0"
+  },
+  "clearSky": {
+    "days": 14,
+    "windowDays": 14,
+    "rule": "warmest count at this hour over the window"
+  },
+  "opacity": {
+    "start": 8,
+    "full": 72,
+    "units": "GMGSI 8-bit counts colder than clear sky"
+  },
+  "fallback": null,
+  "path": "static.avif"
+}
