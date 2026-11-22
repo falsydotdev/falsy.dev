@@ -20,7 +20,7 @@ npm run tiles -- --body moon   # once for the Moon: downloads LOLA heights and S
 npm run dev
 ```
 
-Then open http://localhost:4321. The live scene starts on desktop-width windows with WebGPU or WebGL2, and the poster shows until the first frame. Source mosaics and tiles live in `~/.cache/falsy-dev` (override with `FALSY_DATA_DIR`), outside the repo. The dev server serves them at `/data`; builds never include them. The steps run separately as `tiles:fetch`, `tiles:heights`, and `tiles:colour`, each taking `--body mars` (the default) or `--body moon`; `tiles:colour -- --near 18.65,226.2,800` cuts only the level-3 tiles within 800 km of a point. Each body's sources and how to read them are listed in `scripts/tiles/paths.mjs`; everything else about a body (radius, orbit, lighting, features) is in `src/scene/bodies.ts`. `node scripts/tiles/budget.mjs` estimates download size per view by replaying real orbits through the renderer's tile selection.
+Then open http://localhost:4321. The live scene starts on desktop-width windows with WebGPU or WebGL2, and the poster shows until the first frame. Source mosaics and tiles live in `~/.cache/falsy-dev` (override with `FALSY_DATA_DIR`), outside the repo. The dev server serves them at `/data`; builds never include them. The steps run separately as `tiles:fetch`, `tiles:heights`, and `tiles:colour`, each taking `--body mars` (the default) or `--body moon`; `tiles:colour -- --near 18.65,226.2,800` cuts only the level-3 tiles within 800 km of a point. Each body's sources and how to read them are listed in `scripts/tiles/paths.mjs`; everything else about a body (radius, orbit, lighting, features) is in `src/scene/bodies.ts`. `node scripts/tiles/budget.mjs` estimates download size per view by replaying real orbits through the renderer's tile selection. For Earth it adds the cloud map, and against a partial bake (such as `FALSY_DATA_DIR=~/.cache/falsy-dev/earth-test`) it counts each missing tile at the mean size of its layer's baked tiles at that level.
 
 #### Earth tiles
 
@@ -69,10 +69,10 @@ Production builds read the tile base URL from `PUBLIC_TILES_BASE` in `.env.produ
 | `roll=N` | Degrees the camera banks right, dropping the horizon on the left. By default the framing solver picks it, so the limb passes below the hero text and rises to the right. |
 | `fov=N` | Vertical field of view in degrees (default 50). Narrower magnifies the motion. |
 | `far=N` | Distance in km beyond which terrain detail relaxes in proportion (default 500, `far=0` for full detail everywhere). The main lever on download size. |
-| `tier=high`, `tier=medium`, `tier=low` | Force a quality tier and stop the automatic step-down, to compare them. `window.__falsyLive.state` shows the tier, `gpuMs`, and any tier changes. |
-| `scale=N` | Render at N device pixels per CSS pixel (0.5 to 3, never above the screen's own), overriding the tier's resolution. For comparing sharpness. |
+| `tier=high`, `tier=medium`, `tier=low` | Force a quality tier and stop the automatic step-down, to compare them. `window.__falsyLive.state` shows the tier, `gpuMs`, any tier changes, MSAA samples (`msaa`), and the scene's estimated GPU memory (`gpuMemoryMB`). |
+| `scale=N` | Render at N device pixels per CSS pixel (0.5 to 3, never above the screen's own), overriding the tier's resolution. For comparing sharpness. The scene keeps the tier's MSAA however large the canvas gets, as the posters need. |
 | `webgl` | Force the WebGL2 backend |
-| `fx=shadows,bloom` | Turn these scene layers off (on Earth also `clouds` and `cloudShadows`), to measure what each costs. Layers are listed in `src/scene/fx.ts`; unknown names are ignored. `window.__falsyLive.state.fx` shows which layers are off. |
+| `fx=shadows,bloom` | Turn these scene layers off (on Earth also `clouds` and `cloudShadows`; `atmosphere` hides the air's shell, and the clouds drawn in it), to measure what each costs. Layers are listed in `src/scene/fx.ts`; unknown names are ignored. `window.__falsyLive.state.fx` shows which layers are off. |
 | `bench=N` | Render each frame N times back to back (1 to 64) and log the GPU time per frame, for the frame-time benchmark. |
 | `ph=1` | Turn on PostHog analytics off the production host. Events go through the `/uplink` relay, which only the Worker serves, so test a build with `npm run build && npx wrangler dev`, not `astro preview` or `astro dev`. Headless browsers also need `navigator.webdriver` masked, or posthog-js drops their events as bots. |
 
