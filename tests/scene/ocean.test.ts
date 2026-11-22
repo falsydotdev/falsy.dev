@@ -5,7 +5,7 @@ import { fresnel, slopeVariance, specularPoint } from '../../src/scene/ocean.ts'
 describe('slopeVariance', () => {
   it('follows Cox and Munk for a clean sea', () => {
     expect(slopeVariance(0)).toBeCloseTo(0.003, 6);
-    // Cox and Munk's own check: about (tan 16°)² at 14 m/s.
+    // Cox and Munk's fit at 14 m/s; their abstract rounds the slope to about tan 16°.
     expect(slopeVariance(14)).toBeCloseTo(0.0747, 3);
     expect(slopeVariance(7)).toBeCloseTo(0.0388, 3);
   });
