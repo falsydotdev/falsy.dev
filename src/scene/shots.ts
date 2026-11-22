@@ -1,4 +1,4 @@
-import { type Vec3, DEG, vec, bodyFrame, fromBody, sunFrom, bodyVector, sunElevationAt, earthFromMoon, earthLitFraction } from './ephemeris.ts';
+import { type Vec3, DEG, vec, bodyFrame, fromBody, toBody, sunFrom, bodyVector, latLon, sunElevationAt, earthFromMoon, earthLitFraction } from './ephemeris.ts';
 import { type CircularOrbit, circularOrbit, stateAt } from './orbit.ts';
 import { type Body, MARS } from './bodies.ts';
 import type { Feature } from './features.ts';
@@ -104,7 +104,7 @@ function flyoverTrack(body: Body, pass: Date, feature: Feature) {
 /** Low-Sun features whose flyover keeps the ground under the camera lit. */
 export function flyoverFeatures(body: Body, pass: Date, features: Feature[] = body.features) {
   // The track runs on the night side of the feature, so on the Moon it can be dark while the feature is lit.
-  return lowSunFeatures(body, pass, features).filter((f) => flyoverTrack(body, pass, f).sunDeg >= body.shots.darkBelowDeg + FLYOVER_LIT_MARGIN_DEG);
+  return lowSunFeatures(body, pass, features).filter((f) => litEnough(body, flyoverTrack(body, pass, f).sunDeg, FLYOVER_LIT_MARGIN_DEG));
 }
 
 // An orbit whose ground track passes a low-Sun feature a few minutes after load, with the
@@ -136,14 +136,39 @@ const EARTHRISE_MIN_LIT_S = 240;
 // toward the horizon (19° ahead at 100 km); 15° keeps swaps on a lit frame in renders.
 const LOOK_AHEAD_DEG = 8;
 const EARTHRISE_LOOK_AHEAD_DEG = 15;
-const lookAheadDeg = (kind: ShotKind) => (kind === 'earthrise' ? EARTHRISE_LOOK_AHEAD_DEG : LOOK_AHEAD_DEG);
 const LIT_SCAN_S = 1800;
 
-/** The Sun's elevation on the ground `aheadDeg` of orbit in front of the camera. `sun` fixes its direction. */
-export function sunAhead(orbit: CircularOrbit, date: Date, aheadDeg = LOOK_AHEAD_DEG, sun?: Vec3) {
-  const ahead = new Date(date.getTime() + ((aheadDeg * DEG) / orbit.n) * 1000);
-  return Math.asin(vec.dot(vec.norm(stateAt(orbit, ahead).r), sun ?? sunFrom(orbit.body, ahead))) / DEG;
+/** The ground the camera is heading for, `aheadDeg` of orbit in front of it. */
+export interface ViewAhead {
+  body: Body;
+  date: Date; // when the camera gets there
+  ground: Vec3; // unit vector, J2000
+  sunDeg: number; // the Sun's elevation there
+  readonly latLon: { lat: number; lon: number };
 }
+
+/** The view `aheadDeg` of orbit in front of the camera at `date`. `sun` fixes the Sun's direction. */
+export function viewAhead(orbit: CircularOrbit, date: Date, aheadDeg = LOOK_AHEAD_DEG, sun?: Vec3): ViewAhead {
+  const body = orbit.body;
+  const ahead = new Date(date.getTime() + ((aheadDeg * DEG) / orbit.n) * 1000);
+  const ground = vec.norm(stateAt(orbit, ahead).r);
+  const sunDeg = Math.asin(vec.dot(ground, sun ?? sunFrom(body, ahead))) / DEG;
+  return {
+    body,
+    date: ahead,
+    ground,
+    sunDeg,
+    get latLon() {
+      return latLon(toBody(bodyFrame(body, ahead), ground));
+    },
+  };
+}
+
+/** The Sun's elevation on the ground `aheadDeg` of orbit in front of the camera. `sun` fixes its direction. */
+export const sunAhead = (orbit: CircularOrbit, date: Date, aheadDeg = LOOK_AHEAD_DEG, sun?: Vec3) => viewAhead(orbit, date, aheadDeg, sun).sunDeg;
+
+/** Whether ground under a Sun this high shows anything without city lights. */
+export const litEnough = (body: Body, sunDeg: number, marginDeg = 0) => sunDeg >= body.shots.darkBelowDeg + marginDeg;
 
 /** An orbit that brings Earth up over the limb, right of the track, over lit ground. Null when none qualifies. */
 export function earthrise(now: Date, opts: ShotOptions & { rightDeg?: number } = {}): Shot | null {
@@ -163,7 +188,7 @@ export function earthrise(now: Date, opts: ShotOptions & { rightDeg?: number } =
   // Seen from the Moon the Sun moves under half a degree an hour, so a fixed direction will do.
   const litFor = (o: CircularOrbit) => {
     for (let t = 0; t < LIT_SCAN_S; t += 30) {
-      if (sunAhead(o, new Date(key.getTime() + t * 1000), EARTHRISE_LOOK_AHEAD_DEG, sun) < body.shots.darkBelowDeg) return t;
+      if (!litEnough(body, sunAhead(o, new Date(key.getTime() + t * 1000), EARTHRISE_LOOK_AHEAD_DEG, sun))) return t;
     }
     return LIT_SCAN_S;
   };
@@ -201,16 +226,37 @@ export function seededRandom(seed: number) {
   };
 }
 
-// How long a shot runs past its key moment before it can be replaced. A sunrise opens with the
-// ground below still in shadow while the Sun climbs ahead, so it gets longer to play out.
-const RESHOOT_AFTER_S = 120;
-const RESHOOT_AFTER_SUNRISE_S = 600;
+/** What the scene knows that shot planning can't work out on its own. */
+export interface ViewContext {}
 
-/** Whether the orbit has carried the camera, long after its shot's moment, toward ground too dark to see. */
-export function wantsReshoot(shot: Shot, builtAt: Date, date: Date) {
-  const grace = shot.kind === 'orbital-sunrise' ? RESHOOT_AFTER_SUNRISE_S : RESHOOT_AFTER_S;
-  if (date.getTime() < (shot.keyMoment ?? builtAt).getTime() + grace * 1000) return false;
-  return sunAhead(shot.orbit, date, lookAheadDeg(shot.kind)) < shot.orbit.body.shots.darkBelowDeg;
+interface ShotRule {
+  // How long the shot runs past its key moment before it can be replaced.
+  graceS: number;
+  lookAheadDeg: number;
+  worthShowing: (view: ViewAhead, ctx: ViewContext) => boolean;
+}
+
+const daylit = (view: ViewAhead) => litEnough(view.body, view.sunDeg);
+
+// A sunrise opens with the ground below still in shadow while the Sun climbs ahead, so it gets
+// longer to play out.
+const SHOT_RULES: Record<ShotKind, ShotRule> = {
+  'dawn-dusk': { graceS: 120, lookAheadDeg: LOOK_AHEAD_DEG, worthShowing: daylit },
+  'orbital-sunrise': { graceS: 600, lookAheadDeg: LOOK_AHEAD_DEG, worthShowing: daylit },
+  'feature-flyover': { graceS: 120, lookAheadDeg: LOOK_AHEAD_DEG, worthShowing: daylit },
+  earthrise: { graceS: 120, lookAheadDeg: EARTHRISE_LOOK_AHEAD_DEG, worthShowing: daylit },
+};
+
+/** Whether the ground the shot's camera is heading for at `date` is still worth looking at. */
+export function worthShowing(shot: Shot, date: Date, ctx: ViewContext = {}) {
+  const rule = SHOT_RULES[shot.kind];
+  return rule.worthShowing(viewAhead(shot.orbit, date, rule.lookAheadDeg), ctx);
+}
+
+/** Whether the shot has run its course and the view ahead is no longer worth showing. */
+export function wantsReshoot(shot: Shot, builtAt: Date, date: Date, ctx: ViewContext = {}) {
+  if (date.getTime() < (shot.keyMoment ?? builtAt).getTime() + SHOT_RULES[shot.kind].graceS * 1000) return false;
+  return !worthShowing(shot, date, ctx);
 }
 
 export function chooseShot(now: Date, opts: ShotOptions & { features?: Feature[] } = {}): Shot {
