@@ -83,10 +83,11 @@ class Record {
 export class TiledPlanet {
   /** @param {THREE.WebGPURenderer} renderer */
   /** `layers` is each atlas's depth; `tileLayers` is the body's list of streamed layers. */
-  constructor(renderer, { baseUrl, meta, relief, seaLevel = false, layers, tileLayers, lighting, atmosphere = null, clouds = null, relaxBeyondKm = 500 }) {
+  constructor(renderer, { baseUrl, meta, relief, seaLevel = false, layers, tileLayers, lighting, atmosphere = null, clouds = null, ocean = null, relaxBeyondKm = 500 }) {
     this.lighting = lighting;
     this.atmosphere = atmosphere;
     this.clouds = clouds;
+    this.ocean = ocean;
     this.relaxBeyondKm = relaxBeyondKm > 0 ? relaxBeyondKm : Infinity;
     this.renderer = renderer;
     this.baseUrl = baseUrl;
@@ -208,7 +209,8 @@ export class TiledPlanet {
     mat.colorNode = Fn(() => {
       const f = vF;
       const uvC = vColor.zw.add(f.mul(vColor.y));
-      const albedo = texture(colorTex, uvC).depth(int(round(vColor.x))).rgb;
+      const texel = texture(colorTex, uvC).depth(int(round(vColor.x)));
+      const albedo = texel.rgb;
 
       const step = float(1 / cells).div(vHeight.y);
       const ds = vec2(step, 0);
@@ -259,9 +261,16 @@ export class TiledPlanet {
         const risen = clamp(su.div(lighting.sunDiameter).add(0.5), 0, 1);
         direct = direct.mul(exp(depth.negate())).mul(risen);
       }
-      if (this.clouds) direct = direct.mul(this.clouds.shadowAt(positionWorld, s));
+      const cloudShadow = this.clouds ? this.clouds.shadowAt(positionWorld, s) : null;
+      if (cloudShadow) direct = direct.mul(cloudShadow);
       const sky = albedo.mul(lighting.skyTint).mul(lighting.ambient).mul(smoothstep(-0.2, 0.25, su));
-      return vec4(direct.add(sky), 1);
+      let color = direct.add(sky);
+      if (this.ocean) {
+        // Colour alpha is the water mask (opaque is land); the coarse map keeps the sea floor's depth.
+        const seaFloor = { map: shadowTex, size: [SHADOW_MAP.width, SHADOW_MAP.height], uv: vec2(lon.add(Math.PI).div(2 * Math.PI), float(Math.PI / 2).sub(lat).div(Math.PI)) };
+        color = this.ocean.shade({ land: texel.a, color, n, su, shadow: cloudShadow ? shadow.mul(cloudShadow) : shadow, seaFloor });
+      }
+      return vec4(color, 1);
     })();
     return mat;
   }

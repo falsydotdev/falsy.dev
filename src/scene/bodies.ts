@@ -44,6 +44,8 @@ export interface Body {
   };
   // Heights below 0 are sea, drawn flat at sea level; the sea floor stays in the tiles for shading.
   seaLevel?: boolean;
+  // How the sea shades where the colour tiles' water mask says water. Needs `seaLevel`.
+  ocean?: Ocean;
   // The streamed tile layers. Colour and height are required; the terrain draws without the rest.
   tiles: { version: string; layers: TileLayer[] };
   shots: {
@@ -62,6 +64,14 @@ export interface Body {
   // Offered in production's first-visit picks and the switch button. A body whose production
   // tiles aren't uploaded yet stays off; `?body=` and development still show it.
   listed: boolean;
+}
+
+export interface Ocean {
+  windMs: number; // sets the glint's spread through Cox and Munk's slope variance
+  deep: RGB; // water-leaving colour over deep ocean, as a linear albedo
+  shallow: RGB; // and over a sandy shelf
+  shallowDepthM: number; // depth over which the shallow tint fades to deep
+  skyLight: number; // brightness of the sky the sea reflects, per unit of sunlight
 }
 
 // Mars's dust load scales its clear-air values; 0.2 is a moderately dusty day.
@@ -179,6 +189,8 @@ export const EARTH: Body = {
     skyTint: [0.55, 0.7, 1],
   },
   seaLevel: true,
+  // 7 m/s is roughly the global mean over the oceans (unsourced; Young et al. 2020 would confirm).
+  ocean: { windMs: 7, deep: [0.004, 0.014, 0.035], shallow: [0.03, 0.09, 0.1], shallowDepthM: 30, skyLight: 0.3 },
   // The static map: GMGSI for 2026-11-22 11:00 UTC against the 14 days before it.
   clouds: { staticUrl: '/clouds/static.json', heightKm: 8, albedo: 0.85, reliefKm: 12 },
   // Colour stops at level 6 and carries the water mask in alpha (opaque is land).

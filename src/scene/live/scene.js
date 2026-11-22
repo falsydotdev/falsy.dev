@@ -10,6 +10,7 @@ import { CLOUDS_BASE, createClouds, loadCloudSet } from './clouds.js';
 import { createStars } from './stars.js';
 import { createSun } from './sun.js';
 import { createEarth } from './earth.js';
+import { createOcean } from './ocean.js';
 import { bodyFrame, vec } from '../ephemeris';
 import { sample } from '../orbit';
 import { chooseShot, dawnDusk, earthrise, orbitalSunrise, featureFlyover, seededRandom, wantsReshoot, SHOT_FOV_DEG } from '../shots';
@@ -195,6 +196,7 @@ export async function startLiveScene(host, opts) {
   const lighting = createLighting(body);
   const fx = parseFx(opts.fx);
   if (fx.has('shadows')) lighting.shadows.value = 0;
+  let setGlint = () => {};
   if (body.showsEarth) {
     earth = createEarth({ url: '/textures/earth.webp', lighting });
     scene.add(earth.object);
@@ -219,6 +221,9 @@ export async function startLiveScene(host, opts) {
     // The terrain material reads sunlight through the atmosphere, so its tables come first.
     const [meta, tables] = await Promise.all([opts.meta, body.atmosphere ? createAtmosphereTables(body.atmosphere, body.radiusKm) : null]);
     atmosphereTables = tables;
+    const ocean = body.ocean ? createOcean(body.ocean, { lighting, air: tables, radiusKm: body.radiusKm }) : null;
+    setGlint = (t) => ocean?.setGlint(fx.has('glint') ? 'off' : t.glint);
+    setGlint(tier);
     if (!meta) throw new Error(`No tiles at ${opts.dataUrl}`);
     if (meta.body !== body.id || Math.abs(meta.radiusKm - body.radiusKm) > 1e-6) console.warn(`Tiles at ${opts.dataUrl} are for ${meta.body}, not ${body.id}.`);
     layers = isWebGPU ? gpuLayers ?? 256 : Math.min(WANTED_LAYERS, renderer.backend.gl.getParameter(renderer.backend.gl.MAX_ARRAY_TEXTURE_LAYERS));
@@ -226,7 +231,7 @@ export async function startLiveScene(host, opts) {
       clouds = createClouds({ body, lighting, tables, set: cloudSet });
       clouds.setTier(tier, fx.has('cloudShadows'));
     }
-    planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: body.relief, seaLevel: body.seaLevel, layers, tileLayers: body.tiles.layers, lighting, atmosphere: tables, clouds, relaxBeyondKm: opts.farKm });
+    planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: body.relief, seaLevel: body.seaLevel, layers, tileLayers: body.tiles.layers, lighting, atmosphere: tables, clouds, ocean, relaxBeyondKm: opts.farKm });
     const tiledPlanet = planet;
     planet.lean = opts.lean ?? true;
     // Tiles stream while the shadow map downloads; the first fade-in waits for it (see the loop).
@@ -249,6 +254,7 @@ export async function startLiveScene(host, opts) {
       pipeline.needsUpdate = true;
     }
     tier = next;
+    setGlint(next);
     clouds?.setTier(next, fx.has('cloudShadows'));
     renderer.setPixelRatio(pixelRatio(next));
     renderer.setSize(innerWidth, innerHeight);
