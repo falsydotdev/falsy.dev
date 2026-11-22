@@ -1,6 +1,7 @@
 // Type-only, so the page's main bundle can read body configs without loading the ephemeris library.
 import type * as A from 'astronomy-engine';
 import { type Feature, MARS_FEATURES, MOON_FEATURES } from './features.ts';
+import { COLOR_LAYER, HEIGHT_LAYER, type TileLayer } from './tiles/layers.ts';
 
 export type RGB = readonly [number, number, number];
 
@@ -30,7 +31,8 @@ export interface Body {
     skyTint: RGB; // colour of the diffuse skylight on the ground
     extinction: RGB; // per-channel haze extinction relative to green
   };
-  tiles: { version: string };
+  // The streamed tile layers. Colour and height are required; the terrain draws without the rest.
+  tiles: { version: string; layers: TileLayer[] };
   shots: {
     weights: Partial<Record<'dawn-dusk' | 'orbital-sunrise' | 'feature-flyover' | 'earthrise', number>>;
     // How far into daylight the terminator orbit runs. Without air there's no skylight, so an
@@ -71,7 +73,7 @@ export const MARS: Body = {
     skyTint: [1, 0.72, 0.5],
     extinction: [0.85, 1, 1.25],
   },
-  tiles: { version: 'v1' },
+  tiles: { version: 'v1', layers: [COLOR_LAYER, HEIGHT_LAYER] },
   shots: { weights: { 'dawn-dusk': 0.4, 'orbital-sunrise': 0.3, 'feature-flyover': 0.3 }, dawnDuskSunDeg: 0, sunriseLeadS: 60, sunriseLimbKm: 0, darkBelowDeg: -4 },
 };
 
@@ -101,7 +103,7 @@ export const MOON: Body = {
     skyTint: [1, 1, 1],
     extinction: [1, 1, 1],
   },
-  tiles: { version: 'v1' },
+  tiles: { version: 'v1', layers: [COLOR_LAYER, HEIGHT_LAYER] },
   // An airless sunrise opens on a black limb and lights only a sliver for minutes, so it's left
   // out of the mix; `?shot=orbital-sunrise` still shows it. A long lead would open on black.
   shots: { weights: { 'dawn-dusk': 0.4, 'orbital-sunrise': 0, 'feature-flyover': 0.3, earthrise: 0.3 }, dawnDuskSunDeg: 10, sunriseLeadS: 15, sunriseLimbKm: 15, darkBelowDeg: 4 },

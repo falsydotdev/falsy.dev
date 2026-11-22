@@ -4,8 +4,9 @@ import {
   normalize, positionWorld, round, sin, smoothstep, sqrt, tan, texture, uniform, uniformArray, uv, varying, vec2, vec3, vec4,
 } from 'three/tsl';
 import { FACES, parent, tileId } from '../tiles/cube.ts';
-import { selectTiles, tilesToFetch } from '../tiles/select.ts';
-import { TILES, HEIGHT_SIZE, SHADOW_MAP, colorPath, heightPath } from '../tiles/layout.ts';
+import { layerTile, layerWants, selectTiles, tilesToFetch } from '../tiles/select.ts';
+import { TILES, HEIGHT_SIZE, SHADOW_MAP } from '../tiles/layout.ts';
+import { layerPath } from '../tiles/layers.ts';
 import { LayerArray } from './tile-atlas.js';
 import { toWorld } from './terrain.js';
 
@@ -25,6 +26,8 @@ const WORKERS = 4;
 // 1.62× further, reaching the same ~560 km.
 const SHADOW_STEPS = 12;
 const SHADOW_GROWTH = 1.617;
+// What an optional layer's instance attribute holds when no tile of it has loaded: a negative layer index.
+const NO_DATA = [-1, 0, 0, 0];
 
 /** A GRID×GRID patch in tile fractions, with a skirt hanging from each edge to hide LOD cracks. */
 function tileGeometry() {
@@ -62,11 +65,11 @@ function tileGeometry() {
 }
 
 class Record {
-  constructor(key) {
+  constructor(key, layerCount) {
     this.key = key;
     this.id = tileId(key);
-    this.color = { state: 'idle', layer: -1 };
-    this.height = { state: 'idle', layer: -1 };
+    /** One per tile layer, in the body's order. */
+    this.slots = Array.from({ length: layerCount }, () => ({ state: 'idle', layer: -1 }));
     this.lastUsed = 0;
   }
 }
@@ -77,7 +80,8 @@ class Record {
  */
 export class TiledPlanet {
   /** @param {THREE.WebGPURenderer} renderer */
-  constructor(renderer, { baseUrl, meta, relief, layers, lighting, relaxBeyondKm = 500 }) {
+  /** `layers` is each atlas's depth; `tileLayers` is the body's list of streamed layers. */
+  constructor(renderer, { baseUrl, meta, relief, layers, tileLayers, lighting, relaxBeyondKm = 500 }) {
     this.lighting = lighting;
     this.relaxBeyondKm = relaxBeyondKm > 0 ? relaxBeyondKm : Infinity;
     this.renderer = renderer;
@@ -86,8 +90,14 @@ export class TiledPlanet {
     this.radiusKm = meta.radiusKm;
     this.relief = relief;
     this.heightRangeKm = [(meta.heightRangeM[0] / 1000) * relief, (meta.heightRangeM[1] / 1000) * relief];
-    this.colors = new LayerArray(renderer, { size: TILES.colorPx, layers, kind: 'color' });
-    this.heights = new LayerArray(renderer, { size: HEIGHT_SIZE, layers, kind: 'height' });
+    this.tileLayers = tileLayers;
+    this.atlases = tileLayers.map((l) => new LayerArray(renderer, { size: l.sizePx, layers, format: l.format }));
+    this.colorIndex = tileLayers.findIndex((l) => l.id === 'color');
+    this.heightIndex = tileLayers.findIndex((l) => l.id === 'height');
+    // The terrain can't draw a tile without colour and height; any other layer is optional.
+    this.required = [this.colorIndex, this.heightIndex];
+    this.maxLevel = Math.max(...tileLayers.map((l) => l.maxLevel));
+    this.sunDir = undefined;
     this.records = new Map();
     this.frame = 0;
     this.inFlight = 0;
@@ -99,7 +109,7 @@ export class TiledPlanet {
     this.lean = true;
     /** @type {'loading' | 'ready' | 'failed'} */
     this.shadow = 'loading';
-    this.stats = { records: 0, requests: 0, bytes: 0, colorBytes: 0, heightBytes: 0, selected: 0, drawn: 0, pending: 0, texelBias: 1 };
+    this.stats = { records: 0, requests: 0, bytes: 0, layerBytes: Object.fromEntries(tileLayers.map((l) => [l.id, 0])), selected: 0, drawn: 0, pending: 0, texelBias: 1 };
     this.workers = Array.from({ length: WORKERS }, () => {
       const w = new Worker(new URL('./tile-worker.js', import.meta.url), { type: 'module' });
       w.onmessage = (e) => this.onLoaded(e.data);
@@ -109,9 +119,8 @@ export class TiledPlanet {
     this.waiters = new Map();
 
     this.tileAttr = new THREE.InstancedBufferAttribute(new Float32Array(MAX_INSTANCES * 4), 4);
-    this.colorAttr = new THREE.InstancedBufferAttribute(new Float32Array(MAX_INSTANCES * 4), 4);
-    this.heightAttr = new THREE.InstancedBufferAttribute(new Float32Array(MAX_INSTANCES * 4), 4);
-    for (const a of [this.tileAttr, this.colorAttr, this.heightAttr]) a.setUsage(THREE.DynamicDrawUsage);
+    this.layerAttrs = tileLayers.map(() => new THREE.InstancedBufferAttribute(new Float32Array(MAX_INSTANCES * 4), 4));
+    for (const a of [this.tileAttr, ...this.layerAttrs]) a.setUsage(THREE.DynamicDrawUsage);
     const geo = tileGeometry();
     geo.instanceCount = 0;
     this.geometry = geo;
@@ -142,10 +151,10 @@ export class TiledPlanet {
     const fu = uniformArray(FACES.map((f) => toWorld(f.u)), 'vec3');
     const fv = uniformArray(FACES.map((f) => toWorld(f.v)), 'vec3');
     const aTile = instancedDynamicBufferAttribute(this.tileAttr);
-    const aColor = instancedDynamicBufferAttribute(this.colorAttr);
-    const aHeight = instancedDynamicBufferAttribute(this.heightAttr);
-    const heightTex = this.heights.texture;
-    const colorTex = this.colors.texture;
+    const aColor = instancedDynamicBufferAttribute(this.layerAttrs[this.colorIndex]);
+    const aHeight = instancedDynamicBufferAttribute(this.layerAttrs[this.heightIndex]);
+    const heightTex = this.atlases[this.heightIndex].texture;
+    const colorTex = this.atlases[this.colorIndex].texture;
     const exaggeration = this.exaggeration;
     const cells = TILES.heightCells;
     const border = TILES.heightBorder;
@@ -240,7 +249,7 @@ export class TiledPlanet {
 
   /** Loads the coarse shadow map. Resolves either way; without it the map stays zero, which reads as flat ground. */
   async init() {
-    const shadow = await this.request({ kind: 'height', url: `${this.baseUrl}/${SHADOW_MAP.path}`, shape: SHADOW_MAP });
+    const shadow = await this.request({ format: 'height', url: `${this.baseUrl}/${SHADOW_MAP.path}`, shape: SHADOW_MAP });
     if (shadow.error || shadow.missing) {
       this.shadow = 'failed';
       console.warn(`No shadow map at ${this.baseUrl}/${SHADOW_MAP.path}; terrain casts no long shadows.`, shadow.error ?? '');
@@ -250,12 +259,12 @@ export class TiledPlanet {
     tex.image.data = shadow.data;
     tex.needsUpdate = true;
     this.stats.bytes += shadow.bytes;
-    this.stats.heightBytes += shadow.bytes;
+    this.stats.layerBytes[this.tileLayers[this.heightIndex].id] += shadow.bytes;
     this.shadow = 'ready';
   }
 
   request(msg) {
-    const id = `${msg.kind}:${msg.url}`;
+    const id = `${msg.format}:${msg.url}`;
     return new Promise((resolve) => {
       this.waiters.set(id, resolve);
       this.workers[this.nextWorker++ % WORKERS].postMessage({ ...msg, id });
@@ -265,27 +274,28 @@ export class TiledPlanet {
   record(key) {
     const id = tileId(key);
     let r = this.records.get(id);
-    if (!r) this.records.set(id, (r = new Record(key)));
+    if (!r) this.records.set(id, (r = new Record(key, this.tileLayers.length)));
     return r;
   }
 
-  fetchTile(rec, kind) {
-    const slot = rec[kind];
+  fetchTile(rec, i) {
+    const tileLayer = this.tileLayers[i];
+    const slot = rec.slots[i];
     slot.state = 'loading';
     this.inFlight++;
     this.stats.requests++;
-    const url = `${this.baseUrl}/${kind === 'color' ? colorPath(rec.key) : heightPath(rec.key)}`;
-    this.request({ kind, url }).then((out) => {
+    const url = `${this.baseUrl}/${layerPath(tileLayer, rec.key)}`;
+    this.request({ format: tileLayer.format, url }).then((out) => {
       this.inFlight--;
       this.stats.bytes += out.bytes ?? 0;
-      this.stats[kind === 'color' ? 'colorBytes' : 'heightBytes'] += out.bytes ?? 0;
+      this.stats.layerBytes[tileLayer.id] += out.bytes ?? 0;
       if (out.error || out.missing) {
         slot.state = 'missing';
         return;
       }
-      const array = kind === 'color' ? this.colors : this.heights;
+      const array = this.atlases[i];
       let layer = array.alloc();
-      if (layer < 0) layer = this.evict(kind);
+      if (layer < 0) layer = this.evict(i);
       if (layer < 0) {
         slot.state = 'idle';
         return;
@@ -294,7 +304,7 @@ export class TiledPlanet {
       this.writes++;
       slot.layer = layer;
       slot.state = 'ready';
-      if (kind === 'height') rec.heightRange = [out.minKm, out.maxKm];
+      if (i === this.heightIndex) rec.heightRange = [out.minKm, out.maxKm];
     });
   }
 
@@ -304,27 +314,27 @@ export class TiledPlanet {
     resolve?.(data);
   }
 
-  /** Frees the least recently used layer that this frame doesn't draw from. */
-  evict(kind) {
+  /** Frees the least recently used atlas layer of tile layer `i` that this frame doesn't draw from. */
+  evict(i) {
     let victim = null;
     for (const r of this.records.values()) {
-      const slot = r[kind];
+      const slot = r.slots[i];
       if (slot.state !== 'ready' || r.lastUsed >= this.frame || r.key.level <= 1) continue;
       if (!victim || r.lastUsed < victim.lastUsed) victim = r;
     }
     if (!victim) return -1;
-    const slot = victim[kind];
+    const slot = victim.slots[i];
     const layer = slot.layer;
     slot.state = 'idle';
     slot.layer = -1;
     return layer;
   }
 
-  /** Nearest loaded ancestor-or-self for one kind, with the uv transform into it. */
-  source(rec, kind) {
+  /** Nearest loaded ancestor-or-self for tile layer `i`, with the uv transform into it. */
+  source(rec, i) {
     let k = rec.key;
     let r = rec;
-    while (!r || r[kind].state !== 'ready') {
+    while (!r || r.slots[i].state !== 'ready') {
       const p = parent(k);
       if (!p) return null;
       k = p;
@@ -333,20 +343,22 @@ export class TiledPlanet {
     r.lastUsed = this.frame;
     const d = rec.key.level - k.level;
     const scale = 1 / 2 ** d;
-    return [r[kind].layer, scale, (rec.key.x - (k.x << d)) * scale, (rec.key.y - (k.y << d)) * scale];
+    return [r.slots[i].layer, scale, (rec.key.x - (k.x << d)) * scale, (rec.key.y - (k.y << d)) * scale];
   }
 
   /**
    * @param {{ position: number[], forward: number[], up: number[] }} pose body frame, km
    * @param {{ fovYRad: number, aspect: number, viewportHeightPx: number }} view
+   * @param {number[]} [sunDir] unit vector to the Sun, body frame; layers with a Sun rule need it
    */
-  update(pose, view) {
+  update(pose, view, sunDir) {
     this.frame++;
+    this.sunDir = sunDir;
     const cam = { ...pose, ...view };
-    const opts = { radiusKm: this.radiusKm, heightRangeKm: this.heightRangeKm, tilePx: TILES.colorPx, maxLevel: TILES.maxLevel, maxTexelPx: this.texelBias, relaxBeyondKm: this.relaxBeyondKm };
+    const opts = { radiusKm: this.radiusKm, heightRangeKm: this.heightRangeKm, tilePx: TILES.colorPx, maxLevel: this.maxLevel, maxTexelPx: this.texelBias, relaxBeyondKm: this.relaxBeyondKm };
     let selected = selectTiles(cam, opts);
     // Keep the working set well inside the atlas; coarsen evenly if a huge viewport asks for too much.
-    const budget = this.colors.layers * 0.6;
+    const budget = this.atlases[this.colorIndex].layers * 0.6;
     while (selected.length * 1.3 > budget && opts.maxTexelPx < 8) {
       opts.maxTexelPx *= 1.25;
       selected = selectTiles(cam, opts);
@@ -355,7 +367,19 @@ export class TiledPlanet {
 
     const wanted = tilesToFetch(selected, { lean: this.lean }).map((k) => this.record(k));
     for (const r of wanted) r.lastUsed = this.frame;
-    const idle = wanted.filter((r) => r.color.state === 'idle' || r.height.state === 'idle');
+    // Pending counts only slots a layer wants now, so a layer its rule skips never holds up a poster.
+    const idleSlots = new Map();
+    for (const r of wanted) {
+      this.tileLayers.forEach((tileLayer, i) => {
+        const t = this.slotRecord(r, tileLayer);
+        if (!t) return;
+        t.lastUsed = this.frame;
+        if (t.slots[i].state !== 'idle') return;
+        if (!idleSlots.has(t)) idleSlots.set(t, new Set());
+        idleSlots.get(t).add(i);
+      });
+    }
+    const idle = [...idleSlots.keys()];
     this.stats.pending = idle.length;
     this.stats.inFlight = this.inFlight;
     if (this.inFlight < MAX_IN_FLIGHT && idle.length) {
@@ -363,29 +387,24 @@ export class TiledPlanet {
       idle.sort((a, b) => a.key.level - b.key.level || (dist.get(a.id) ?? 0) - (dist.get(b.id) ?? 0));
       for (const r of idle) {
         if (this.inFlight >= MAX_IN_FLIGHT) break;
-        if (r.color.state === 'idle') this.fetchTile(r, 'color');
-        if (r.height.state === 'idle') this.fetchTile(r, 'height');
+        for (const i of [...idleSlots.get(r)].sort((a, b) => a - b)) this.fetchTile(r, i);
       }
     }
 
     let n = 0;
     const T = this.tileAttr.array;
-    const C = this.colorAttr.array;
-    const H = this.heightAttr.array;
     for (const s of selected) {
       if (n >= MAX_INSTANCES) break;
       const rec = this.records.get(s.id);
-      const c = this.source(rec, 'color');
-      const h = this.source(rec, 'height');
-      if (!c || !h) continue;
+      const sources = this.tileLayers.map((_, i) => this.source(rec, i));
+      if (this.required.some((i) => !sources[i])) continue;
       const size = 2 / 2 ** s.key.level;
       T.set([s.key.face, -1 + s.key.x * size, -1 + s.key.y * size, size], n * 4);
-      C.set(c, n * 4);
-      H.set(h, n * 4);
+      sources.forEach((src, i) => this.layerAttrs[i].array.set(src ?? NO_DATA, n * 4));
       n++;
     }
     this.geometry.instanceCount = n;
-    for (const a of [this.tileAttr, this.colorAttr, this.heightAttr]) {
+    for (const a of [this.tileAttr, ...this.layerAttrs]) {
       a.clearUpdateRanges();
       a.addUpdateRange(0, n * 4);
       a.needsUpdate = true;
@@ -396,11 +415,21 @@ export class TiledPlanet {
     if (this.frame % 120 === 0) this.prune();
   }
 
+  /**
+   * The record that holds tile layer `tileLayer`'s slot for record `r` (its ancestor at the layer's
+   * level cap), or null when the layer's rule doesn't want that tile now.
+   */
+  slotRecord(r, tileLayer) {
+    const k = layerTile(r.key, tileLayer);
+    if (!layerWants(k, tileLayer, this.sunDir)) return null;
+    return k === r.key ? r : this.record(k);
+  }
+
   prune() {
     for (const [id, r] of this.records) {
       if (r.key.level <= 1 || this.frame - r.lastUsed < RECORD_TTL_FRAMES) continue;
       const busy = (slot) => slot.state === 'loading' || slot.state === 'ready';
-      if (busy(r.color) || busy(r.height)) continue;
+      if (r.slots.some(busy)) continue;
       this.records.delete(id);
     }
     this.stats.records = this.records.size;
@@ -413,7 +442,12 @@ export class TiledPlanet {
     let ready = 0;
     for (const s of this.selected) {
       const r = this.records.get(s.id);
-      if (r && done(r.color) && done(r.height)) ready++;
+      if (r && this.tileLayers.every((tileLayer, i) => {
+        const k = layerTile(s.key, tileLayer);
+        if (!layerWants(k, tileLayer, this.sunDir)) return true;
+        const t = k === s.key ? r : this.records.get(tileId(k));
+        return t && done(t.slots[i]);
+      })) ready++;
     }
     return ready >= this.selected.length * SETTLED_FRACTION;
   }
@@ -425,8 +459,7 @@ export class TiledPlanet {
 
   dispose() {
     for (const w of this.workers) w.terminate();
-    this.colors.dispose();
-    this.heights.dispose();
+    for (const a of this.atlases) a.dispose();
     this.geometry.dispose();
     this.mesh.material.dispose();
   }

@@ -4,9 +4,10 @@
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import { TILE_DIR } from './paths.mjs';
-import { selectTiles, tilesToFetch } from '../../src/scene/tiles/select.ts';
+import { layerTilesToFetch, selectTiles, tilesToFetch } from '../../src/scene/tiles/select.ts';
 import { tileId } from '../../src/scene/tiles/cube.ts';
-import { TILES, SHADOW_MAP, colorPath, heightPath } from '../../src/scene/tiles/layout.ts';
+import { TILES, SHADOW_MAP } from '../../src/scene/tiles/layout.ts';
+import { layerPath } from '../../src/scene/tiles/layers.ts';
 import { orbitCameraPose } from '../../src/scene/camera.ts';
 import { bodyFrame, vec } from '../../src/scene/ephemeris.ts';
 import { bodyById } from '../../src/scene/bodies.ts';
@@ -28,6 +29,9 @@ const RELIEF = BODY.relief;
 const BASE = join(TILE_DIR, BODY.id);
 const meta = JSON.parse(await import('node:fs/promises').then((fs) => fs.readFile(join(BASE, 'meta.json'), 'utf8')));
 const heightRangeKm = meta.heightRangeM.map((m) => (m / 1000) * RELIEF);
+const LAYERS = BODY.tiles.layers;
+const MAX_LEVEL = Math.max(...LAYERS.map((l) => l.maxLevel));
+const LABELS = { color: 'colour' };
 
 const sizeCache = new Map();
 const size = (path) => {
@@ -42,9 +46,9 @@ const size = (path) => {
 };
 
 function run(shot, { tiltDeg, maxTexelPx, relaxBeyondKm }) {
-  const fetched = new Set();
-  let color = 0;
-  let height = size(SHADOW_MAP.path);
+  const fetched = LAYERS.map(() => new Set());
+  // The shadow map counts as height.
+  const bytes = LAYERS.map((l) => (l.id === 'height' ? size(SHADOW_MAP.path) : 0));
   let missing = 0;
   let firstView = 0;
   let peakTiles = 0;
@@ -56,23 +60,24 @@ function run(shot, { tiltDeg, maxTexelPx, relaxBeyondKm }) {
     const pose = orbitCameraPose(s.rBody, vBody, meta.radiusKm, tiltDeg);
     const selected = selectTiles(
       { ...pose, fovYRad: (FOV * Math.PI) / 180, aspect: ASPECT, viewportHeightPx: HEIGHT_PX },
-      { radiusKm: meta.radiusKm, heightRangeKm, tilePx: TILES.colorPx, maxLevel: TILES.maxLevel, maxTexelPx, relaxBeyondKm },
+      { radiusKm: meta.radiusKm, heightRangeKm, tilePx: TILES.colorPx, maxLevel: MAX_LEVEL, maxTexelPx, relaxBeyondKm },
     );
     peakTiles = Math.max(peakTiles, selected.length);
     // The first view is fetched lean, as the renderer does before its first fade-in.
-    for (const k of tilesToFetch(selected, { lean: t === 0 })) {
-      const id = tileId(k);
-      if (fetched.has(id)) continue;
-      fetched.add(id);
-      const c = size(colorPath(k));
-      const h = size(heightPath(k));
-      if (Number.isNaN(c)) missing++;
-      else color += c;
-      height += Number.isNaN(h) ? 0 : h;
-    }
-    if (t === 0) firstView = color + height;
+    const keys = tilesToFetch(selected, { lean: t === 0 });
+    LAYERS.forEach((layer, i) => {
+      for (const k of layerTilesToFetch(keys, layer, s.sunBody)) {
+        const id = tileId(k);
+        if (fetched[i].has(id)) continue;
+        fetched[i].add(id);
+        const b = size(layerPath(layer, k));
+        if (Number.isNaN(b)) missing++;
+        else bytes[i] += b;
+      }
+    });
+    if (t === 0) firstView = bytes.reduce((a, b) => a + b, 0);
   }
-  return { firstView, total: color + height, color, height, tiles: fetched.size, peakTiles, missing };
+  return { firstView, total: bytes.reduce((a, b) => a + b, 0), bytes, peakTiles, missing };
 }
 
 const now = new Date();
@@ -96,8 +101,7 @@ for (const tiltDeg of [12, 15, 18, 25, 35]) {
       'relax beyond km': relaxBeyondKm === Infinity ? '-' : relaxBeyondKm,
       'first view MB': MB(avg('firstView')),
       [`${SECONDS} s MB`]: MB(avg('total')),
-      'colour MB': MB(avg('color')),
-      'height MB': MB(avg('height')),
+      ...Object.fromEntries(LAYERS.map((l, i) => [`${LABELS[l.id] ?? l.id} MB`, MB(runs.reduce((a, r) => a + r.bytes[i], 0) / runs.length)])),
       [`worst ${SECONDS} s MB`]: MB(Math.max(...runs.map((r) => r.total))),
       'peak tiles drawn': Math.round(avg('peakTiles')),
       missing: Math.round(avg('missing')),
