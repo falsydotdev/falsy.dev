@@ -6,12 +6,55 @@ declare global {
     __falsyShowPoster?: () => void;
     __falsySwitchLive?: (body: string) => void;
     __falsyLabelSwitch?: (body: string) => void;
-    __falsyLive?: { state: { frames: number; body: string; shot: string; backend: string; tier: string; canvas: HTMLCanvasElement } };
+    __falsyLive?: { state: LiveState };
+    __falsyTierLog?: (TierChange & { body: string; backend: string; gpuName: string | undefined })[];
+    __falsyHiddenSinceNav?: boolean;
+    __falsyPageReady?: { body: string; sinceNavMs: number; renderMs: number; hiddenDuringLoad: boolean };
+  }
+  interface LiveState {
+    frames: number;
+    body: string;
+    shot: string;
+    backend: string;
+    tier: string;
+    startTier: string;
+    timing: string;
+    gpu: string | undefined;
+    gpuLog: number[];
+    tierChanges: TierChange[];
+    firstFrameMs: number;
+    readonly stopped: boolean;
+    readonly held: boolean;
+    readonly pixelRatio: number;
+    readonly throttled: boolean;
+    canvas: HTMLCanvasElement;
+  }
+  interface TierChange {
+    from: string;
+    to: string;
+    atMs: number;
+    load: number;
+    gpu: import('./perf.ts').FrameTimes;
   }
 }
 
 import { isTierName } from './quality.ts';
 import { type Body, BODIES, bodyById } from './bodies.ts';
+
+// Load times from a tab that was hidden at any point include the wait, so analytics flags them.
+window.__falsyHiddenSinceNav ||=
+  document.visibilityState !== 'visible' ||
+  // Chromium also remembers a hide before this module ran.
+  (typeof PerformanceObserver !== 'undefined' &&
+    PerformanceObserver.supportedEntryTypes?.includes('visibility-state') &&
+    performance.getEntriesByType('visibility-state').some((e) => e.name === 'hidden'));
+const noteHidden = () => {
+  if (document.visibilityState !== 'visible') {
+    window.__falsyHiddenSinceNav = true;
+    document.removeEventListener('visibilitychange', noteHidden);
+  }
+};
+if (!window.__falsyHiddenSinceNav) document.addEventListener('visibilitychange', noteHidden);
 
 // In development the dev server serves locally baked tiles at /data/<body>; production builds use R2.
 const tilesUrl = (body: Body) => {
@@ -50,7 +93,7 @@ function measureLayout() {
 }
 
 interface LiveScene {
-  state: { frames: number; body: string; shot: string; backend: string; tier: string; canvas: HTMLCanvasElement };
+  state: LiveState;
   dispose(): void;
   freeze(): HTMLCanvasElement | null;
   surfaces(): HTMLCanvasElement[];
@@ -193,7 +236,9 @@ export async function boot() {
       const slot: Slot = { scene: null, dead: false };
       incoming = slot;
       setBusy(true);
-      const light = old.state.tier === 'low' || old.state.backend === 'WebGL2';
+      // A frozen scene already gave up on Low, so it's switched like Low and the next body starts there.
+      const frozen = old.state.tier === 'frozen';
+      const light = frozen || old.state.tier === 'low' || old.state.backend === 'WebGL2';
       const cover = light ? old.freeze() : null;
       if (!light) old.holdGovernor(true);
 
@@ -215,6 +260,8 @@ export async function boot() {
           return lostCurrent();
         }
         finish();
+        // A frozen scene's last frame stays up, rather than a poster of a different place and time.
+        if (frozen && !from.dead) return;
         if (light || from.dead) {
           cover?.remove();
           old.dispose();
@@ -260,7 +307,7 @@ export async function boot() {
           lean: false,
           holdGovernor: true,
           settleTimeoutMs: SWITCH_SETTLE_MS,
-          startTier: isTierName(tier) ? tier : undefined,
+          startTier: frozen ? 'low' : isTierName(tier) ? tier : undefined,
           onFirstFrame: crossfade,
         });
         if (!slot.scene) return abortSwitch();

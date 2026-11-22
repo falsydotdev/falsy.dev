@@ -14,6 +14,7 @@ import { chooseShot, dawnDusk, earthrise, orbitalSunrise, featureFlyover, seeded
 import { bodyById } from '../bodies.ts';
 import { telemetryParts } from '../telemetry';
 import { Governor, initialTier, renderPixelRatio, tier as tierByName } from '../quality.ts';
+import { frameTimes } from '../perf.ts';
 import { solveFraming } from '../composition.ts';
 
 const DEG = Math.PI / 180;
@@ -311,9 +312,13 @@ export async function startLiveScene(host, opts) {
   // While two scenes overlap in a body switch, each sees the other's GPU time as its own load.
   let governorHeld = opts.holdGovernor ?? false;
   const state = {
-    frames: 0, body: body.id, shot: shot.kind, get earth() { return earth?.status ?? 'none'; }, get shadow() { return planet.shadow; }, backend: hints.backend, gpu: hints.vendor ?? hints.description, canvas: renderer.domElement, layers, tiles: planet.stats, firstFrameMs: 0,
+    frames: 0, body: body.id, shot: shot.kind, get earth() { return earth?.status ?? 'none'; }, get shadow() { return planet.shadow; }, backend: hints.backend, gpu: hints.vendor ?? hints.description, canvas: renderer.domElement, layers, tiles: planet.stats, firstFrameMs: 0, startTier: tier.name,
     tier: tier.name, timing: governor ? (gpuTiming ? 'gpu' : 'cadence') : 'forced', gpuMs: 0, gpuLog: [], load: 0, tierChanges: [],
     framing: cam,
+    get stopped() { return stopped; },
+    get held() { return governorHeld; },
+    get pixelRatio() { return renderer.getPixelRatio(); },
+    get throttled() { return throttled; },
   };
   const started = performance.now();
 
@@ -360,6 +365,16 @@ export async function startLiveScene(host, opts) {
   };
 
   let timingBusy = false;
+  // Bumped when the log restarts, so a frame still in flight from before can't land in the new one.
+  let gpuLogGen = 0;
+  // The first frame measured after a restart also waits on work queued before it, like a snapshot or resize.
+  // Starts past the first frames, which compile pipelines and would inflate an early step-down's numbers.
+  let skipGpuSamples = 6;
+  const restartGpuLog = () => {
+    state.gpuLog.length = 0;
+    gpuLogGen++;
+    skipGpuSamples = 1;
+  };
   let lastWrites = 0;
   const measure = (interval) => {
     if (governorHeld) return;
@@ -367,15 +382,28 @@ export async function startLiveScene(host, opts) {
       if (stopped || !governor) return;
       const verdict = governor.sample(load, !first);
       state.load = governor.lastMedian;
-      if (verdict === 'give-up') return giveUp();
-      if (verdict !== 'down') return;
-      state.tierChanges.push({ to: governor.tier, atMs: Math.round(performance.now() - started), load: governor.lastMedian });
+      if (verdict !== 'down' && verdict !== 'give-up') return;
+      // Giving up before the first frame hands the visitor a poster; after it, the last frame stays up.
+      const to = verdict === 'down' ? governor.tier : first ? 'poster' : 'frozen';
+      const change = { from: tier.name, to, atMs: Math.round(performance.now() - started), load: governor.lastMedian, gpu: frameTimes(state.gpuLog.slice(-20)) };
+      state.tierChanges.push(change);
+      // Page-wide, so analytics (which loads late) still sees changes from scenes already gone.
+      (window.__falsyTierLog ??= []).push({ ...change, body: state.body, backend: state.backend, gpuName: state.gpu });
+      // Announced once state.tier holds the new value, since listeners read it straight away.
+      const announce = () => document.dispatchEvent(new CustomEvent('falsy:tier-changed', { detail: { state } }));
+      if (verdict === 'give-up') {
+        giveUp();
+        return announce();
+      }
       // Before the first frame shows, nobody sees the change; after, it crossfades like a tab return.
       if (!first) {
         takeSnapshot();
         resumeStarted = performance.now();
       }
       applyTier(tierByName(governor.tier));
+      // After the snapshot and resize, so their extra work isn't counted against the new tier.
+      restartGpuLog();
+      announce();
     };
     if (!gpuTiming) {
       if (interval > 0) judge(interval / (throttled ? THROTTLED_FRAME_MS : 1000 / tier.fps));
@@ -388,12 +416,17 @@ export async function startLiveScene(host, opts) {
     }
     timingBusy = true;
     const t0 = performance.now();
+    const gen = gpuLogGen;
     renderer.backend.device.queue.onSubmittedWorkDone().then(() => {
       timingBusy = false;
       const ms = performance.now() - t0;
       state.gpuMs = ms;
-      state.gpuLog.push(Math.round(ms * 10) / 10);
-      if (state.gpuLog.length > 120) state.gpuLog.shift();
+      if (gen !== gpuLogGen) return;
+      if (skipGpuSamples > 0) skipGpuSamples--;
+      else {
+        state.gpuLog.push(Math.round(ms * 10) / 10);
+        if (state.gpuLog.length > 120) state.gpuLog.shift();
+      }
       judge(ms / (1000 / tier.fps));
     }, () => {
       timingBusy = false;
@@ -438,6 +471,8 @@ export async function startLiveScene(host, opts) {
       first = false;
       planet.lean = false;
       state.firstFrameMs = Math.round(performance.now() - started);
+      // Only the page's first scene measures the page load; later ones are body switches.
+      window.__falsyPageReady ??= { body: body.id, sinceNavMs: Math.round(performance.now()), renderMs: Math.round(loadMs), hiddenDuringLoad: !!window.__falsyHiddenSinceNav };
       opts.onFirstFrame?.();
     }
   });
@@ -469,11 +504,13 @@ export async function startLiveScene(host, opts) {
     },
     holdGovernor(on) {
       governorHeld = on;
+      restartGpuLog();
       if (!on) governor?.reset();
     },
     setRunning(on) {
       if (on === running || stopped) return;
       governor?.reset();
+      restartGpuLog();
       lastRender = 0;
       if (!on) {
         hiddenAt = performance.now();
@@ -488,6 +525,7 @@ export async function startLiveScene(host, opts) {
       if (on === throttled) return;
       throttled = on;
       governor?.reset();
+      restartGpuLog();
       lastRender = 0;
     },
   };
