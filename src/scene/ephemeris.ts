@@ -21,9 +21,23 @@ export interface BodyFrame {
   z: Vec3;
 }
 
+// Earth turns to the true pole of date and Greenwich apparent sidereal time: the IAU's simple
+// Earth model drifts about 0.5° (56 km at the equator) from it. Polar motion is ignored.
+function earthFrame(date: Date): BodyFrame {
+  const time = A.MakeTime(date);
+  const toJ2000 = A.Rotation_EQD_EQJ(time);
+  const gast = A.SiderealTime(time) * 15 * DEG;
+  const axis = (x: number, y: number, z: number): Vec3 => {
+    const v = A.RotateVector(toJ2000, new A.Vector(x, y, z, time));
+    return [v.x, v.y, v.z];
+  };
+  return { x: axis(Math.cos(gast), Math.sin(gast), 0), y: axis(-Math.sin(gast), Math.cos(gast), 0), z: axis(0, 0, 1) };
+}
+
 // Body-fixed axes in J2000 equatorial coordinates (IAU rotation models). The prime meridian
 // sits at angle W from the ascending node of the body's equator, which is at RA α0 + 90°.
 export function bodyFrame(body: Body, date: Date): BodyFrame {
+  if (body.ae === A.Body.Earth) return earthFrame(date);
   const axis = A.RotationAxis(body.ae, date);
   const z: Vec3 = [axis.north.x, axis.north.y, axis.north.z];
   const a0 = axis.ra * 15 * DEG;
