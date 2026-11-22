@@ -18,6 +18,11 @@ describe('parseFx', () => {
   });
 
   it('knows the layers that exist today', () => {
-    expect(Object.keys(FX_LAYERS)).toEqual(expect.arrayContaining(['shadows', 'bloom', 'glint']));
+    expect(Object.keys(FX_LAYERS)).toEqual(expect.arrayContaining(['shadows', 'bloom', 'glint', 'clouds', 'cloudShadows']));
+  });
+
+  it('turns off Earth\'s clouds and their shadows by their camel-case names, in any case', () => {
+    expect([...parseFx('clouds,cloudShadows')].sort()).toEqual(['cloudShadows', 'clouds']);
+    expect([...parseFx('CLOUDSHADOWS')]).toEqual(['cloudShadows']);
   });
 });

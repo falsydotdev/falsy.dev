@@ -92,7 +92,7 @@ try {
         () => {
           const s = window.__falsyLive?.state;
           if (s?.shadow === 'failed') throw new Error('The shadow map failed to load, so the poster would have no long shadows.');
-          return s && s.tiles.pending === 0 && s.tiles.inFlight === 0 && s.frames > 30 && s.earth !== 'loading' && s.shadow === 'ready';
+          return s && s.tiles.pending === 0 && s.tiles.inFlight === 0 && s.frames > 30 && s.earth !== 'loading' && s.clouds !== 'loading' && s.shadow === 'ready';
         },
         null,
         { timeout: TIMEOUT, polling: 250 },

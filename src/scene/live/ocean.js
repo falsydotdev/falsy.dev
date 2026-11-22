@@ -31,8 +31,8 @@ export function createOcean(ocean, { lighting, air, radiusKm }) {
 
   /**
    * Colour of a surface point that is `land` (0–1, from the water mask) land and `1 − land` sea.
-   * `n` is the sphere's unit normal there, `su` the Sun's cosine from it, `shadow` the terrain's
-   * shadow on it, and `seaFloor` the map of sea-floor heights in km (negative under the sea) with
+   * `n` is the sphere's unit normal there, `su` the Sun's cosine from it, `shadow` the terrain's and
+   * clouds' shadow on it, and `seaFloor` the map of sea-floor heights in km (negative under the sea) with
    * its size in texels and the point's uv on it.
    */
   const shade = ({ land, color, n, su, shadow, seaFloor }) => {
