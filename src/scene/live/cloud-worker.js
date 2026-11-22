@@ -26,19 +26,20 @@ function mipChain(plane, width, height) {
 }
 
 // A dead live source must not hold the scene's readiness wait, which posters and the bench share.
-const META_TIMEOUT_MS = 5000;
-const IMAGE_TIMEOUT_MS = 30000;
+// The static map is the last resort, so it gets as long as it takes.
+const LIVE_TIMEOUT_MS = { meta: 5000, image: 30000 };
+const signal = (live, kind) => (live ? AbortSignal.timeout(LIVE_TIMEOUT_MS[kind]) : undefined);
 
-async function fetchMeta(url) {
-  const res = await fetch(url, { signal: AbortSignal.timeout(META_TIMEOUT_MS) });
+async function fetchMeta(url, live) {
+  const res = await fetch(url, { signal: signal(live, 'meta') });
   if (!res.ok) throw new Error(`${res.status} for ${url}`);
   return res.json();
 }
 
-async function decode(meta, metaUrl, width, height) {
+async function decode(meta, metaUrl, live, width, height) {
   // A dated set's meta.json sits beside its clouds.avif; pointers name their texture.
   const imageUrl = new URL(meta.path ?? 'clouds.avif', metaUrl);
-  const img = await fetch(imageUrl, { signal: AbortSignal.timeout(IMAGE_TIMEOUT_MS) });
+  const img = await fetch(imageUrl, { signal: signal(live, 'image') });
   if (!img.ok) throw new Error(`${img.status} for ${imageUrl}`);
   const blob = await img.blob();
   const bmp = await createImageBitmap(blob, { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
@@ -57,13 +58,14 @@ async function decode(meta, metaUrl, width, height) {
 // fetched side by side, since a pinned moment probes several hours.
 self.onmessage = async ({ data: { candidates, width, height } }) => {
   const urls = candidates.map((c) => new URL(c.url, self.location.href));
-  const metas = candidates.map((c, i) => (c.source === 'live' ? fetchMeta(urls[i]) : null));
+  const metas = candidates.map((c, i) => (c.source === 'live' ? fetchMeta(urls[i], true) : null));
   for (const m of metas) m?.catch(() => {});
   const errors = [];
   for (let i = 0; i < candidates.length; i++) {
     try {
-      const meta = await (metas[i] ?? fetchMeta(urls[i]));
-      const { levels, bytes } = await decode(meta, urls[i], width, height);
+      const live = candidates[i].source === 'live';
+      const meta = await (metas[i] ?? fetchMeta(urls[i], live));
+      const { levels, bytes } = await decode(meta, urls[i], live, width, height);
       self.postMessage({ index: i, meta, levels, bytes }, levels.map((l) => l.data.buffer));
       return;
     } catch (err) {
