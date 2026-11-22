@@ -103,3 +103,11 @@ describe('cloud effects per tier', () => {
     expect(TIERS.filter((t) => t.cloudRelief).map((t) => t.name)).toEqual(['high']);
   });
 });
+
+describe('sun glint', () => {
+  it('uses Cox-Munk on High and Medium and the cheaper GGX on Low', () => {
+    expect(tier('high').glint).toBe('cox-munk');
+    expect(tier('medium').glint).toBe('cox-munk');
+    expect(tier('low').glint).toBe('ggx');
+  });
+});

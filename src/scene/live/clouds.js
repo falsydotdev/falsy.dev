@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import {
   If, asin, atan, clamp, cos, dot, float, length, log2, max, mx_noise_float, mx_noise_vec3, normalize, select, sin, smoothstep, sqrt, texture, uniform, vec2, vec3, vec4,
 } from 'three/tsl';
-import { CLOUD_TEXTURE } from '../clouds.ts';
+import { CLOUD_TEXTURE, cloudsNewer } from '../clouds.ts';
 
 const DEG = Math.PI / 180;
 // Clouds thin out over this much latitude before the edge of the source's data.
@@ -18,13 +18,21 @@ const WARP_KM = 20;
 // Cloud tops are lit from the side as well as from above, so a low Sun still lights them.
 const SIDE_LIGHT = 0.4;
 
-/** Starts fetching and decoding a cloud set in a worker. */
-export function loadCloudSet(url) {
+// The cloud job's bucket. In development, a local stand-in laid out like it, served at /data/clouds
+// (FALSY_TILES_CLOUDS picks its folder); clouds.falsy.dev only answers the production site.
+export const CLOUDS_BASE = import.meta.env.PUBLIC_CLOUDS_BASE || (import.meta.env.DEV ? '/data/clouds' : null);
+const POINTER_TIMEOUT_MS = 5000;
+
+/**
+ * Starts fetching and decoding the first cloud set that loads, in a worker.
+ * @param {import('../clouds.ts').CloudCandidate[]} candidates best first
+ */
+export function loadCloudSet(candidates) {
   const worker = new Worker(new URL('./cloud-worker.js', import.meta.url), { type: 'module' });
   const done = new Promise((resolve) => {
-    worker.onmessage = ({ data }) => resolve(data);
+    worker.onmessage = ({ data }) => resolve(data.error ? data : { ...data, source: candidates[data.index].source });
     worker.onerror = (e) => resolve({ error: e.message ?? 'cloud worker failed' });
-    worker.postMessage({ url, ...CLOUD_TEXTURE });
+    worker.postMessage({ candidates, ...CLOUD_TEXTURE });
   }).finally(() => worker.terminate());
   return { done, cancel: () => worker.terminate() };
 }
@@ -67,23 +75,51 @@ export function createClouds({ body, lighting, tables, set }) {
     south: uniform(-90 * DEG),
   };
 
-  const state = { status: /** @type {import('../clouds.ts').CloudStatus} */ ('loading'), polar: null, meta: null, bytes: 0 };
-  set.done.then((out) => {
-    if (out.error) {
-      state.status = 'failed';
-      console.warn('No clouds:', out.error);
-      return;
-    }
+  const state = {
+    status: /** @type {import('../clouds.ts').CloudStatus} */ ('loading'),
+    /** @type {import('../clouds.ts').CloudSetInfo | null} */
+    set: null,
+    polar: null,
+    meta: null,
+    bytes: 0,
+  };
+  const show = (out) => {
     tex.mipmaps = out.levels;
     tex.image = { data: out.levels[0].data, width: W, height: H };
     tex.needsUpdate = true;
+    state.set = { source: out.source, valid: new Date(out.meta.valid) };
     state.meta = out.meta;
     state.polar = out.meta.polar;
     state.bytes = out.bytes;
     u.north.value = out.meta.polar.north * DEG;
     u.south.value = out.meta.polar.south * DEG;
     state.status = 'ready';
+  };
+  set.done.then((out) => {
+    if (!out.error) return show(out);
+    state.status = 'failed';
+    console.warn('No clouds:', out.error);
   });
+
+  let disposed = false;
+  let refreshing = null;
+  /**
+   * Loads the latest set if the pointer names a newer one than the set on screen, which stays up
+   * while the new one decodes and if it fails.
+   */
+  const refresh = async (latestUrl) => {
+    if (refreshing || disposed || state.status === 'loading') return;
+    const pointer = await fetch(latestUrl, { signal: AbortSignal.timeout(POINTER_TIMEOUT_MS) })
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null);
+    if (refreshing || disposed || !cloudsNewer(state.set, pointer?.valid ?? null)) return;
+    refreshing = loadCloudSet([{ url: latestUrl, source: 'live' }]);
+    const out = await refreshing.done;
+    refreshing = null;
+    if (disposed) return;
+    if (out.error) console.warn('Kept the clouds on screen:', out.error);
+    else show(out);
+  };
 
   // Same mapping as cloudUv in clouds.ts: row 0 at 90°N, column 0 at 180°W.
   const uvOf = (lat, lon) => vec2(lon.add(Math.PI).div(2 * Math.PI), float(Math.PI / 2).sub(lat).div(Math.PI));
@@ -196,8 +232,11 @@ export function createClouds({ body, lighting, tables, set }) {
     crossings,
     composite,
     setTier,
+    refresh,
     dispose: () => {
+      disposed = true;
       set.cancel();
+      refreshing?.cancel();
       tex.dispose();
     },
   };

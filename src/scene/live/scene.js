@@ -6,10 +6,11 @@ import { TiledPlanet } from './planet.js';
 import { orbitCameraPose } from '../camera.ts';
 import { createAtmosphere } from './atmosphere.js';
 import { createAtmosphereTables } from './atmosphere-tables.js';
-import { createClouds, loadCloudSet } from './clouds.js';
+import { CLOUDS_BASE, createClouds, loadCloudSet } from './clouds.js';
 import { createStars } from './stars.js';
 import { createSun } from './sun.js';
 import { createEarth } from './earth.js';
+import { createOcean } from './ocean.js';
 import { bodyFrame, vec } from '../ephemeris';
 import { sample } from '../orbit';
 import { chooseShot, dawnDusk, earthrise, orbitalSunrise, featureFlyover, seededRandom, wantsReshoot, SHOT_FOV_DEG } from '../shots';
@@ -19,7 +20,7 @@ import { Governor, initialTier, renderPixelRatio, tier as tierByName } from '../
 import { frameTimes } from '../perf.ts';
 import { solveFraming } from '../composition.ts';
 import { parseFx } from '../fx.ts';
-import { cloudReadout, overCloudCap } from '../clouds.ts';
+import { cloudCandidates, cloudReadout, overCloudCap } from '../clouds.ts';
 
 const DEG = Math.PI / 180;
 // Camera defaults. Altitude comes from the body. Tilt (degrees below the horizon beyond the
@@ -195,6 +196,7 @@ export async function startLiveScene(host, opts) {
   const lighting = createLighting(body);
   const fx = parseFx(opts.fx);
   if (fx.has('shadows')) lighting.shadows.value = 0;
+  let setGlint = () => {};
   if (body.showsEarth) {
     earth = createEarth({ url: '/textures/earth.webp', lighting });
     scene.add(earth.object);
@@ -211,10 +213,17 @@ export async function startLiveScene(host, opts) {
   if (stopped) throw new Error('GPU device lost while the scene was loading');
   async function loadPlanet() {
     // The cloud map downloads with the tiles; the scene's first fade-in waits for it.
-    if (body.clouds && !fx.has('clouds')) cloudSet = loadCloudSet(body.clouds.url);
+    // A pinned moment draws the clouds of that moment, as the poster stills were rendered with.
+    if (body.clouds && !fx.has('clouds')) {
+      const at = opts.at && new Date(opts.at.getTime() + (opts.skip ?? 0) * 1000);
+      cloudSet = loadCloudSet(cloudCandidates({ base: CLOUDS_BASE, staticUrl: body.clouds.staticUrl, at }));
+    }
     // The terrain material reads sunlight through the atmosphere, so its tables come first.
     const [meta, tables] = await Promise.all([opts.meta, body.atmosphere ? createAtmosphereTables(body.atmosphere, body.radiusKm) : null]);
     atmosphereTables = tables;
+    const ocean = body.ocean ? createOcean(body.ocean, { lighting, air: tables, radiusKm: body.radiusKm }) : null;
+    setGlint = (t) => ocean?.setGlint(fx.has('glint') ? 'off' : t.glint);
+    setGlint(tier);
     if (!meta) throw new Error(`No tiles at ${opts.dataUrl}`);
     if (meta.body !== body.id || Math.abs(meta.radiusKm - body.radiusKm) > 1e-6) console.warn(`Tiles at ${opts.dataUrl} are for ${meta.body}, not ${body.id}.`);
     layers = isWebGPU ? gpuLayers ?? 256 : Math.min(WANTED_LAYERS, renderer.backend.gl.getParameter(renderer.backend.gl.MAX_ARRAY_TEXTURE_LAYERS));
@@ -224,7 +233,7 @@ export async function startLiveScene(host, opts) {
     }
     // A layer switched off with `fx=` (city lights) is neither fetched nor drawn.
     const tileLayers = body.tiles.layers.filter((l) => !fx.has(l.id));
-    planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: body.relief, seaLevel: body.seaLevel, layers, tileLayers, lighting, nightLights: body.lights, atmosphere: tables, clouds, relaxBeyondKm: opts.farKm });
+    planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: body.relief, seaLevel: body.seaLevel, layers, tileLayers, lighting, nightLights: body.lights, atmosphere: tables, clouds, ocean, relaxBeyondKm: opts.farKm });
     const tiledPlanet = planet;
     planet.lean = opts.lean ?? true;
     // Tiles stream while the shadow map downloads; the first fade-in waits for it (see the loop).
@@ -247,6 +256,7 @@ export async function startLiveScene(host, opts) {
       pipeline.needsUpdate = true;
     }
     tier = next;
+    setGlint(next);
     clouds?.setTier(next, fx.has('cloudShadows'));
     renderer.setPixelRatio(pixelRatio(next));
     renderer.setSize(innerWidth, innerHeight);
@@ -310,7 +320,7 @@ export async function startLiveScene(host, opts) {
   function updateTelemetry(s, t) {
     if (!telemetryEl || t - lastTelemetry < 500) return;
     lastTelemetry = t;
-    const cloudItem = clouds && cloudReadout({ source: body.clouds.source, status: clouds.state.status, overCap: Boolean(clouds.state.polar && overCloudCap(lastPose, body.radiusKm, clouds.state.polar)) });
+    const cloudItem = clouds && cloudReadout({ status: clouds.state.status, set: clouds.state.set, now: s.date, overCap: Boolean(clouds.state.polar && overCloudCap(lastPose, body.radiusKm, clouds.state.polar)) });
     const parts = telemetryParts(s, { body: body.name, relief: body.relief, clouds: cloudItem });
     if (timeScale !== 1) parts.push(`t×${timeScale}`);
     // Nodes are updated in place, so the body switch button keeps focus and hover.
@@ -556,9 +566,12 @@ export async function startLiveScene(host, opts) {
       if (!on) {
         hiddenAt = performance.now();
         if (!first) takeSnapshot();
-      } else if (snapshot) {
-        if (performance.now() - hiddenAt > RESUME_SNAPSHOT_AFTER_MS) resumeStarted = performance.now();
-        else dropSnapshot();
+      } else {
+        if (snapshot) {
+          if (performance.now() - hiddenAt > RESUME_SNAPSHOT_AFTER_MS) resumeStarted = performance.now();
+          else dropSnapshot();
+        }
+        if (!opts.at && CLOUDS_BASE) clouds?.refresh(`${CLOUDS_BASE}/latest.json`);
       }
       running = on;
     },
