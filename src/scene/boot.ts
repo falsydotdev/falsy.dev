@@ -8,6 +8,7 @@ declare global {
     __falsyLabelSwitch?: (body: string) => void;
     __falsyLive?: { state: LiveState };
     __falsyTierLog?: (TierChange & { body: string; gpuName: string | undefined })[];
+    __falsyHiddenSinceNav?: boolean;
     __falsyPageReady?: { body: string; sinceNavMs: number; renderMs: number; hiddenDuringLoad: boolean };
   }
   interface LiveState {
@@ -38,6 +39,16 @@ declare global {
 
 import { isTierName } from './quality.ts';
 import { type Body, BODIES, bodyById } from './bodies.ts';
+
+// Load times from a tab that was hidden at any point include the wait, so analytics flags them.
+window.__falsyHiddenSinceNav ||= document.visibilityState !== 'visible';
+const noteHidden = () => {
+  if (document.visibilityState !== 'visible') {
+    window.__falsyHiddenSinceNav = true;
+    document.removeEventListener('visibilitychange', noteHidden);
+  }
+};
+if (!window.__falsyHiddenSinceNav) document.addEventListener('visibilitychange', noteHidden);
 
 // In development the dev server serves locally baked tiles at /data/<body>; production builds use R2.
 const tilesUrl = (body: Body) => {

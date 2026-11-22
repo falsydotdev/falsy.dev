@@ -95,6 +95,8 @@ function reportScene(posthog: PostHog) {
       });
     }
     sentChanges = log.length;
+    // Later events should carry the tier the scene runs at now.
+    if (log.length && sky.dataset.scene === 'live') posthog.register(sceneProps('live'));
   };
   const send = () => {
     const mode = sky.dataset.scene;

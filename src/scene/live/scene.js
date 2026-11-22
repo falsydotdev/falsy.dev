@@ -364,7 +364,6 @@ export async function startLiveScene(host, opts) {
   };
 
   let timingBusy = false;
-  let hiddenDuringLoad = false;
   // Bumped when the log restarts, so a frame still in flight from before can't land in the new one.
   let gpuLogGen = 0;
   const restartGpuLog = () => {
@@ -386,7 +385,6 @@ export async function startLiveScene(host, opts) {
       // Page-wide, so analytics (which loads late) still sees changes from scenes already gone.
       (window.__falsyTierLog ??= []).push({ ...change, body: state.body, gpuName: state.gpu });
       document.dispatchEvent(new CustomEvent('falsy:tier-changed'));
-      restartGpuLog();
       if (verdict === 'give-up') return giveUp();
       // Before the first frame shows, nobody sees the change; after, it crossfades like a tab return.
       if (!first) {
@@ -394,6 +392,8 @@ export async function startLiveScene(host, opts) {
         resumeStarted = performance.now();
       }
       applyTier(tierByName(governor.tier));
+      // After the snapshot and resize, so their extra work isn't counted against the new tier.
+      restartGpuLog();
     };
     if (!gpuTiming) {
       if (interval > 0) judge(interval / (throttled ? THROTTLED_FRAME_MS : 1000 / tier.fps));
@@ -411,10 +411,9 @@ export async function startLiveScene(host, opts) {
       timingBusy = false;
       const ms = performance.now() - t0;
       state.gpuMs = ms;
-      if (gen === gpuLogGen) {
-        state.gpuLog.push(Math.round(ms * 10) / 10);
-        if (state.gpuLog.length > 120) state.gpuLog.shift();
-      }
+      if (gen !== gpuLogGen) return;
+      state.gpuLog.push(Math.round(ms * 10) / 10);
+      if (state.gpuLog.length > 120) state.gpuLog.shift();
       judge(ms / (1000 / tier.fps));
     }, () => {
       timingBusy = false;
@@ -460,7 +459,7 @@ export async function startLiveScene(host, opts) {
       planet.lean = false;
       state.firstFrameMs = Math.round(performance.now() - started);
       // Only the page's first scene measures the page load; later ones are body switches.
-      window.__falsyPageReady ??= { body: body.id, sinceNavMs: Math.round(performance.now()), renderMs: Math.round(loadMs), hiddenDuringLoad };
+      window.__falsyPageReady ??= { body: body.id, sinceNavMs: Math.round(performance.now()), renderMs: Math.round(loadMs), hiddenDuringLoad: !!window.__falsyHiddenSinceNav };
       opts.onFirstFrame?.();
     }
   });
@@ -499,7 +498,6 @@ export async function startLiveScene(host, opts) {
       governor?.reset();
       restartGpuLog();
       lastRender = 0;
-      if (!on && first) hiddenDuringLoad = true;
       if (!on) {
         hiddenAt = performance.now();
         if (!first) takeSnapshot();
