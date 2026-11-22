@@ -3,7 +3,7 @@ import { type CircularOrbit, circularOrbit, stateAt } from './orbit.ts';
 import { type Body, MARS } from './bodies.ts';
 import type { Feature } from './features.ts';
 
-export type ShotKind = 'dawn-dusk' | 'orbital-sunrise' | 'feature-flyover' | 'earthrise' | 'night-pass';
+export type ShotKind = 'dawn-dusk' | 'orbital-sunrise' | 'feature-flyover' | 'earthrise' | 'night-pass' | 'home-pass';
 
 export interface Shot {
   kind: ShotKind;
@@ -304,6 +304,8 @@ interface ShotRule {
 }
 
 const daylit = (view: ViewAhead) => litEnough(view.body, view.sunDeg);
+// Ground at night still shows its city lights, so the night and home passes hold over them.
+const daylitOrCityLit = (view: ViewAhead, ctx: ViewContext) => daylit(view) || lightsAhead(view, ctx);
 
 // A sunrise opens with the ground below still in shadow while the Sun climbs ahead, so it gets
 // longer to play out.
@@ -312,9 +314,12 @@ const SHOT_RULES: Record<ShotKind, ShotRule> = {
   'orbital-sunrise': { graceS: 600, lookAheadDeg: LOOK_AHEAD_DEG, worthShowing: daylit },
   'feature-flyover': { graceS: 120, lookAheadDeg: LOOK_AHEAD_DEG, worthShowing: daylit },
   earthrise: { graceS: 120, lookAheadDeg: EARTHRISE_LOOK_AHEAD_DEG, worthShowing: daylit },
-  // Held while there are lit cities ahead, or once the track reaches daylight.
-  'night-pass': { graceS: 120, lookAheadDeg: LOOK_AHEAD_DEG, worthShowing: (view, ctx) => daylit(view) || lightsAhead(view, ctx) },
+  'night-pass': { graceS: 120, lookAheadDeg: LOOK_AHEAD_DEG, worthShowing: daylitOrCityLit },
+  'home-pass': { graceS: 120, lookAheadDeg: LOOK_AHEAD_DEG, worthShowing: daylitOrCityLit },
 };
+
+/** How far along the orbit, in degrees, a shot of this kind judges the ground it is heading for. */
+export const lookAheadDeg = (kind: ShotKind) => SHOT_RULES[kind].lookAheadDeg;
 
 /** Whether the ground the shot's camera is heading for at `date` is still worth looking at. */
 export function worthShowing(shot: Shot, date: Date, ctx: ViewContext = {}) {
