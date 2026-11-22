@@ -18,8 +18,8 @@ async function fetchChunk(url, start, end, attempt = 0) {
     if (buf.length !== end - start + 1) throw new Error(`short read ${buf.length}`);
     return buf;
   } catch (err) {
-    if (attempt >= 6) throw err;
-    await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
+    if (attempt >= 12) throw err;
+    await new Promise((r) => setTimeout(r, Math.min(30000, 1000 * 2 ** attempt)));
     return fetchChunk(url, start, end, attempt + 1);
   }
 }
@@ -33,8 +33,8 @@ async function downloadWhole({ url, file }, attempt = 0) {
     if (!res.ok) throw new Error(`${url}: status ${res.status}`);
     bytes = new Uint8Array(await res.arrayBuffer());
   } catch (err) {
-    if (attempt >= 6) throw err;
-    await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
+    if (attempt >= 12) throw err;
+    await new Promise((r) => setTimeout(r, Math.min(30000, 1000 * 2 ** attempt)));
     return downloadWhole({ url, file }, attempt + 1);
   }
   await writeFile(`${file}.part`, bytes);
@@ -42,8 +42,20 @@ async function downloadWhole({ url, file }, attempt = 0) {
   console.log(`${file} complete`);
 }
 
+async function headWithRetry(url, attempt = 0) {
+  try {
+    const res = await fetch(url, { method: 'HEAD' });
+    if (!res.ok) throw new Error(`status ${res.status}`);
+    return res;
+  } catch (err) {
+    if (attempt >= 12) throw err;
+    await new Promise((r) => setTimeout(r, Math.min(30000, 1000 * 2 ** attempt)));
+    return headWithRetry(url, attempt + 1);
+  }
+}
+
 async function download({ url, file }) {
-  const head = await fetch(url, { method: 'HEAD' });
+  const head = await headWithRetry(url);
   const size = Number(head.headers.get('content-length'));
   const progressFile = `${file}.progress.json`;
   const done = new Set(existsSync(progressFile) ? JSON.parse(await readFile(progressFile, 'utf8')) : []);

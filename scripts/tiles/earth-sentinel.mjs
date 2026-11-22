@@ -56,11 +56,15 @@ async function readItem(item) {
   for (const band of BANDS) {
     const tiff = await fromUrl(presignGet(httpsOf(item.assets[band].href), { ...keys, region: 'default', expiresS: 3600 }));
     const count = await tiff.getImageCount();
-    let pick = 0;
+    let pick = -1;
+    let best = Infinity;
     for (let i = 0; i < count; i++) {
-      const img = await tiff.getImage(i);
-      if ((scale * baseW) / img.getWidth() <= TARGET_M) pick = i;
+      const m = (scale * baseW) / (await tiff.getImage(i)).getWidth();
+      if (Math.abs(m - TARGET_M) < best) [pick, best] = [i, Math.abs(m - TARGET_M)];
     }
+    const pickedM = (scale * baseW) / (await tiff.getImage(pick)).getWidth();
+    // Without a usable overview this would read the 10 m base, about 190 MB per band.
+    if (pickedM < 100 || pickedM > 350) throw new Error(`no overview near ${TARGET_M} m (nearest ${Math.round(pickedM)} m)`);
     const img = await tiff.getImage(pick);
     const [data] = await img.readRasters();
     geometry = { x0, y0, step: (scale * baseW) / img.getWidth(), w: img.getWidth(), h: img.getHeight() };
@@ -121,8 +125,15 @@ for (const raster of listRasters('colour').filter((r) => pixelDeg(r) <= 1 / 200)
     continue;
   }
   let pixels = 0;
+  let failed = 0;
   for (const [i, item] of items.entries()) {
-    pixels += await overlay(raster, item, await readItem(item));
-    process.stdout.write(`    ${i + 1}/${items.length} items, ${pixels} pixels from Sentinel-2\n`);
+    try {
+      pixels += await overlay(raster, item, await readItem(item));
+    } catch (err) {
+      // Only the message: a stack or request could carry a presigned URL, which holds the key ID.
+      failed++;
+      console.log(`    ${item.id} skipped: ${String(err?.message ?? err).replace(/https?:\/\/\S+/g, '<url>')}`);
+    }
+    process.stdout.write(`    ${i + 1}/${items.length} items, ${pixels} pixels from Sentinel-2${failed ? `, ${failed} skipped` : ''}\n`);
   }
 }
