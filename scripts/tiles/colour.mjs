@@ -30,7 +30,8 @@ const MOSAIC = SPEC.format === 'mosaic';
 // Masked layers carry the water mask in alpha: 255 is land, 0 is water.
 const CHANNELS = LAYER.format === 'masked' ? 4 : 3;
 const leafArg = process.argv.indexOf('--leaf-level');
-const LEAF_LEVEL = Math.min(LAYER.maxLevel, leafArg > 0 ? Number(process.argv[leafArg + 1]) : Infinity);
+// Worker threads don't see the command line, so the main thread hands its value over.
+const LEAF_LEVEL = isMainThread ? Math.min(LAYER.maxLevel, leafArg > 0 ? Number(process.argv[leafArg + 1]) : Infinity) : workerData.leafLevel;
 
 async function encode(rgb, k) {
   const file = join(OUT, colorPath(k));
@@ -274,7 +275,7 @@ async function main() {
   const workers = Math.min(queue.length, Math.max(1, availableParallelism() - 2));
   await Promise.all(
     Array.from({ length: workers }, () => new Promise((resolve, reject) => {
-      const worker = new Worker(new URL(import.meta.url), { workerData: { body: BODY, src } });
+      const worker = new Worker(new URL(import.meta.url), { workerData: { body: BODY, src, leafLevel: LEAF_LEVEL } });
       const next = () => {
         const k = queue.shift();
         if (k) worker.postMessage(k);

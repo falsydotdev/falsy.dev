@@ -180,10 +180,7 @@ async function fineColour(box) {
   const by = Math.round((90 - box.north) * FINE);
   for (const p of quadTilesFor(box, QUAD)) {
     const src = SOURCES[`bmng${p.tile.name}`];
-    if (!existsSync(src.file)) {
-      console.log(`  ${src.file} missing; its part of the box stays black`);
-      continue;
-    }
+    if (!existsSync(src.file)) throw new Error(`${src.file} missing: fetch it, or keep --box inside the Blue Marble tiles you have`);
     const t0 = Date.now();
     const width = p.x1 - p.x0;
     const height = p.y1 - p.y0;

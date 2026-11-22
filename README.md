@@ -37,7 +37,8 @@ A small test bake, without the full downloads, sets `FALSY_DATA_DIR=~/.cache/fal
 ```bash
 node scripts/tiles/fetch-sources.mjs --body earth naturalEarthLand,gebcoCoarse,bmngCoarse,bmngC1
 node scripts/tiles/earth-mosaic.mjs --coarse
-node scripts/tiles/earth-mosaic.mjs --box 44.3,-0.1,56.4,16.7 --remote
+node scripts/tiles/earth-mosaic.mjs heights --box 44.3,-0.1,56.4,16.7 --remote   # crosses GEBCO's B1/C1 seam
+node scripts/tiles/earth-mosaic.mjs colour --box 44.3,0,56.4,16.7             # inside Blue Marble C1
 node scripts/tiles/heights.mjs --body earth --near 52.3,5.3,500
 node scripts/tiles/colour.mjs --body earth --near 52.3,5.3,500
 node scripts/tiles/colour.mjs --body earth --leaf-level 3
