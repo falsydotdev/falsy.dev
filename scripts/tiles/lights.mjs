@@ -10,6 +10,7 @@ import { dirname, join } from 'node:path';
 import { createRequire } from 'node:module';
 import { TILE_DIR, bodyArg, bodyInfo } from './paths.mjs';
 import { covers, isGlobal, listRasters } from './mosaic-rasters.mjs';
+import { leafLevelArg } from './leaf-level.ts';
 import { children, dirOf, tileDir, tileLatLonBounds, tileId } from '../../src/scene/tiles/cube.ts';
 import { layerPath } from '../../src/scene/tiles/layers.ts';
 import { greyOf, lightOf } from '../../src/scene/tiles/lights-codec.ts';
@@ -24,8 +25,7 @@ const LAYER = INFO.layers.find((l) => l.id === 'lights');
 if (!LAYER) throw new Error(`${BODY} has no lights layer`);
 const PX = LAYER.sizePx;
 const OUT = join(TILE_DIR, BODY);
-const leafArg = process.argv.indexOf('--leaf-level');
-const LEAF_LEVEL = Math.min(LAYER.maxLevel, leafArg > 0 ? Number(process.argv[leafArg + 1]) : Infinity);
+const LEAF_LEVEL = leafLevelArg(process.argv, { min: JOB_LEVEL, max: LAYER.maxLevel });
 
 const fileOf = (k) => join(OUT, layerPath(LAYER, k));
 

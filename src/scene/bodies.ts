@@ -54,7 +54,8 @@ export interface Body {
   // How the sea shades where the colour tiles' water mask says water. Needs `seaLevel`.
   ocean?: Ocean;
   // The streamed tile layers. Colour and height are required; the terrain draws without the rest.
-  tiles: { version: string; layers: TileLayer[] };
+  // `sentinelYear` is the Copernicus Sentinel-2 mosaic year in this version's colour, for the credit.
+  tiles: { version: string; sentinelYear?: number | null; layers: TileLayer[] };
   shots: {
     weights: Partial<Record<ShotKind, number>>;
     // How far into daylight the terminator orbit runs. Without air there's no skylight, so an
@@ -212,7 +213,8 @@ export const EARTH: Body = {
   // The static map: GMGSI for 2026-11-22 11:00 UTC against the 14 days before it.
   clouds: { staticUrl: '/clouds/static.json', heightKm: 8, albedo: 0.85, reliefKm: 12 },
   // Colour stops at level 6 and carries the water mask in alpha (opaque is land).
-  tiles: { version: 'v1', layers: [{ ...COLOR_LAYER, format: 'masked', maxLevel: 6 }, HEIGHT_LAYER, LIGHTS_LAYER] },
+  // Set sentinelYear to the value earth-sentinel.mjs prints for the bake you upload; null is Blue Marble only.
+  tiles: { version: 'v1', sentinelYear: null, layers: [{ ...COLOR_LAYER, format: 'masked', maxLevel: 6 }, HEIGHT_LAYER, LIGHTS_LAYER] },
   // Named places lead because visitors know them by sight; one load in five shows the night side's cities.
   // Heading into night, renders dim to 7 of 255 at −5° and are close to black by −6°.
   shots: { weights: { 'dawn-dusk': 0.25, 'orbital-sunrise': 0.25, 'feature-flyover': 0.3, 'night-pass': 0.2 }, dawnDuskSunDeg: 4, sunriseLeadS: 60, sunriseLimbKm: 0, darkBelowDeg: -5, nightPass: { cityAbove: 1e-2, reachKm: 500, holdAbove: 3e-3 }, homePass: true },

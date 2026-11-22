@@ -25,6 +25,23 @@ const validOf = (key) => {
 // Each 3-hour run keeps its own clear-sky history, so the reference has the same time of day.
 const slotOf = (date) => String(Math.floor(date.getUTCHours() / 3) * 3).padStart(2, '0');
 
+// R2 lists at most 1,000 keys per call. Every list starts at its window, so keys a lifecycle rule
+// hasn't removed yet can't crowd out the ones the job needs.
+async function listAll(bucket, options) {
+  const objects = [];
+  const delimitedPrefixes = [];
+  // The cursor carries the position, so later pages drop startAfter rather than rely on precedence.
+  const { startAfter: _start, ...rest } = options;
+  let cursor;
+  do {
+    const page = await bucket.list(cursor ? { ...rest, cursor } : options);
+    objects.push(...page.objects);
+    delimitedPrefixes.push(...(page.delimitedPrefixes ?? []));
+    cursor = page.truncated ? page.cursor : undefined;
+  } while (cursor);
+  return { objects, delimitedPrefixes };
+}
+
 // Cloudflare account IDs are 32 hex digits and object IDs longer; logs stay public-repo safe.
 export const redact = (text) => String(text).replace(/\b[0-9a-f]{32,}\b/gi, '[id]');
 
@@ -63,7 +80,8 @@ async function process({ bucket, fetch, container, source, valid, log }) {
   const slot = slotOf(valid);
   const today = dayOf(valid);
   const days = Array.from({ length: WINDOW_DAYS + 1 }, (_, i) => dayOf(new Date(valid.getTime() - i * DAY_MS)));
-  const listed = (await bucket.list({ prefix: `state/${slot}/` })).objects;
+  const before = dayOf(new Date(valid.getTime() - (WINDOW_DAYS + 1) * DAY_MS));
+  const { objects: listed } = await listAll(bucket, { prefix: `state/${slot}/`, startAfter: `state/${slot}/${before}` });
   const stored = new Map(listed.map((o) => [o.key.split('/').pop(), o.size]));
 
   const parts = [];
@@ -115,9 +133,9 @@ async function keepPinned({ bucket, keep, now, log }) {
   const index = indexObject ? await indexObject.json() : {};
   const pending = due.filter((m) => !(m.toISOString() in index));
   if (!pending.length) return;
-  const stamps = (await bucket.list({ prefix: 'dated/', delimiter: '/' })).delimitedPrefixes
-    .map((p) => p.slice('dated/'.length, -1))
-    .sort();
+  const earliest = stampOf(new Date(Math.min(...pending) - STALE_MS));
+  const { delimitedPrefixes } = await listAll(bucket, { prefix: 'dated/', delimiter: '/', startAfter: `dated/${earliest}` });
+  const stamps = delimitedPrefixes.map((p) => p.slice('dated/'.length, -1)).sort();
   let changed = false;
   for (const moment of pending) {
     const floor = stampOf(new Date(moment.getTime() - STALE_MS));

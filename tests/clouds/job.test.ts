@@ -48,18 +48,27 @@ function fakeBucket(initial: Record<string, string | Uint8Array> = {}) {
       objects.set(key, { bytes, options });
       puts.push(key);
     },
-    async list({ prefix = '', delimiter }: { prefix?: string; delimiter?: string }) {
-      const keys = [...objects.keys()].filter((k) => k.startsWith(prefix)).sort();
-      if (!delimiter) return { objects: keys.map((key) => ({ key, size: objects.get(key)!.bytes.length })), delimitedPrefixes: [], truncated: false };
-      const prefixes = new Set<string>();
-      const direct = [];
-      for (const k of keys) {
-        const rest = k.slice(prefix.length);
-        const i = rest.indexOf(delimiter);
-        if (i >= 0) prefixes.add(prefix + rest.slice(0, i + 1));
-        else direct.push({ key: k });
+    // Pages like R2: ascending, at most 1,000 entries (objects and delimited prefixes) per call.
+    async list({ prefix = '', delimiter, startAfter = '', cursor, limit = 1000 }: { prefix?: string; delimiter?: string; startAfter?: string; cursor?: string; limit?: number }) {
+      const after = cursor ?? startAfter;
+      const entries: { key: string; prefix?: string }[] = [];
+      for (const k of [...objects.keys()].filter((k) => k.startsWith(prefix) && k > after).sort()) {
+        const i = delimiter ? k.slice(prefix.length).indexOf(delimiter) : -1;
+        if (i < 0) entries.push({ key: k });
+        else {
+          const p = k.slice(0, prefix.length + i + 1);
+          if (entries.at(-1)?.prefix !== p) entries.push({ key: k, prefix: p });
+          else entries[entries.length - 1].key = k;
+        }
       }
-      return { objects: direct, delimitedPrefixes: [...prefixes], truncated: false };
+      const page = entries.slice(0, limit);
+      const truncated = entries.length > limit;
+      return {
+        objects: page.filter((e) => !e.prefix).map(({ key }) => ({ key, size: objects.get(key)!.bytes.length })),
+        delimitedPrefixes: page.filter((e) => e.prefix).map((e) => e.prefix),
+        truncated,
+        cursor: truncated ? page.at(-1)!.key : undefined,
+      };
     },
   };
 }
@@ -292,6 +301,40 @@ describe('cloud job', () => {
     bucket.puts.length = 0;
     await runJob({ bucket, fetch: fakeNoaa([]), container: fakeContainer(), now: at('2026-11-22T10:45Z'), log, keep });
     expect(bucket.puts.filter((k) => k.startsWith('kept/'))).toEqual([]);
+  });
+
+  it('finds the recent clear-sky history behind more than a page of old state', async () => {
+    const old = Object.fromEntries(
+      Array.from({ length: 1200 }, (_, i) => {
+        const d = new Date(Date.UTC(2023, 0, 1 + i));
+        return [`state/09/${d.toISOString().slice(0, 10).replaceAll('-', '')}`, new Uint8Array([5])];
+      }),
+    );
+    const bucket = fakeBucket({ 'latest.json': JSON.stringify(previous), ...old, ...fullHistory });
+    const container = fakeContainer();
+    await runJob({ bucket, fetch: fakeNoaa(['2026-11-22T09:00Z']), container, now: at('2026-11-22T09:45Z'), log });
+
+    const names = container.requests[0].names;
+    expect(names.filter((n: string) => n.startsWith('history/'))).toHaveLength(14);
+    expect(names).toContain('history/20261108');
+    expect(names.some((n: string) => n.startsWith('backfill/'))).toBe(false);
+  });
+
+  it('keeps a poster moment whose set sits behind more than a page of older sets', async () => {
+    const older: Record<string, string> = {};
+    for (let i = 0; i < 1200; i++) {
+      const stamp = new Date(Date.UTC(2026, 4, 1) + i * 3 * 3_600_000).toISOString().slice(0, 16).replace(/[-:]/g, '') + 'Z';
+      older[`dated/${stamp}/meta.json`] = '{}';
+    }
+    const bucket = fakeBucket({
+      'latest.json': JSON.stringify(previous),
+      ...older,
+      'dated/20261121T0300Z/clouds.avif': new Uint8Array([3]),
+      'dated/20261121T0300Z/meta.json': '{"valid":"2026-11-21T03:00:00.000Z"}',
+    });
+    await runJob({ bucket, fetch: fakeNoaa([]), container: fakeContainer(), now: at('2026-11-22T09:45Z'), log, keep: ['2026-11-21T05:30:00Z'] });
+
+    expect(bucket.json('kept/index.json')).toEqual({ '2026-11-21T05:30:00.000Z': '20261121T0300Z' });
   });
 
   it('never logs account identifiers', async () => {
