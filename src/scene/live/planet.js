@@ -8,7 +8,7 @@ import { LIGHTS_GAMMA } from '../tiles/lights-codec.ts';
 import { FACES, parent, tileId } from '../tiles/cube.ts';
 import { drawnHeightRangeKm, isOpenSea, layerTile, layerTilesFor, layerWants, selectTiles, tilesToFetch } from '../tiles/select.ts';
 import { TILES, HEIGHT_SIZE, SHADOW_MAP } from '../tiles/layout.ts';
-import { layerPath } from '../tiles/layers.ts';
+import { COLOR_LAYER, HEIGHT_LAYER, LIGHTS_LAYER, layerPath } from '../tiles/layers.ts';
 import { LayerArray } from './tile-atlas.js';
 import { toWorld } from './terrain.js';
 
@@ -100,11 +100,12 @@ export class TiledPlanet {
     this.seaLevel = seaLevel;
     this.heightRangeKm = drawnHeightRangeKm(meta.heightRangeM, { relief, seaLevel });
     this.tileLayers = tileLayers;
-    this.atlases = tileLayers.map((l) => new LayerArray(renderer, { size: l.sizePx, layers, format: l.format }));
-    this.colorIndex = tileLayers.findIndex((l) => l.id === 'color');
-    this.heightIndex = tileLayers.findIndex((l) => l.id === 'height');
+    this.colorIndex = tileLayers.findIndex((l) => l.id === COLOR_LAYER.id);
+    this.heightIndex = tileLayers.findIndex((l) => l.id === HEIGHT_LAYER.id);
     // The terrain can't draw a tile without colour and height; any other layer is optional.
+    if (this.colorIndex < 0 || this.heightIndex < 0) throw new Error(`Terrain needs '${COLOR_LAYER.id}' and '${HEIGHT_LAYER.id}' tile layers; got ${tileLayers.map((l) => `'${l.id}'`).join(', ')}.`);
     this.required = [this.colorIndex, this.heightIndex];
+    this.atlases = tileLayers.map((l) => new LayerArray(renderer, { size: l.sizePx, layers, format: l.format }));
     this.maxLevel = Math.max(...tileLayers.map((l) => l.maxLevel));
     this.sunDir = undefined;
     this.records = new Map();
@@ -287,7 +288,7 @@ export class TiledPlanet {
    * colour of that transmittance, so lights near the limb redden without being dimmed twice.
    */
   buildLights() {
-    const i = this.tileLayers.findIndex((l) => l.id === 'lights');
+    const i = this.tileLayers.findIndex((l) => l.id === LIGHTS_LAYER.id);
     const cfg = this.nightLights;
     if (i < 0 || !cfg) return null;
     const vLights = varying(instancedDynamicBufferAttribute(this.layerAttrs[i]));
