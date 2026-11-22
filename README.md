@@ -22,6 +22,27 @@ npm run dev
 
 Then open http://localhost:4321. The live scene starts on desktop-width windows with WebGPU or WebGL2, and the poster shows until the first frame. Source mosaics and tiles live in `~/.cache/falsy-dev` (override with `FALSY_DATA_DIR`), outside the repo. The dev server serves them at `/data`; builds never include them. The steps run separately as `tiles:fetch`, `tiles:heights`, and `tiles:colour`, each taking `--body mars` (the default) or `--body moon`; `tiles:colour -- --near 18.65,226.2,800` cuts only the level-3 tiles within 800 km of a point. Each body's sources and how to read them are listed in `scripts/tiles/paths.mjs`; everything else about a body (radius, orbit, lighting, features) is in `src/scene/bodies.ts`. `node scripts/tiles/budget.mjs` estimates download size per view by replaying real orbits through the renderer's tile selection.
 
+#### Earth tiles
+
+Earth's sources ship as tiles, so its bake adds a mosaic step and an optional Sentinel-2 step: `npm run tiles -- --body earth` runs fetch, `earth-mosaic`, `earth-sentinel`, heights, and colour.
+
+- Fetch downloads GEBCO_2026's eight ice-surface GeoTIFFs (about 7.5 GB), the eight Blue Marble Next Generation 500 m tiles for the bake month (about 0.5 GB), and Natural Earth's 1:10m land polygons.
+- `node scripts/tiles/earth-mosaic.mjs` writes rasters under `sources/earth-mosaic` (about 17 GB): heights at 1/120°, plus the water mask and Blue Marble colour at 1/240°. The mask is GEBCO height at or below sea level, except inside Natural Earth land.
+- `node scripts/tiles/earth-sentinel.mjs` overlays the Copernicus Sentinel-2 Global Mosaic, the latest quarter of the current season, through its cloud-optimized overviews at about 300 m. It needs the Copernicus Data Space S3 keys in `COPERNICUS_S3_ACCESS_KEY` and `COPERNICUS_S3_SECRET_KEY`; without them it skips, and colour stays Blue Marble. `--list` runs the item search without keys. `EARTH_BAKE_DATE` picks a different season. The tone curve is `TONE` in `scripts/tiles/earth/sentinel.ts`.
+- Colour tiles stop at level 6 and carry the mask in alpha (opaque is land). `meta.json` gains `flatOcean`, a per-tile bitmap of open-ocean height tiles (layout in `src/scene/tiles/flat-ocean.ts`).
+- `node scripts/tiles/masked-decode/check.mjs --url http://localhost:4321` checks, against a running dev server, that the browser keeps colour under alpha 0 in Chromium and WebKit, on WebGPU and WebGL2.
+
+A small test bake, without the full downloads, sets `FALSY_DATA_DIR=~/.cache/falsy-dev/earth-test` and runs:
+
+```bash
+node scripts/tiles/fetch-sources.mjs --body earth naturalEarthLand,gebcoCoarse,bmngCoarse,bmngC1
+node scripts/tiles/earth-mosaic.mjs --coarse
+node scripts/tiles/earth-mosaic.mjs --box 44.3,-0.1,56.4,16.7 --remote
+node scripts/tiles/heights.mjs --body earth --near 52.3,5.3,500
+node scripts/tiles/colour.mjs --body earth --near 52.3,5.3,500
+node scripts/tiles/colour.mjs --body earth --leaf-level 3
+```
+
 Production builds read the tile base URL from `PUBLIC_TILES_BASE` in `.env.production` (the R2 bucket at `tiles.falsy.dev`), and load `<base>/<body>/<version>`, for example `mars/v1`. In development, tiles come from `/data/<body>`. `doppler run -p falsy-dev -c prd -- npm run tiles:upload -- --body moon` sends a body's tiles to R2. Secrets live in the `falsy-dev` Doppler project.
 
 | Parameter | Effect |
