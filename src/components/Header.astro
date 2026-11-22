@@ -41,7 +41,24 @@ const links = [
     },
     { passive: true },
   );
-  document.addEventListener('astro:page-load', update);
+  // The nav wraps to two or three rows on narrow screens, so section jumps clear the measured height.
+  const sized = new ResizeObserver(([entry]) => {
+    const height = Math.ceil(entry.borderBoxSize[0].blockSize);
+    document.documentElement.style.setProperty('--header-h', `${height}px`);
+  });
+
+  // The router replaces the root's attributes before it scrolls to a hash, so carry the height over.
+  document.addEventListener('astro:before-swap', (e) => {
+    const height = document.documentElement.style.getPropertyValue('--header-h');
+    if (height) e.newDocument.documentElement.style.setProperty('--header-h', height);
+  });
+
+  document.addEventListener('astro:page-load', () => {
+    update();
+    sized.disconnect();
+    const header = document.querySelector('[data-header]');
+    if (header) sized.observe(header);
+  });
 </script>
 
 <style>

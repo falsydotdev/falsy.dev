@@ -97,10 +97,11 @@ const tilesOrigin = tilesBase && URL.canParse(tilesBase) ? new URL(tilesBase).or
 
       const root = document.documentElement;
       root.dataset.body = body;
-      // The favicon takes the body's accent too. Mars keeps the plain path for crawlers and no-JS visits.
+      // The favicon takes the body's accent too. Resetting an unchanged href can make the browser refetch it.
       const setIcon = (doc) => {
-        const id = root.dataset.body;
-        doc.querySelector('link[rel="icon"]')?.setAttribute('href', id === 'mars' ? '/favicon.svg' : `/favicon-${id}.svg`);
+        const link = doc.querySelector('link[rel="icon"]');
+        const href = `/favicon-${root.dataset.body}.svg`;
+        if (link && link.getAttribute('href') !== href) link.setAttribute('href', href);
       };
       setIcon(document);
       new MutationObserver(() => setIcon(document)).observe(root, { attributeFilter: ['data-body'] });
