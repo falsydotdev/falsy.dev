@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { cloudReadout, cloudUv, overCloudCap } from '../../src/scene/clouds.ts';
+import { cloudCandidates, cloudReadout, cloudsNewer, cloudUv, overCloudCap, type CloudSetInfo } from '../../src/scene/clouds.ts';
 import { orbitCameraPose } from '../../src/scene/camera.ts';
 import { EARTH } from '../../src/scene/bodies.ts';
 // @ts-expect-error The cloud job is plain JS outside the type-checked tree.
@@ -85,16 +85,90 @@ describe('the polar cap label', () => {
 });
 
 describe('the cloud readout', () => {
+  const now = new Date('2026-11-22T11:40:00Z');
+  const staticMap = { source: 'static', valid: new Date('2026-11-22T11:00:00Z') } as const;
+  const ready = (set: CloudSetInfo | null, overCap = false) => cloudReadout({ status: 'ready', set, now, overCap });
+
   it('says the clouds are a static map with synthesised detail', () => {
-    expect(cloudReadout({ source: 'static', status: 'ready', overCap: false })).toBe('clouds: static map, detail synthesised');
+    expect(ready(staticMap)).toBe('clouds: static map, detail synthesised');
+  });
+
+  it('gives a live set its valid time', () => {
+    expect(ready({ source: 'live', valid: new Date('2026-11-22T09:00:00Z') })).toBe('clouds 22 NOV 09:00Z, detail synthesised');
+  });
+
+  it('marks a live set older than about 6 hours as stale, keeping its date', () => {
+    const at = (valid: string) => ready({ source: 'live', valid: new Date(valid) });
+    expect(at('2026-11-22T05:40:00Z')).toBe('clouds 22 NOV 05:40Z, detail synthesised');
+    expect(at('2026-11-22T05:39:00Z')).toBe('clouds 22 NOV 05:39Z, stale, detail synthesised');
+    expect(at('2026-11-21T09:00:00Z')).toBe('clouds 21 NOV 09:00Z, stale, detail synthesised');
+  });
+
+  it('never calls the static map stale', () => {
+    expect(cloudReadout({ status: 'ready', set: staticMap, now: new Date('2027-01-01T00:00:00Z'), overCap: false })).toBe('clouds: static map, detail synthesised');
   });
 
   it('says when the view is over a cap without cloud data', () => {
-    expect(cloudReadout({ source: 'static', status: 'ready', overCap: true })).toBe('clouds: no polar data');
+    expect(ready(staticMap, true)).toBe('clouds: no polar data');
   });
 
   it('says nothing while the map loads, and says so when it failed', () => {
-    expect(cloudReadout({ source: 'static', status: 'loading', overCap: false })).toBeNull();
-    expect(cloudReadout({ source: 'static', status: 'failed', overCap: true })).toBe('clouds: unavailable');
+    expect(cloudReadout({ status: 'loading', set: null, now, overCap: false })).toBeNull();
+    expect(cloudReadout({ status: 'failed', set: null, now, overCap: true })).toBe('clouds: unavailable');
+  });
+});
+
+describe('choosing where the clouds come from', () => {
+  const base = 'https://clouds.example';
+  const staticUrl = '/clouds/static.json';
+  const fallback = { url: staticUrl, source: 'static' };
+
+  it('tries the latest pointer, then the static map', () => {
+    expect(cloudCandidates({ base, staticUrl })).toEqual([{ url: `${base}/latest.json`, source: 'live' }, fallback]);
+  });
+
+  it('uses the static map alone when there is no live source', () => {
+    expect(cloudCandidates({ base: null, staticUrl })).toEqual([fallback]);
+    expect(cloudCandidates({ base: null, staticUrl, at: new Date('2026-11-22T12:30:00Z') })).toEqual([fallback]);
+  });
+
+  it('looks for a pinned moment among the sets of the 6 hours before it, newest first, dated before kept', () => {
+    const urls = cloudCandidates({ base, staticUrl, at: new Date('2026-11-22T12:30:00Z') }).map((c) => c.url);
+    expect(urls).toEqual([
+      `${base}/dated/20261122T1200Z/meta.json`, `${base}/kept/20261122T1200Z/meta.json`,
+      `${base}/dated/20261122T1100Z/meta.json`, `${base}/kept/20261122T1100Z/meta.json`,
+      `${base}/dated/20261122T1000Z/meta.json`, `${base}/kept/20261122T1000Z/meta.json`,
+      `${base}/dated/20261122T0900Z/meta.json`, `${base}/kept/20261122T0900Z/meta.json`,
+      `${base}/dated/20261122T0800Z/meta.json`, `${base}/kept/20261122T0800Z/meta.json`,
+      `${base}/dated/20261122T0700Z/meta.json`, `${base}/kept/20261122T0700Z/meta.json`,
+      staticUrl,
+    ]);
+  });
+
+  it('counts a set valid at the moment itself but not one exactly 6 hours before, across midnight', () => {
+    const urls = cloudCandidates({ base, staticUrl, at: new Date('2026-11-23T02:00:00Z') }).map((c) => c.url);
+    expect(urls[0]).toBe(`${base}/dated/20261123T0200Z/meta.json`);
+    expect(urls.at(-2)).toBe(`${base}/kept/20261122T2100Z/meta.json`);
+    expect(urls).not.toContain(`${base}/dated/20261122T2000Z/meta.json`);
+  });
+});
+
+describe('refetching clouds when a tab comes back', () => {
+  const live = { source: 'live', valid: new Date('2026-11-22T09:00:00Z') } as const;
+
+  it('loads a set only when the pointer names a newer one', () => {
+    expect(cloudsNewer(live, '2026-11-22T12:00:00.000Z')).toBe(true);
+    expect(cloudsNewer(live, '2026-11-22T09:00:00.000Z')).toBe(false);
+    expect(cloudsNewer(live, '2026-11-22T06:00:00.000Z')).toBe(false);
+  });
+
+  it('keeps what it has when the pointer is missing or unreadable', () => {
+    expect(cloudsNewer(live, null)).toBe(false);
+    expect(cloudsNewer(live, 'soon')).toBe(false);
+  });
+
+  it('replaces the static map, or no clouds at all, with any live set', () => {
+    expect(cloudsNewer({ source: 'static', valid: new Date('2026-11-22T11:00:00Z') }, '2026-11-21T00:00:00.000Z')).toBe(true);
+    expect(cloudsNewer(null, '2026-11-21T00:00:00.000Z')).toBe(true);
   });
 });
