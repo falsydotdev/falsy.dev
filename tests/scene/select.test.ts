@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { orbitCameraPose } from '../../src/scene/camera';
 import { vec, type Vec3 } from '../../src/scene/ephemeris';
 import { type TileKey, dirOf, tileAt, tileDir, tileId, parent } from '../../src/scene/tiles/cube';
-import { type CameraPose, layerTilesToFetch, selectTiles, tilesToFetch } from '../../src/scene/tiles/select';
+import { type CameraPose, drawnHeightRangeKm, layerTilesToFetch, layerWants, selectTiles, tilesToFetch } from '../../src/scene/tiles/select';
+import { FlatOceanBuilder } from '../../src/scene/tiles/flat-ocean';
 import type { TileLayer } from '../../src/scene/tiles/layers';
-import { MARS, MOON } from '../../src/scene/bodies';
+import { EARTH, MARS, MOON } from '../../src/scene/bodies';
 
 const R = 3396.19;
 const opts = { radiusKm: R, heightRangeKm: [-8.2 * 2.5, 21.3 * 2.5] as [number, number], tilePx: 256, maxLevel: 7 };
@@ -151,5 +152,49 @@ describe('a body with an extra tile layer', () => {
       expect(body.tiles.layers.map((l) => l.id)).toEqual(['color', 'height']);
       for (const layer of body.tiles.layers) expect([...fetchIdsOf(layerTilesToFetch(keys, layer, dirOf(10, 120)))].sort()).toEqual(all);
     }
+  });
+});
+
+describe("Earth's tiles", () => {
+  const ER = EARTH.radiusKm;
+  const earthPose = (): CameraPose => {
+    const rBody = vec.scale(dirOf(52.3, 5.3), ER + EARTH.altKm);
+    const { position, forward, up } = orbitCameraPose(rBody, vec.cross([0, 0, 1], rBody), ER, 12);
+    return { position, forward, up, fovYRad: (50 * Math.PI) / 180, aspect: 16 / 9, viewportHeightPx: 1080 };
+  };
+  const [colour, height] = EARTH.tiles.layers;
+  const sea = { face: 4, level: 5, x: 3, y: 9 };
+  const ocean = new FlatOceanBuilder(7);
+  ocean.set(sea, true);
+  ocean.set({ face: 4, level: 1, x: 0, y: 0 }, true);
+  const flatOcean = ocean.toJSON();
+
+  it('selects about as many tiles from 400 km as Mars does from 200 km', () => {
+    const range = drawnHeightRangeKm([-10436, 7173], EARTH);
+    const earth = selectTiles(earthPose(), { radiusKm: ER, heightRangeKm: range, tilePx: 256, maxLevel: 7 });
+    const mars = selectTiles(pose(200, 12), opts);
+    expect(earth.length / mars.length).toBeGreaterThan(0.6);
+    expect(earth.length / mars.length).toBeLessThan(1.6);
+  });
+
+  it('bounds the terrain at sea level, since the sea is drawn flat', () => {
+    expect(drawnHeightRangeKm([-10436, 7173], EARTH)).toEqual([0, 7.173 * 2.5]);
+    expect(drawnHeightRangeKm([-8200, 21300], MARS)).toEqual([-8.2 * 2.5, 21.3 * 2.5]);
+  });
+
+  it('skips the height tiles of open ocean, but still fetches their colour', () => {
+    expect(layerWants(sea, height, undefined, flatOcean)).toBe(false);
+    expect(layerWants(sea, colour, undefined, flatOcean)).toBe(true);
+    expect(layerWants({ ...sea, x: 4 }, height, undefined, flatOcean)).toBe(true);
+    const keys = [sea, { ...sea, x: 4 }];
+    expect(layerTilesToFetch(keys, height, undefined, flatOcean).map(tileId)).toEqual([tileId({ ...sea, x: 4 })]);
+  });
+
+  it('keeps the pinned fallback levels, which every drawn tile can borrow heights from', () => {
+    expect(layerWants({ face: 4, level: 1, x: 0, y: 0 }, height, undefined, flatOcean)).toBe(true);
+  });
+
+  it('reads no flat ocean on a body without the bitmap', () => {
+    expect(layerWants(sea, height, undefined, undefined)).toBe(true);
   });
 });

@@ -1,6 +1,6 @@
 ---
 import posterData from '../data/posters.json';
-import { BODIES, nextBodyId } from '../scene/bodies';
+import { BODIES, listedBodyIds, nextBodyId } from '../scene/bodies';
 
 interface Poster {
   id: string;
@@ -39,7 +39,8 @@ function telemetry(p: Pick<Poster, 'body' | 'lat' | 'lon' | 'lst' | 'altKm' | 'r
   return parts.map(([text, cls]) => `<span${cls ? ` class="${cls}"` : ''}>${text}</span>`).join('');
 }
 
-const bodies = Object.keys(BODIES);
+// Bodies first visits pick from and the switch button reaches. `?body=` can show any body.
+const bodies = listedBodyIds(import.meta.env.DEV);
 const ui = Object.fromEntries(Object.values(BODIES).map((b) => [b.id, { name: b.name, spoken: b.spokenName, loading: b.loadingLabel }]));
 const srcset = (sources: { src: string; width: number }[]) => sources.map((s) => `${s.src} ${s.width}w`).join(', ');
 const choices = posters.map((p) => ({
@@ -55,7 +56,7 @@ const choices = posters.map((p) => ({
 }));
 const fallback = choices[0];
 const withStills = new Set(choices.map((c) => c.body));
-const posterNext = Object.fromEntries(bodies.map((id) => [id, nextBodyId(bodies, id, (b) => withStills.has(b))]));
+const posterNext = Object.fromEntries(Object.keys(BODIES).map((id) => [id, nextBodyId(bodies, id, (b) => withStills.has(b))]));
 // Production tiles live on their own host; in development they're served from this one.
 const tilesBase = import.meta.env.PUBLIC_TILES_BASE;
 const tilesOrigin = tilesBase && URL.canParse(tilesBase) ? new URL(tilesBase).origin : '';
@@ -89,7 +90,7 @@ const tilesOrigin = tilesBase && URL.canParse(tilesBase) ? new URL(tilesBase).or
       const write = (key, value) => { try { localStorage.setItem(key, value); } catch {} };
       const asked = new URLSearchParams(location.search).get('body');
       const lastBody = read('falsy:body');
-      let body = bodies.includes(asked) ? asked
+      let body = Object.hasOwn(ui, asked) ? asked
         : bodies.includes(lastBody) ? bodies[(bodies.indexOf(lastBody) + 1) % bodies.length]
         : bodies[Math.floor(Math.random() * bodies.length)];
       // A body without posters can still be shown live, but not as a still.

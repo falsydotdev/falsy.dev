@@ -39,7 +39,7 @@ declare global {
 }
 
 import { isTierName } from './quality.ts';
-import { type Body, BODIES, bodyById } from './bodies.ts';
+import { type Body, bodyById, listedBodyIds } from './bodies.ts';
 import { layerPath } from './tiles/layers.ts';
 
 // Load times from a tab that was hidden at any point include the wait, so analytics flags them.
@@ -114,7 +114,7 @@ const FADE_MS = 1000;
 // A switch fades in once the new view has its coarse tiles; fine detail streams in after, as on any load.
 const SWITCH_SETTLE_MS = 2500;
 const PREWARM_LEVELS = 2;
-const BODY_IDS = Object.keys(BODIES);
+const BODY_IDS = listedBodyIds(import.meta.env.DEV);
 const nextBody = (b: Body) => bodyById(BODY_IDS[(BODY_IDS.indexOf(b.id) + 1) % BODY_IDS.length]);
 const throttledNow = () => scrollY > innerHeight * 0.8;
 

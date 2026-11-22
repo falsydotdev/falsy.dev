@@ -1,7 +1,7 @@
 // Type-only, so the page's main bundle can read body configs without loading the ephemeris library.
 import type * as A from 'astronomy-engine';
 import type { Atmosphere } from './atmosphere-luts.ts';
-import { type Feature, MARS_FEATURES, MOON_FEATURES } from './features.ts';
+import { EARTH_FEATURES, type Feature, MARS_FEATURES, MOON_FEATURES } from './features.ts';
 import { COLOR_LAYER, HEIGHT_LAYER, type TileLayer } from './tiles/layers.ts';
 
 export type RGB = readonly [number, number, number];
@@ -32,6 +32,8 @@ export interface Body {
     skyTint: RGB; // colour of the diffuse skylight on the ground
   };
   // The streamed tile layers. Colour and height are required; the terrain draws without the rest.
+  // Heights below 0 are sea, drawn flat at sea level; the sea floor stays in the tiles for shading.
+  seaLevel?: boolean;
   tiles: { version: string; layers: TileLayer[] };
   shots: {
     weights: Partial<Record<'dawn-dusk' | 'orbital-sunrise' | 'feature-flyover' | 'earthrise', number>>;
@@ -46,6 +48,9 @@ export interface Body {
     // Haze keeps Mars lit past its terminator; the bare Moon goes dark before it.
     darkBelowDeg: number;
   };
+  // Offered in production's first-visit picks and the switch button. A body whose production
+  // tiles aren't uploaded yet stays off; `?body=` and development still show it.
+  listed: boolean;
 }
 
 // Mars's dust load scales its clear-air values; 0.2 is a moderately dusty day.
@@ -90,6 +95,7 @@ export const MARS: Body = {
   },
   tiles: { version: 'v1', layers: [COLOR_LAYER, HEIGHT_LAYER] },
   shots: { weights: { 'dawn-dusk': 0.4, 'orbital-sunrise': 0.3, 'feature-flyover': 0.3 }, dawnDuskSunDeg: 0, sunriseLeadS: 60, sunriseLimbKm: 0, darkBelowDeg: -4 },
+  listed: true,
 };
 
 // GM from JPL DE440. Radius is the 1737.4 km sphere LOLA heights are measured from.
@@ -121,14 +127,57 @@ export const MOON: Body = {
   // An airless sunrise opens on a black limb and lights only a sliver for minutes, so it's left
   // out of the mix; `?shot=orbital-sunrise` still shows it. A long lead would open on black.
   shots: { weights: { 'dawn-dusk': 0.4, 'orbital-sunrise': 0, 'feature-flyover': 0.3, earthrise: 0.3 }, dawnDuskSunDeg: 10, sunriseLeadS: 15, sunriseLimbKm: 15, darkBelowDeg: 4 },
+  listed: true,
 };
 
-export const BODIES: Record<string, Body> = { mars: MARS, moon: MOON };
+// GM from the IERS conventions; radius is the sphere the GEBCO heights are drawn on. Latitude on
+// that sphere is read as geodetic, as the bake reads its source rasters, so local Sun elevation
+// and feature placement are exact; altitude in the readout is above this mean radius.
+export const EARTH: Body = {
+  id: 'earth',
+  name: 'Earth',
+  spokenName: 'Earth',
+  loadingLabel: 'Earth terrain',
+  dataCredit: 'GEBCO elevation and NASA Blue Marble colour data',
+  ae: 'Earth' as A.Body,
+  gm: 398600.4,
+  radiusKm: 6371,
+  // The ISS's altitude.
+  altKm: 400,
+  relief: 2.5,
+  features: EARTH_FEATURES,
+  sunDiameterRad: 0.0093,
+  showsEarth: false,
+  glowKm: 55,
+  // Hillaire (2020), table 1.
+  atmosphere: {
+    topKm: 100,
+    groundAlbedo: [0.3, 0.3, 0.3],
+    intensity: 16,
+    components: [
+      { scattering: [5.802e-3, 13.558e-3, 33.1e-3], absorption: [0, 0, 0], profile: { scaleHeightKm: 8 }, phase: 'rayleigh' },
+      { scattering: [3.996e-3, 3.996e-3, 3.996e-3], absorption: [0.444e-3, 0.444e-3, 0.444e-3], profile: { scaleHeightKm: 1.2 }, phase: [0.8, 0.8, 0.8] },
+      { scattering: [0, 0, 0], absorption: [0.65e-3, 1.881e-3, 0.085e-3], profile: { tent: { bottomKm: 10, peakKm: 25, topKm: 40 } } },
+    ],
+  },
+  light: {
+    sunColor: [1, 0.98, 0.95],
+    sunIntensity: 3.4,
+    ambient: 0.03,
+    skyTint: [0.55, 0.7, 1],
+  },
+  seaLevel: true,
+  // Colour stops at level 6 and carries the water mask in alpha (opaque is land).
+  tiles: { version: 'v1', layers: [{ ...COLOR_LAYER, format: 'masked', maxLevel: 6 }, HEIGHT_LAYER] },
+  // Feature flyovers fall back to dawn-dusk until Earth has a feature list.
+  shots: { weights: { 'dawn-dusk': 0.4, 'orbital-sunrise': 0.3, 'feature-flyover': 0.3 }, dawnDuskSunDeg: 4, sunriseLeadS: 60, sunriseLimbKm: 0, darkBelowDeg: -6 },
+  listed: false,
+};
 
-// Baked ahead of Earth becoming a body; the Earth body takes its radius and tiles from here.
-// Colour stops at level 6 and carries the water mask in alpha (opaque is land).
-export const EARTH_RADIUS_KM = 6371;
-export const EARTH_TILES: Body['tiles'] = { version: 'v1', layers: [{ ...COLOR_LAYER, format: 'masked', maxLevel: 6 }, HEIGHT_LAYER] };
+export const BODIES: Record<string, Body> = { mars: MARS, moon: MOON, earth: EARTH };
+
+/** The bodies first visits pick from and the switch button cycles through, in switch order. */
+export const listedBodyIds = (dev: boolean): string[] => Object.values(BODIES).filter((b) => b.listed || dev).map((b) => b.id);
 
 export const bodyById = (id: string | null | undefined): Body => (id && BODIES[id]) || MARS;
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import posters from '../../src/data/posters.json';
-import { BODIES, MARS, MOON, nextBodyId } from '../../src/scene/bodies';
+import { BODIES, EARTH, MARS, MOON, bodyById, listedBodyIds, nextBodyId } from '../../src/scene/bodies';
 
 describe('per-body UI strings', () => {
   it('gives every body a loading label, spoken name, and data credit', () => {
@@ -54,5 +54,20 @@ describe('poster-mode switching', () => {
     const withStills = new Set(posters.map((p) => p.body.toLowerCase()));
     for (const id of withStills) expect(bodies, id).toContain(id);
     for (const start of withStills) expect(new Set(cycle(bodies, start, (id) => withStills.has(id)))).toEqual(withStills);
+  });
+});
+
+describe('bodies offered before their production tiles exist', () => {
+  it('leaves Earth out of production picks and the switch button until it is listed', () => {
+    expect(EARTH.listed).toBe(false);
+    expect(listedBodyIds(false)).toEqual(['mars', 'moon']);
+  });
+
+  it('offers every body in development', () => {
+    expect(listedBodyIds(true)).toEqual(['mars', 'moon', 'earth']);
+  });
+
+  it('still finds Earth by id, so `?body=earth` previews it', () => {
+    expect(bodyById('earth')).toBe(EARTH);
   });
 });

@@ -2,12 +2,11 @@ import * as THREE from 'three/webgpu';
 import { float, max, normalWorld, positionWorld, cameraPosition, pow, smoothstep, texture, uniform, vec3 } from 'three/tsl';
 import { toWorld } from './terrain.js';
 import { bodyFrame, earthFromMoon, toBody } from '../ephemeris';
+import { EARTH } from '../bodies.ts';
 
-const EARTH_RADIUS_KM = 6371;
 // Drawn this far from the camera at its true angular size: in front of the Sun's disc, so it can
 // eclipse it, and behind any terrain.
 const DISTANCE_KM = 9e4;
-const EARTH = /** @type {import('../bodies.ts').Body} */ ({ ae: 'Earth' });
 // Earth's place and spin change by well under a pixel a second, so they're recomputed at most this often.
 const REFRESH_MS = 1000;
 
@@ -80,11 +79,11 @@ export function createEarth({ url, lighting }) {
       rel.copy(earthWorld).sub(camera.position);
       const distance = rel.length();
       const k = DISTANCE_KM / distance;
-      mesh.matrix.copy(basis).scale(scale.setScalar(EARTH_RADIUS_KM * k)).setPosition(rel.multiplyScalar(k).add(camera.position));
+      mesh.matrix.copy(basis).scale(scale.setScalar(EARTH.radiusKm * k)).setPosition(rel.multiplyScalar(k).add(camera.position));
       mesh.matrixWorldNeedsUpdate = true;
       sunDir.value.copy(sunW);
       occluder.dir.copy(earthWorld).sub(camera.position).divideScalar(distance);
-      occluder.radiusRad = Math.asin(EARTH_RADIUS_KM / distance);
+      occluder.radiusRad = Math.asin(EARTH.radiusKm / distance);
       return mesh.visible ? occluder : null;
     },
     dispose() {

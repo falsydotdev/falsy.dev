@@ -4,7 +4,7 @@ import {
   normalize, positionWorld, round, sin, smoothstep, sqrt, tan, texture, uniform, uniformArray, uv, varying, vec2, vec3, vec4,
 } from 'three/tsl';
 import { FACES, parent, tileId } from '../tiles/cube.ts';
-import { layerTile, layerWants, selectTiles, tilesToFetch } from '../tiles/select.ts';
+import { drawnHeightRangeKm, layerTile, layerWants, selectTiles, tilesToFetch } from '../tiles/select.ts';
 import { TILES, HEIGHT_SIZE, SHADOW_MAP } from '../tiles/layout.ts';
 import { layerPath } from '../tiles/layers.ts';
 import { LayerArray } from './tile-atlas.js';
@@ -81,7 +81,7 @@ class Record {
 export class TiledPlanet {
   /** @param {THREE.WebGPURenderer} renderer */
   /** `layers` is each atlas's depth; `tileLayers` is the body's list of streamed layers. */
-  constructor(renderer, { baseUrl, meta, relief, layers, tileLayers, lighting, atmosphere = null, relaxBeyondKm = 500 }) {
+  constructor(renderer, { baseUrl, meta, relief, seaLevel = false, layers, tileLayers, lighting, atmosphere = null, relaxBeyondKm = 500 }) {
     this.lighting = lighting;
     this.atmosphere = atmosphere;
     this.relaxBeyondKm = relaxBeyondKm > 0 ? relaxBeyondKm : Infinity;
@@ -90,7 +90,8 @@ export class TiledPlanet {
     this.meta = meta;
     this.radiusKm = meta.radiusKm;
     this.relief = relief;
-    this.heightRangeKm = [(meta.heightRangeM[0] / 1000) * relief, (meta.heightRangeM[1] / 1000) * relief];
+    this.seaLevel = seaLevel;
+    this.heightRangeKm = drawnHeightRangeKm(meta.heightRangeM, { relief, seaLevel });
     this.tileLayers = tileLayers;
     this.atlases = tileLayers.map((l) => new LayerArray(renderer, { size: l.sizePx, layers, format: l.format }));
     this.colorIndex = tileLayers.findIndex((l) => l.id === 'color');
@@ -142,7 +143,12 @@ export class TiledPlanet {
     const lat = asin(n.y);
     const lon = atan(n.z.negate(), n.x);
     const uvMap = vec2(lon.add(Math.PI).div(2 * Math.PI), float(Math.PI / 2).sub(lat).div(Math.PI));
-    return this.shadowSlot.sample(uvMap).level(0).r.mul(this.exaggeration);
+    return this.aboveSea(this.shadowSlot.sample(uvMap).level(0).r).mul(this.exaggeration);
+  }
+
+  /** Height in km with the sea held flat at 0, on a body with a sea; heights unchanged otherwise. */
+  aboveSea(h) {
+    return this.seaLevel ? max(h, 0) : h;
   }
 
   buildMaterial() {
@@ -170,7 +176,7 @@ export class TiledPlanet {
     const heightKm = Fn(([hs, f]) => {
       const g = hs.zw.add(f.mul(hs.y));
       const uvH = g.mul(cells).add(border + 0.5).div(HEIGHT_SIZE);
-      return texture(heightTex, uvH).depth(int(round(hs.x))).level(0).r.mul(exaggeration);
+      return this.aboveSea(texture(heightTex, uvH).depth(int(round(hs.x))).level(0).r).mul(exaggeration);
     });
     const surface = Fn(([tile, hs, f]) => direction(tile, f).mul(heightKm(hs, f).add(R)));
 
@@ -191,7 +197,7 @@ export class TiledPlanet {
     const shadowHeight = (lat, lon) => {
       const u = lon.add(Math.PI).div(2 * Math.PI);
       const v = float(Math.PI / 2).sub(lat).div(Math.PI);
-      return shadowTex.sample(vec2(u, v)).level(0).r.mul(exaggeration);
+      return this.aboveSea(shadowTex.sample(vec2(u, v)).level(0).r).mul(exaggeration);
     };
 
     mat.colorNode = Fn(() => {
@@ -430,7 +436,7 @@ export class TiledPlanet {
    */
   slotRecord(r, tileLayer) {
     const k = layerTile(r.key, tileLayer);
-    if (!layerWants(k, tileLayer, this.sunDir)) return null;
+    if (!layerWants(k, tileLayer, this.sunDir, this.meta.flatOcean)) return null;
     return k === r.key ? r : this.record(k);
   }
 
@@ -453,7 +459,7 @@ export class TiledPlanet {
       const r = this.records.get(s.id);
       if (r && this.tileLayers.every((tileLayer, i) => {
         const k = layerTile(s.key, tileLayer);
-        if (!layerWants(k, tileLayer, this.sunDir)) return true;
+        if (!layerWants(k, tileLayer, this.sunDir, this.meta.flatOcean)) return true;
         const t = k === s.key ? r : this.records.get(tileId(k));
         return t && done(t.slots[i]);
       })) ready++;

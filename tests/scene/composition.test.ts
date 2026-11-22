@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { EARTH } from '../../src/scene/bodies';
 import { keepsClear, limbHeightAt, limbOnScreen, solveFraming } from '../../src/scene/composition';
 
 const BODY = { radiusKm: 3396.19, altKm: 200, fovDeg: 50 };
@@ -43,5 +44,22 @@ describe('framing', () => {
     const p = page(1440, 900);
     const limb = limbOnScreen({ ...BODY, aspect: p.aspect }, solveFraming({ ...BODY, ...p }));
     expect(limbHeightAt(limb, 0.1)).toBeGreaterThan(limbHeightAt(limb, 0.9));
+  });
+});
+
+describe("framing Earth's limb", () => {
+  const earth = { radiusKm: EARTH.radiusKm, altKm: EARTH.altKm, fovDeg: 50 };
+
+  it('frames the 50 to 60 km glow above the limb', () => {
+    expect(EARTH.glowKm).toBeGreaterThanOrEqual(50);
+    expect(EARTH.glowKm).toBeLessThanOrEqual(60);
+  });
+
+  it.each(VIEWPORTS)('keeps the glow out of the text and header at %ix%i', (w, h) => {
+    const p = page(w, h);
+    const framing = solveFraming({ ...earth, glowKm: EARTH.glowKm, ...p });
+    const limb = limbOnScreen({ ...earth, aspect: p.aspect }, framing, EARTH.glowKm);
+    expect(keepsClear(limb, p.text, p.headerBottom)).toBe(true);
+    expect(limbHeightAt(limb, 1)).toBeLessThan(0.75);
   });
 });

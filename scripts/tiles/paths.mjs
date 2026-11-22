@@ -1,6 +1,6 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { BODIES, EARTH_RADIUS_KM, EARTH_TILES } from '../../src/scene/bodies.ts';
+import { BODIES } from '../../src/scene/bodies.ts';
 import { QUAD_TILES } from './earth/grid.ts';
 import { bmngMonth } from './earth/sentinel.ts';
 
@@ -87,11 +87,10 @@ export const PIPELINE = {
   },
 };
 
-/** Radius and tile layers for a body's bake, including Earth before it joins BODIES. */
+/** Radius and tile layers for a body's bake. */
 export function bodyInfo(id) {
   const body = BODIES[id];
   if (body) return { radiusKm: body.radiusKm, layers: body.tiles.layers };
-  if (id === 'earth') return { radiusKm: EARTH_RADIUS_KM, layers: EARTH_TILES.layers };
   throw new Error(`No body config for ${id}`);
 }
 
