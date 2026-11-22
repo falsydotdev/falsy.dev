@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { cloudCandidates, cloudReadout, cloudsNewer, cloudUv, overCloudCap, type CloudSetInfo } from '../../src/scene/clouds.ts';
+import { cloudCandidates, cloudReadout, cloudsNewer, cloudsRecheckDue, cloudUv, overCloudCap, type CloudSetInfo } from '../../src/scene/clouds.ts';
 import { orbitCameraPose } from '../../src/scene/camera.ts';
 import { EARTH } from '../../src/scene/bodies.ts';
 // @ts-expect-error The cloud job is plain JS outside the type-checked tree.
@@ -170,5 +170,36 @@ describe('refetching clouds when a tab comes back', () => {
   it('replaces the static map, or no clouds at all, with any live set', () => {
     expect(cloudsNewer({ source: 'static', valid: new Date('2026-11-22T11:00:00Z') }, '2026-11-21T00:00:00.000Z')).toBe(true);
     expect(cloudsNewer(null, '2026-11-21T00:00:00.000Z')).toBe(true);
+  });
+});
+
+describe('rechecking clouds while a tab stays visible', () => {
+  const HOUR = 3_600_000;
+  const start = Date.parse('2026-11-22T09:50:00Z');
+  // The job runs every 3 hours and its set lands about 45 minutes after the satellite pass.
+  const pointerAt = (now: number) => {
+    const valid = Math.floor((now - 0.75 * HOUR) / (3 * HOUR)) * 3 * HOUR;
+    return new Date(valid).toISOString();
+  };
+
+  it('keeps a healthy job from reading stale on a tab left open all day', () => {
+    let set: CloudSetInfo = { source: 'live', valid: new Date(pointerAt(start)) };
+    let lastCheck = start;
+    let checks = 0;
+    for (let now = start; now < start + 24 * HOUR; now += 10_000) {
+      if (cloudsRecheckDue(lastCheck, now)) {
+        lastCheck = now;
+        checks++;
+        const valid = pointerAt(now);
+        if (cloudsNewer(set, valid)) set = { source: 'live', valid: new Date(valid) };
+      }
+      expect(cloudReadout({ status: 'ready', set, now: new Date(now), overCap: false })).not.toMatch(/stale/);
+    }
+    expect(checks).toBeLessThanOrEqual(48);
+  });
+
+  it("doesn't check again within minutes of the last check", () => {
+    expect(cloudsRecheckDue(start, start + 60_000)).toBe(false);
+    expect(cloudsRecheckDue(start, start + 10 * 60_000)).toBe(false);
   });
 });

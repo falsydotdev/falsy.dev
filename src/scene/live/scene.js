@@ -21,7 +21,7 @@ import { atlasLayers, memoryClass, msaaSamples, sceneGpuBytes } from '../gpu-mem
 import { frameTimes } from '../perf.ts';
 import { solveFraming } from '../composition.ts';
 import { parseFx } from '../fx.ts';
-import { cloudCandidates, cloudReadout, overCloudCap } from '../clouds.ts';
+import { cloudCandidates, cloudReadout, cloudsRecheckDue, overCloudCap } from '../clouds.ts';
 import { homePass } from '../home-pass.ts';
 import { lightsAround } from '../lights.ts';
 import { zoneCoords } from '../timezone.ts';
@@ -536,6 +536,15 @@ export async function startLiveScene(host, opts) {
     });
   };
 
+  // Asks the latest pointer for a newer set. The loop only runs while the tab is visible, so a hidden
+  // tab doesn't poll; it checks once when it comes back.
+  let cloudsCheckedAt = 0;
+  const recheckClouds = (t) => {
+    cloudsCheckedAt = t;
+    if (!clouds || opts.at || !CLOUDS_BASE) return;
+    clouds.refresh(`${CLOUDS_BASE}/latest.json`);
+  };
+
   // A bench batch that outruns the frame interval would queue behind the last one and be timed
   // with its backlog, so the next batch waits for the GPU to finish.
   let batchInFlight = false;
@@ -592,8 +601,9 @@ export async function startLiveScene(host, opts) {
       // Only the page's first scene measures the page load; later ones are body switches.
       window.__falsyPageReady ??= { body: body.id, sinceNavMs: Math.round(performance.now()), renderMs: Math.round(loadMs), hiddenDuringLoad: !!window.__falsyHiddenSinceNav };
       if (homeEligible) markHomePassSeen();
+      cloudsCheckedAt = t;
       opts.onFirstFrame?.();
-    }
+    } else if (!first && cloudsRecheckDue(cloudsCheckedAt, t)) recheckClouds(t);
   });
 
   addEventListener('resize', onResize);
@@ -639,7 +649,7 @@ export async function startLiveScene(host, opts) {
           if (performance.now() - hiddenAt > RESUME_SNAPSHOT_AFTER_MS) resumeStarted = performance.now();
           else dropSnapshot();
         }
-        if (!opts.at && CLOUDS_BASE) clouds?.refresh(`${CLOUDS_BASE}/latest.json`);
+        recheckClouds(performance.now());
       }
       running = on;
     },

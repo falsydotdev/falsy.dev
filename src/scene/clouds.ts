@@ -85,6 +85,12 @@ export function cloudsNewer(current: CloudSetInfo | null, pointerValid: string |
   return current?.source !== 'live' || valid > current.valid.getTime();
 }
 
+/** How often a visible tab asks the latest pointer for a newer set: a few times per 3-hour job run. */
+export const CLOUDS_RECHECK_MS = 30 * 60_000;
+
+/** Whether a visible tab should ask the latest pointer again, given wall-clock milliseconds. */
+export const cloudsRecheckDue = (lastCheckMs: number, nowMs: number) => nowMs - lastCheckMs >= CLOUDS_RECHECK_MS;
+
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 const pad = (n: number) => String(n).padStart(2, '0');
 const validLabel = (d: Date) => `${pad(d.getUTCDate())} ${MONTHS[d.getUTCMonth()]} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}Z`;
