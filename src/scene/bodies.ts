@@ -169,7 +169,7 @@ export const EARTH: Body = {
   name: 'Earth',
   spokenName: 'Earth',
   loadingLabel: 'Earth terrain',
-  dataCredit: 'GEBCO elevation and NASA Blue Marble colour data',
+  dataCredit: 'GEBCO elevation, Sentinel-2 and Blue Marble colour, Black Marble city lights, and GMGSI cloud data',
   ae: 'Earth' as A.Body,
   gm: 398600.4,
   radiusKm: 6371,
