@@ -9,7 +9,7 @@ import { mkdir, open, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { EARTH_BAKE_DATE, TILE_DIR } from './paths.mjs';
 import { listRasters, pixelDeg } from './mosaic-rasters.mjs';
-import { colorPeriod, mosaicQuarter, toneReflectance } from './earth/sentinel.ts';
+import { colorPeriod, copernicusYear, mosaicQuarter, toneReflectance } from './earth/sentinel.ts';
 import { presignGet } from './earth/s3.ts';
 import { toUtm } from './earth/utm.ts';
 
@@ -30,6 +30,7 @@ async function recordPeriod(sentinelPixels) {
   await mkdir(out, { recursive: true });
   await writeFile(metaFile, JSON.stringify({ ...meta, colorPeriod: period }, null, 2));
   console.log(`Colour period: ${JSON.stringify(period)}`);
+  console.log(`Before uploading, set EARTH.tiles.sentinelYear in src/scene/bodies.ts to ${copernicusYear(period)} for the footer credit.`);
 }
 
 if (!listOnly && (!keys.accessKeyId || !keys.secretAccessKey)) {

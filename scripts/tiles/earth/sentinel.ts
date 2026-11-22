@@ -45,3 +45,6 @@ export function colorPeriod(date: Date, sentinelPixels: number): ColorPeriod {
   }
   return { source: 'blue-marble', year: 2004, month: date.getUTCMonth() + 1 };
 }
+
+/** The Sentinel-2 mosaic year a colour period owes Copernicus credit for, or null for Blue Marble only. */
+export const copernicusYear = (period: ColorPeriod | undefined): number | null => (period?.source === 'sentinel-2' ? period.year : null);

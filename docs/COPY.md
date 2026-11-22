@@ -145,7 +145,7 @@ Behind this page is Mars or the Moon, rendered from real NASA and USGS data. On 
 
 **Credits (footer):** Mars terrain from USGS Astrogeology: MOLA elevation and the Viking MDIM 2.1 colour mosaic. Moon terrain from NASA/GSFC/Arizona State University: LOLA elevation, and LROC colour by NASA's Scientific Visualization Studio. Earth from NASA's Blue Marble, by the Scientific Visualization Studio.
 
-Once Earth is listed, the footer adds (pending approval): Earth elevation from the GEBCO_2026 Grid (GEBCO Bathymetric Compilation Group 2026, doi:10.5285/4f68d5c7-45eb-f999-e063-7086abc036fa). Earth colour from Copernicus Sentinel-2 and NASA Blue Marble, and city lights from NASA Black Marble, by NASA Earth Observatory. Clouds from NOAA GMGSI (NESDIS). Contains modified Copernicus Sentinel data 2025.
+Once Earth is listed, the footer adds (pending approval): Earth elevation from the GEBCO_2026 Grid (GEBCO Bathymetric Compilation Group 2026, doi:10.5285/4f68d5c7-45eb-f999-e063-7086abc036fa). Earth colour from Copernicus Sentinel-2 and NASA Blue Marble, and city lights from NASA Black Marble, by NASA Earth Observatory. Clouds from NOAA GMGSI (NESDIS). Contains modified Copernicus Sentinel data 2025. The year is `EARTH.tiles.sentinelYear` in `src/scene/bodies.ts`. A Blue Marble-only bake drops the Copernicus sentence and reads "Earth colour from NASA Blue Marble, and city lights …".
 
 ## Contact
 
