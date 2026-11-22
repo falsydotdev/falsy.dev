@@ -1,17 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { CREDITS, footerCredits } from '../../src/config/credits';
-import { BODIES, listedBodyIds } from '../../src/scene/bodies';
+import { BODIES } from '../../src/scene/bodies';
 
 const SHIPPED =
   "Mars terrain from USGS Astrogeology: MOLA elevation and the Viking MDIM 2.1 colour mosaic. Moon terrain from NASA/GSFC/Arizona State University: LOLA elevation, and LROC colour by NASA's Scientific Visualization Studio. Earth from NASA's Blue Marble, by the Scientific Visualization Studio.";
 
 describe('footer credits', () => {
   it('keeps the shipped wording while Earth is unlisted', () => {
-    expect(footerCredits(listedBodyIds(false))).toBe(SHIPPED);
+    expect(footerCredits(['mars', 'moon'])).toBe(SHIPPED);
   });
 
   it("credits every Earth source once Earth is listed, with GEBCO's DOI", () => {
-    const credits = footerCredits(listedBodyIds(true));
+    const credits = footerCredits(['mars', 'moon', 'earth']);
     expect(credits.startsWith(SHIPPED)).toBe(true);
     for (const required of [
       'GEBCO_2026',

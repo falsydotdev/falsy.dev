@@ -115,7 +115,7 @@ cd clouds/container && npm ci && cd ../..
 node clouds/scripts/poster-sets.mjs        # writes kept/<valid>/ and kept/index.json under ~/.cache/falsy-dev/tiles/clouds (FALSY_TILES_CLOUDS)
 ```
 
-`render.mjs` refuses an Earth still whose clouds aren't the set for its moment. The cloud job keeps a poster's set only if the moment falls after the job started running, so copy the local `kept/` directory into the `falsy-clouds` bucket for earlier moments, and redeploy the cloud job after changing `shots.json`, since it bundles the file. The page leaves Earth stills out until Earth is listed (see above).
+A full `render.mjs` run renders only listed bodies, so Earth's shots join it once Earth is listed; `--only earth-glint` renders one before then. `render.mjs` refuses an Earth still whose clouds aren't the set for its moment. The cloud job keeps a poster's set only if the moment falls after the job started running, so copy the local `kept/` directory into the `falsy-clouds` bucket for earlier moments, and redeploy the cloud job after changing `shots.json`, since it bundles the file. The page leaves Earth stills out until Earth is listed (see above).
 
 ## Frame-time benchmark
 

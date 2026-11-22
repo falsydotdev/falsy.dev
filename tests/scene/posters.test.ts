@@ -2,7 +2,6 @@ import { gzipSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import shots from '../../scripts/posters/shots.json';
 import posters from '../../src/data/posters.json';
-import { listedBodyIds } from '../../src/scene/bodies';
 import { posterChoices, type Poster } from '../../src/scene/posters';
 
 const mars = posters[0] as Poster;
@@ -11,20 +10,19 @@ const withEarth = [...(posters as Poster[]), earthStill('earth-a'), earthStill('
 
 describe('poster choices', () => {
   it('leaves an unlisted body out of the inlined poster list', () => {
-    const bodies = listedBodyIds(false);
-    const shown = posterChoices(withEarth, bodies).map((c) => c.body);
+    const shown = posterChoices(withEarth, ['mars', 'moon']).map((c) => c.body);
     expect(shown).not.toContain('earth');
     expect(new Set(shown)).toEqual(new Set(['mars', 'moon']));
   });
 
-  it('includes a body once it is listed, as in development', () => {
-    const shown = posterChoices(withEarth, listedBodyIds(true)).map((c) => c.id);
+  it('includes a body once it is listed', () => {
+    const shown = posterChoices(withEarth, ['mars', 'moon', 'earth']).map((c) => c.id);
     expect(shown).toContain('earth-a');
     expect(shown).toContain('earth-b');
   });
 
   it('keeps the first still as the fallback poster', () => {
-    expect(posterChoices(withEarth, listedBodyIds(false))[0].id).toBe('mars-olympus');
+    expect(posterChoices(withEarth, ['mars', 'moon'])[0].id).toBe('mars-olympus');
   });
 
   it('describes a still in the readout and its title', () => {
@@ -59,7 +57,7 @@ describe('poster list weight', () => {
       sources: [960, 1600, 2560].map((width) => ({ src: `/posters/${s.id}-${width}.avif`, width })),
       portrait: { lat: 51 + i, lon: 3 + i, lst: '17:25', altKm: 400, at: `2026-11-22T1${5 + i}:0${i}:00.000Z`, sources: [600, 800, 1170].map((width) => ({ src: `/posters/${s.id}-portrait-${width}.avif`, width })) },
     }));
-    const size = (list: Poster[]) => gzipSync(JSON.stringify(posterChoices(list, listedBodyIds(true)))).length;
+    const size = (list: Poster[]) => gzipSync(JSON.stringify(posterChoices(list, ['mars', 'moon', 'earth']))).length;
     expect(size([...(posters as Poster[]), ...stills]) - size(posters as Poster[])).toBeLessThan(EARTH_STILLS_MAX_GZ);
   });
 });

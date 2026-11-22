@@ -7,7 +7,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { chromium } from 'playwright';
-import { bodyById } from '../../src/scene/bodies.ts';
+import { bodyById, listedBodyIds } from '../../src/scene/bodies.ts';
 import { cloudsStale } from '../../src/scene/clouds.ts';
 
 const { values: args } = parseArgs({
@@ -70,7 +70,12 @@ const browser = await chromium.launch({
   headless: true,
 });
 
-const shots = JSON.parse(await readFile(resolve(import.meta.dirname, 'shots.json'), 'utf8')).filter((s) => !args.only || s.id === args.only);
+// A full run renders the bodies production lists, so it works before an unlisted body's data exists
+// locally and encode.mjs never ships that body's stills. `--only` renders any shot.
+const listed = listedBodyIds(false);
+const shots = JSON.parse(await readFile(resolve(import.meta.dirname, 'shots.json'), 'utf8')).filter((s) =>
+  args.only ? s.id === args.only : listed.includes(new URLSearchParams(s.query).get('body')),
+);
 const frames = [];
 try {
   for (const shot of shots) {

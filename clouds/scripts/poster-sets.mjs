@@ -1,9 +1,5 @@
-// Builds the cloud set each Earth poster still is pinned to, from NOAA's GMGSI archive, the way the
-// cloud job would have kept it: the 3-hourly set at or before the moment, against the 14 days before.
-// Usage: node clouds/scripts/poster-sets.mjs
-// Writes kept/<stamp>/ and kept/index.json into the local stand-in that `astro dev` serves at
-// /data/clouds (FALSY_TILES_CLOUDS, as for dev-bucket.mjs). The same kept/ files go in the bucket,
-// since the job can only keep moments that fall after it starts running.
+// Builds each Earth poster's cloud set from NOAA's GMGSI archive, as the cloud job would have kept it,
+// into kept/ of the local stand-in (FALSY_TILES_CLOUDS). Usage: node clouds/scripts/poster-sets.mjs
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
