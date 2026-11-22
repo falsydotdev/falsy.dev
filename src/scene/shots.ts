@@ -3,7 +3,7 @@ import { type CircularOrbit, circularOrbit, stateAt } from './orbit.ts';
 import { type Body, MARS } from './bodies.ts';
 import type { Feature } from './features.ts';
 
-export type ShotKind = 'dawn-dusk' | 'orbital-sunrise' | 'feature-flyover' | 'earthrise';
+export type ShotKind = 'dawn-dusk' | 'orbital-sunrise' | 'feature-flyover' | 'earthrise' | 'night-pass';
 
 export interface Shot {
   kind: ShotKind;
@@ -18,6 +18,7 @@ export interface ShotOptions {
   body?: Body;
   altKm?: number;
   rand?: () => number;
+  ctx?: ViewContext;
 }
 
 function resolve(opts: ShotOptions) {
@@ -228,7 +229,73 @@ export function seededRandom(seed: number) {
 }
 
 /** What the scene knows that shot planning can't work out on its own. */
-export interface ViewContext {}
+export interface ViewContext {
+  /** Mean city light, 0 to 1, within `radiusKm` of a point on the ground. Only for a body with city lights. */
+  lightsAround?: (lat: number, lon: number, radiusKm: number) => number;
+}
+
+const NIGHT_TARGET_TRIES = 2000;
+const NIGHT_TARGETS = 4;
+const NIGHT_HEADINGS = 24;
+const NIGHT_SCAN_S = 1800;
+const NIGHT_STEP_S = 30;
+
+function lightsAhead(view: ViewAhead, ctx: ViewContext) {
+  const night = view.body.shots.nightPass;
+  if (!night || !ctx.lightsAround) return false;
+  const { lat, lon } = view.latLon;
+  return ctx.lightsAround(lat, lon, night.reachKm) > night.holdAbove;
+}
+
+// How long from `now` the view ahead keeps lit cities in the dark, up to the scan's end.
+function lightsHeldFor(orbit: CircularOrbit, now: Date, ctx: ViewContext, sun: Vec3, fadeSin: number) {
+  const { lookAheadDeg } = SHOT_RULES['night-pass'];
+  for (let t = 0; t < NIGHT_SCAN_S; t += NIGHT_STEP_S) {
+    const view = viewAhead(orbit, new Date(now.getTime() + t * 1000), lookAheadDeg, sun);
+    if (Math.sin(view.sunDeg * DEG) > fadeSin || !lightsAhead(view, ctx)) return t;
+  }
+  return NIGHT_SCAN_S;
+}
+
+// A track past a city whose lights are fully on, with lights ahead at least until it may be replaced.
+// Places are drawn uniformly over the globe, so big lit regions come up most; for each city, the
+// headings whose lights last longest win. Null without a lights lookup or a qualifying track.
+export function nightPass(now: Date, opts: ShotOptions = {}): Shot | null {
+  const { body, altKm } = resolve(opts);
+  const ctx = opts.ctx ?? {};
+  const night = body.shots.nightPass;
+  if (!night || !body.lights || !ctx.lightsAround) return null;
+  const rand = opts.rand ?? Math.random;
+  const pass = new Date(now.getTime() + FLYOVER_LEAD_S * 1000);
+  const frame = bodyFrame(body, pass);
+  const sun = sunFrom(body, pass);
+  const [fadeStart, fullOn] = body.lights.fadeSin;
+  const minHeldS = FLYOVER_LEAD_S + SHOT_RULES['night-pass'].graceS;
+  const offset = FLYOVER_OFFSET_KM / body.radiusKm;
+  for (let i = 0, targets = 0; i < NIGHT_TARGET_TRIES && targets < NIGHT_TARGETS; i++) {
+    const lat = Math.asin(2 * rand() - 1) / DEG;
+    const lon = rand() * 360;
+    const f = fromBody(frame, bodyVector(lat, lon));
+    if (vec.dot(f, sun) > fullOn || ctx.lightsAround(lat, lon, 0) <= night.cityAbove) continue;
+    targets++;
+    const [p, q] = perpendicularBasis(f, frame.z);
+    const candidates: { orbit: CircularOrbit; held: number }[] = [];
+    for (let h = 0; h < NIGHT_HEADINGS; h++) {
+      const a = (h / NIGHT_HEADINGS) * 2 * Math.PI;
+      const along = vec.add(vec.scale(p, Math.cos(a)), vec.scale(q, Math.sin(a)));
+      const track = vec.sub(vec.scale(f, Math.cos(offset)), vec.scale(cameraRight(f, along), Math.sin(offset)));
+      const probe = circularOrbit(body, now, altKm, track, along, 0);
+      const orbit = { ...probe, theta0: -probe.n * FLYOVER_LEAD_S };
+      const held = lightsHeldFor(orbit, now, ctx, sun, fadeStart);
+      if (held >= minHeldS) candidates.push({ orbit, held });
+    }
+    if (candidates.length === 0) continue;
+    const best = Math.max(...candidates.map((c) => c.held));
+    const longest = candidates.filter((c) => c.held >= best * 0.75);
+    return { kind: 'night-pass', orbit: longest[Math.floor(rand() * longest.length)].orbit, keyMoment: pass };
+  }
+  return null;
+}
 
 interface ShotRule {
   // How long the shot runs past its key moment before it can be replaced.
@@ -246,6 +313,8 @@ const SHOT_RULES: Record<ShotKind, ShotRule> = {
   'orbital-sunrise': { graceS: 600, lookAheadDeg: LOOK_AHEAD_DEG, worthShowing: daylit },
   'feature-flyover': { graceS: 120, lookAheadDeg: LOOK_AHEAD_DEG, worthShowing: daylit },
   earthrise: { graceS: 120, lookAheadDeg: EARTHRISE_LOOK_AHEAD_DEG, worthShowing: daylit },
+  // Held while there are lit cities ahead, or once the track reaches daylight.
+  'night-pass': { graceS: 120, lookAheadDeg: LOOK_AHEAD_DEG, worthShowing: (view, ctx) => daylit(view) || lightsAhead(view, ctx) },
 };
 
 /** Whether the ground the shot's camera is heading for at `date` is still worth looking at. */
@@ -268,5 +337,6 @@ export function chooseShot(now: Date, opts: ShotOptions & { features?: Feature[]
   if (kind === 'orbital-sunrise') return orbitalSunrise(now, opts);
   if (kind === 'earthrise') return earthrise(now, opts) ?? featureFlyover(now, opts) ?? dawnDusk(now, opts);
   if (kind === 'feature-flyover') return featureFlyover(now, opts) ?? dawnDusk(now, opts);
+  if (kind === 'night-pass') return nightPass(now, opts) ?? featureFlyover(now, opts) ?? dawnDusk(now, opts);
   return dawnDusk(now, opts);
 }

@@ -67,6 +67,9 @@ export interface Body {
     // Sun elevation on the ground ahead below which the view is close to black without city
     // lights, from renders. Haze keeps Mars lit past its terminator; the bare Moon goes dark before it.
     darkBelowDeg: number;
+    // The night pass, for a body with city lights (light is 0 to 1). The track passes a city whose
+    // 1° cell is above `cityAbove`, and holds while light within `reachKm` of the ground ahead is above `holdAbove`.
+    nightPass?: { cityAbove: number; reachKm: number; holdAbove: number };
   };
   // Offered in production's first-visit picks and the switch button. A body whose production
   // tiles aren't uploaded yet stays off; `?body=` and development still show it.
@@ -205,8 +208,9 @@ export const EARTH: Body = {
   // Colour stops at level 6 and carries the water mask in alpha (opaque is land).
   tiles: { version: 'v1', layers: [{ ...COLOR_LAYER, format: 'masked', maxLevel: 6 }, HEIGHT_LAYER, LIGHTS_LAYER] },
   // Named places lead because visitors know them by sight; a flyover is on offer almost all the time.
+  // Some part of the night side is always over lit cities, so one load in five shows Earth's night.
   // Heading into night, renders dim to 7 of 255 at −5° and are close to black by −6°.
-  shots: { weights: { 'dawn-dusk': 0.3, 'orbital-sunrise': 0.3, 'feature-flyover': 0.4 }, dawnDuskSunDeg: 4, sunriseLeadS: 60, sunriseLimbKm: 0, darkBelowDeg: -5 },
+  shots: { weights: { 'dawn-dusk': 0.25, 'orbital-sunrise': 0.25, 'feature-flyover': 0.3, 'night-pass': 0.2 }, dawnDuskSunDeg: 4, sunriseLeadS: 60, sunriseLimbKm: 0, darkBelowDeg: -5, nightPass: { cityAbove: 1e-2, reachKm: 500, holdAbove: 3e-3 } },
   listed: false,
 };
 

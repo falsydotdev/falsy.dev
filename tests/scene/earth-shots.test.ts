@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { EARTH } from '../../src/scene/bodies';
 import { bodyFrame, bodyVector, fromBody, sunElevationAt, sunFrom, vec } from '../../src/scene/ephemeris';
 import { EARTH_FEATURES, type Feature } from '../../src/scene/features';
+import { lightsAround } from '../../src/scene/lights';
 import { sample } from '../../src/scene/orbit';
 import { cameraRight, chooseShot, dawnDusk, featureFlyover, flyoverFeatures, orbitalSunrise, seededRandom, type Shot, sunAhead, wantsReshoot, worthShowing } from '../../src/scene/shots';
 
@@ -86,15 +87,19 @@ describe('Earth feature flyover', () => {
 });
 
 describe("Earth's shot mix", () => {
-  const loads = Array.from({ length: 400 }, (_, i) => chooseShot(new Date(Date.UTC(2026, 0, 1) + i * 0.913 * 86400e3), { body: EARTH, rand: seededRandom(i) }));
+  const ctx = { lightsAround };
+  const loads = Array.from({ length: 400 }, (_, i) => chooseShot(new Date(Date.UTC(2026, 0, 1) + i * 0.913 * 86400e3), { body: EARTH, rand: seededRandom(i), ctx }));
   const share = (kind: string) => loads.filter((s) => s.kind === kind).length / loads.length;
 
-  it('favours flying past a named place, with terminator passes and sunrises for the rest', () => {
-    expect(share('feature-flyover')).toBeGreaterThan(0.33);
-    expect(share('feature-flyover')).toBeLessThan(0.47);
-    expect(share('dawn-dusk')).toBeGreaterThan(0.24);
-    expect(share('orbital-sunrise')).toBeGreaterThan(0.24);
-    expect(share('dawn-dusk') + share('orbital-sunrise') + share('feature-flyover')).toBe(1);
+  // Two-sigma bands for 400 loads.
+  it('favours flying past a named place, flies over the night side about one load in five, and fills the rest with terminator passes and sunrises', () => {
+    expect(share('feature-flyover')).toBeGreaterThan(0.25);
+    expect(share('feature-flyover')).toBeLessThan(0.36);
+    expect(share('night-pass')).toBeGreaterThan(0.15);
+    expect(share('night-pass')).toBeLessThan(0.25);
+    expect(share('dawn-dusk')).toBeGreaterThan(0.2);
+    expect(share('orbital-sunrise')).toBeGreaterThan(0.2);
+    expect(share('dawn-dusk') + share('orbital-sunrise') + share('feature-flyover') + share('night-pass')).toBe(1);
   });
 
   it('builds every shot from the 400 km orbit', () => {
