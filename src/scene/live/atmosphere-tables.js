@@ -38,11 +38,11 @@ export async function createAtmosphereTables(atmosphere, radiusKm) {
   const Hd = Math.sqrt(Ra * Ra - R * R);
 
   /**
-   * RGB sunlight transmittance from radius r (km, from the planet's centre) along cos-zenith μ to
-   * the top of the atmosphere. Valid at any height; rays below the horizon read the horizon's value.
+   * RGB optical depth from radius r (km, from the planet's centre) along cos-zenith μ to the top of
+   * the atmosphere. Valid at any height; rays below the horizon read the horizon's value.
    * Bruneton's mapping from atmosphere-luts.ts; ρ² is written as h(2R + h) to keep float precision.
    */
-  const transmittance = (r, mu) => {
+  const opticalDepth = (r, mu) => {
     const h = r.sub(R);
     const rho = sqrt(max(h.mul(h.add(2 * R)), 0));
     const d = max(r.mul(mu).negate().add(sqrt(max(r.mul(r).mul(mu.mul(mu).sub(1)).add(Ra * Ra), 0))), 0);
@@ -50,8 +50,10 @@ export async function createAtmosphereTables(atmosphere, radiusKm) {
     const x = d.sub(dMin).div(max(rho.add(Hd).sub(dMin), 1e-6));
     const { width: W, height: H } = OPTICAL_DEPTH_SIZE;
     const uv = vec2(x.mul(W - 1).add(0.5).div(W), rho.div(Hd).mul(H - 1).add(0.5).div(H));
-    return exp(texture(depthTex, uv).level(0).rgb.negate());
+    return texture(depthTex, uv).level(0).rgb;
   };
+  /** RGB sunlight transmittance along the same ray. */
+  const transmittance = (r, mu) => exp(opticalDepth(r, mu).negate());
   /** Light scattered more than once, per unit sunlight, at height h (km) with the Sun at cos-zenith μs. */
   const multiScatter = (h, muS) => {
     const N = MULTI_SCATTER_SIZE;
@@ -59,5 +61,5 @@ export async function createAtmosphereTables(atmosphere, radiusKm) {
     return texture(msTex, uv).level(0).rgb;
   };
 
-  return { model, transmittance, multiScatter, dispose: () => [depthTex, msTex].forEach((t) => t.dispose()) };
+  return { model, opticalDepth, transmittance, multiScatter, dispose: () => [depthTex, msTex].forEach((t) => t.dispose()) };
 }

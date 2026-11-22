@@ -81,8 +81,9 @@ class Record {
 export class TiledPlanet {
   /** @param {THREE.WebGPURenderer} renderer */
   /** `layers` is each atlas's depth; `tileLayers` is the body's list of streamed layers. */
-  constructor(renderer, { baseUrl, meta, relief, layers, tileLayers, lighting, relaxBeyondKm = 500 }) {
+  constructor(renderer, { baseUrl, meta, relief, layers, tileLayers, lighting, atmosphere = null, relaxBeyondKm = 500 }) {
     this.lighting = lighting;
+    this.atmosphere = atmosphere;
     this.relaxBeyondKm = relaxBeyondKm > 0 ? relaxBeyondKm : Infinity;
     this.renderer = renderer;
     this.baseUrl = baseUrl;
@@ -146,6 +147,7 @@ export class TiledPlanet {
 
   buildMaterial() {
     const lighting = this.lighting;
+    const air = this.atmosphere;
     const R = this.radiusKm;
     const fn = uniformArray(FACES.map((f) => toWorld(f.n)), 'vec3');
     const fu = uniformArray(FACES.map((f) => toWorld(f.u)), 'vec3');
@@ -238,9 +240,14 @@ export class TiledPlanet {
         });
       });
 
-      const airmass = float(1).div(max(su.add(0.035), 0.02));
-      const trans = exp(lighting.extinction.mul(lighting.opticalDepth).mul(airmass).negate());
-      const direct = albedo.mul(lighting.sunColor).mul(lighting.sunIntensity).mul(ndl).mul(shadow).mul(trans);
+      let direct = albedo.mul(lighting.sunColor).mul(lighting.sunIntensity).mul(ndl).mul(shadow);
+      if (air) {
+        // Read at the reference radius: exaggerated peaks would otherwise climb out of the haze.
+        const depth = air.opticalDepth(float(R), max(su, 0)).mul(vec3(...(air.model.groundHaze ?? [1, 1, 1])));
+        // The share of the Sun's disc above a flat horizon.
+        const risen = clamp(su.div(lighting.sunDiameter).add(0.5), 0, 1);
+        direct = direct.mul(exp(depth.negate())).mul(risen);
+      }
       const sky = albedo.mul(lighting.skyTint).mul(lighting.ambient).mul(smoothstep(-0.2, 0.25, su));
       return vec4(direct.add(sky), 1);
     })();

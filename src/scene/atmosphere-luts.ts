@@ -23,6 +23,8 @@ export interface Atmosphere {
   groundAlbedo: RGB; // for light the ground bounces back up in the multiple-scattering table
   intensity: number; // the sunlight the scattering shell is lit with
   components: AtmosphereComponent[];
+  // Scales the tables' optical depth for sunlight reaching the ground, per channel; 1 when absent.
+  groundHaze?: RGB;
 }
 
 export type AtmosphereModel = Atmosphere & { radiusKm: number };

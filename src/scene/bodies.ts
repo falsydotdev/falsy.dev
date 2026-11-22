@@ -30,7 +30,6 @@ export interface Body {
     sunIntensity: number;
     ambient: number;
     skyTint: RGB; // colour of the diffuse skylight on the ground
-    extinction: RGB; // per-channel haze extinction relative to green
   };
   // The streamed tile layers. Colour and height are required; the terrain draws without the rest.
   tiles: { version: string; layers: TileLayer[] };
@@ -79,13 +78,15 @@ export const MARS: Body = {
       // Dust scatters blue light more tightly around the Sun, which gives the blue Martian sunset.
       { scattering: dusty([0.042, 0.03, 0.019]), absorption: dusty([0.004, 0.016, 0.027]), profile: { scaleHeightKm: 11 }, phase: [0.62, 0.7, 0.82] },
     ],
+    // The ground's haze was tuned by eye before it read the tables, warmer and denser than the
+    // shell's; this keeps that look.
+    groundHaze: [1.07, 1.25, 1.55],
   },
   light: {
     sunColor: [1, 0.95, 0.88],
     sunIntensity: 3.4,
     ambient: 0.015,
     skyTint: [1, 0.72, 0.5],
-    extinction: [0.85, 1, 1.25],
   },
   tiles: { version: 'v1', layers: [COLOR_LAYER, HEIGHT_LAYER] },
   shots: { weights: { 'dawn-dusk': 0.4, 'orbital-sunrise': 0.3, 'feature-flyover': 0.3 }, dawnDuskSunDeg: 0, sunriseLeadS: 60, sunriseLimbKm: 0, darkBelowDeg: -4 },
@@ -115,7 +116,6 @@ export const MOON: Body = {
     sunIntensity: 3.4,
     ambient: 0,
     skyTint: [1, 1, 1],
-    extinction: [1, 1, 1],
   },
   tiles: { version: 'v1', layers: [COLOR_LAYER, HEIGHT_LAYER] },
   // An airless sunrise opens on a black limb and lights only a sliver for minutes, so it's left
