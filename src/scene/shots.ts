@@ -3,7 +3,7 @@ import { type CircularOrbit, circularOrbit, stateAt } from './orbit.ts';
 import { type Body, MARS } from './bodies.ts';
 import type { Feature } from './features.ts';
 
-export type ShotKind = 'dawn-dusk' | 'orbital-sunrise' | 'feature-flyover' | 'earthrise';
+export type ShotKind = 'dawn-dusk' | 'orbital-sunrise' | 'feature-flyover' | 'earthrise' | 'home-pass';
 
 export interface Shot {
   kind: ShotKind;
@@ -228,7 +228,10 @@ export function seededRandom(seed: number) {
 }
 
 /** What the scene knows that shot planning can't work out on its own. */
-export interface ViewContext {}
+export interface ViewContext {
+  /** Mean city light, 0 to 1, within `radiusKm` of a point on the ground. Only for a body with city lights. */
+  lightsAround?: (lat: number, lon: number, radiusKm: number) => number;
+}
 
 interface ShotRule {
   // How long the shot runs past its key moment before it can be replaced.
@@ -238,6 +241,11 @@ interface ShotRule {
 }
 
 const daylit = (view: ViewAhead) => litEnough(view.body, view.sunDeg);
+// Ground at night still shows its city lights; HOME_LIGHTS_MIN keeps lit farmland and drops desert and sea.
+const HOME_LIGHTS_KM = 300;
+const HOME_LIGHTS_MIN = 3e-3;
+const daylitOrCityLit = (view: ViewAhead, ctx: ViewContext) =>
+  daylit(view) || (ctx.lightsAround?.(view.latLon.lat, view.latLon.lon, HOME_LIGHTS_KM) ?? 0) >= HOME_LIGHTS_MIN;
 
 // A sunrise opens with the ground below still in shadow while the Sun climbs ahead, so it gets
 // longer to play out.
@@ -246,7 +254,11 @@ const SHOT_RULES: Record<ShotKind, ShotRule> = {
   'orbital-sunrise': { graceS: 600, lookAheadDeg: LOOK_AHEAD_DEG, worthShowing: daylit },
   'feature-flyover': { graceS: 120, lookAheadDeg: LOOK_AHEAD_DEG, worthShowing: daylit },
   earthrise: { graceS: 120, lookAheadDeg: EARTHRISE_LOOK_AHEAD_DEG, worthShowing: daylit },
+  'home-pass': { graceS: 120, lookAheadDeg: LOOK_AHEAD_DEG, worthShowing: daylitOrCityLit },
 };
+
+/** How far along the orbit, in degrees, a shot of this kind judges the ground it is heading for. */
+export const lookAheadDeg = (kind: ShotKind) => SHOT_RULES[kind].lookAheadDeg;
 
 /** Whether the ground the shot's camera is heading for at `date` is still worth looking at. */
 export function worthShowing(shot: Shot, date: Date, ctx: ViewContext = {}) {
