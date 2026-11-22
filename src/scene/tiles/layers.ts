@@ -18,8 +18,11 @@ export const HEIGHT_SIZE = TILES.heightCells + 1 + 2 * TILES.heightBorder;
 
 export interface TileLayer {
   id: string;
-  /** How a tile decodes and uploads: sRGB RGBA image, height codec, or a single-channel image. */
-  format: 'color' | 'height' | 'mono';
+  /**
+   * How a tile decodes and uploads: sRGB RGBA image, the same with a mask in alpha (decoded
+   * straight to the GPU so colour under alpha 0 survives), height codec, or a single-channel image.
+   */
+  format: 'color' | 'masked' | 'height' | 'mono';
   dir: string;
   ext: string;
   sizePx: number;

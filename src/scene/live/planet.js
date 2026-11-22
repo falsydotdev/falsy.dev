@@ -304,10 +304,12 @@ export class TiledPlanet {
       let layer = array.alloc();
       if (layer < 0) layer = this.evict(i);
       if (layer < 0) {
+        out.bitmap?.close();
         slot.state = 'idle';
         return;
       }
-      array.write(layer, out.levels ?? [out.data]);
+      if (out.bitmap) array.writeImage(layer, out.bitmap);
+      else array.write(layer, out.levels ?? [out.data]);
       this.writes++;
       slot.layer = layer;
       slot.state = 'ready';

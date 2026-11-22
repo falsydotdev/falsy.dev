@@ -1,5 +1,6 @@
 // Fetches and decodes tiles off the main thread. Colour comes back as RGBA8 and mono as R8, each
-// with a box-filtered mip chain; heights come back as half floats in km, ready for an R16F array layer.
+// with a box-filtered mip chain; masked colour comes back as an ImageBitmap; heights come back as
+// half floats in km, ready for an R16F array layer.
 import { decodeHeights } from '../tiles/layout.ts';
 
 const toHalf = (() => {
@@ -56,6 +57,16 @@ async function loadColor(url) {
   return { levels: mipChain(img.rgba, img.size), bytes: img.bytes };
 }
 
+// A 2D canvas stores premultiplied pixels, so decoding through one zeroes the colour wherever
+// alpha is 0 (the sea, under a water mask). Masked tiles go to the GPU as the bitmap itself.
+async function loadMasked(url) {
+  const res = await fetch(url);
+  if (!res.ok) return { missing: true, bytes: 0 };
+  const blob = await res.blob();
+  const bitmap = await createImageBitmap(blob, { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
+  return { bitmap, bytes: blob.size };
+}
+
 // Single-channel images (city lights) keep their first channel.
 async function loadMono(url) {
   const img = await decodeImage(url);
@@ -83,12 +94,12 @@ async function loadHeight(url, shape) {
   return { data: half, minKm: min / 1000, maxKm: max / 1000, bytes: packed.length };
 }
 
-const LOADERS = { color: loadColor, height: loadHeight, mono: loadMono };
+const LOADERS = { color: loadColor, masked: loadMasked, height: loadHeight, mono: loadMono };
 
 self.onmessage = async ({ data: { id, format, url, shape } }) => {
   try {
     const out = await LOADERS[format](url, shape);
-    const transfer = out.levels ? out.levels.map((l) => l.buffer) : out.data ? [out.data.buffer] : [];
+    const transfer = out.levels ? out.levels.map((l) => l.buffer) : out.data ? [out.data.buffer] : out.bitmap ? [out.bitmap] : [];
     self.postMessage({ id, format, ...out }, transfer);
   } catch (err) {
     self.postMessage({ id, format, error: String(err) });

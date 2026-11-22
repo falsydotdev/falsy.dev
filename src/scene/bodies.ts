@@ -125,6 +125,11 @@ export const MOON: Body = {
 
 export const BODIES: Record<string, Body> = { mars: MARS, moon: MOON };
 
+// Baked ahead of Earth becoming a body; the Earth body takes its radius and tiles from here.
+// Colour stops at level 6 and carries the water mask in alpha (opaque is land).
+export const EARTH_RADIUS_KM = 6371;
+export const EARTH_TILES: Body['tiles'] = { version: 'v1', layers: [{ ...COLOR_LAYER, format: 'masked', maxLevel: 6 }, HEIGHT_LAYER] };
+
 export const bodyById = (id: string | null | undefined): Body => (id && BODIES[id]) || MARS;
 
 // Falls back to `id` itself when no other body is eligible.
