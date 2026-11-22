@@ -166,9 +166,8 @@ describe('Earth seen from the Moon', () => {
       const eq = { ra: Math.atan2(m.y, m.x) / (Math.PI / 12), dec: Math.asin(m.z / Math.hypot(m.x, m.y, m.z)) / (Math.PI / 180) };
       const lon = ((((eq.ra - A.SiderealTime(date)) * 15) % 360) + 540) % 360 - 180;
       const ours = ((sub.lon % 360) + 540) % 360 - 180;
-      // The IAU's simple Earth rotation model drifts about half a degree from sidereal time, under a pixel here.
-      expect(Math.abs(sub.lat - eq.dec)).toBeLessThan(1);
-      expect(Math.abs(((ours - lon + 540) % 360) - 180)).toBeLessThan(1);
+      expect(Math.abs(sub.lat - eq.dec)).toBeLessThan(0.1);
+      expect(Math.abs(((ours - lon + 540) % 360) - 180)).toBeLessThan(0.1);
     }
   });
 });
