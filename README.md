@@ -64,6 +64,8 @@ Production builds read the tile base URL from `PUBLIC_TILES_BASE` in `.env.produ
 | `tier=high`, `tier=medium`, `tier=low` | Force a quality tier and stop the automatic step-down, to compare them. `window.__falsyLive.state` shows the tier, `gpuMs`, and any tier changes. |
 | `scale=N` | Render at N device pixels per CSS pixel (0.5 to 3, never above the screen's own), overriding the tier's resolution. For comparing sharpness. |
 | `webgl` | Force the WebGL2 backend |
+| `fx=shadows,bloom` | Turn these scene layers off, to measure what each costs. Layers are listed in `src/scene/fx.ts`; unknown names are ignored. `window.__falsyLive.state.fx` shows which layers are off. |
+| `bench=N` | Render each frame N times back to back (1 to 64) and log the GPU time per frame, for the frame-time benchmark. |
 | `ph=1` | Turn on PostHog analytics off the production host. Events go through the `/uplink` relay, which only the Worker serves, so test a build with `npm run build && npx wrangler dev`, not `astro preview` or `astro dev`. Headless browsers also need `navigator.webdriver` masked, or posthog-js drops their events as bots. |
 
 ## Where things live
@@ -74,9 +76,10 @@ Production builds read the tile base URL from `PUBLIC_TILES_BASE` in `.env.produ
 | `src/content/projects/` | One Markdown file per project. Front matter drives the card and the facts list. |
 | `src/components/Stage.astro` | The persisted background: poster, sky grid, and telemetry readout. |
 | `src/data/posters.json` | Poster metadata, written by the poster pipeline |
-| `scripts/posters/` | Poster pipeline: `render.mjs` screenshots the live scene, and `encode.mjs` writes AVIF files |
+| `scripts/posters/` | Poster pipeline: `render.mjs` screenshots the live scene, and `encode.mjs` writes AVIF files. `bench.mjs` measures frame time per layer. |
 | `src/scene/tiles/` | Cube-sphere tile addressing, LOD selection, and the tile file formats |
 | `scripts/tiles/` | Tile pipeline: source download, height and colour cutters, budget estimate |
+| `clouds/` | Cloud job: a cron Worker and a container that turn NOAA GMGSI into Earth's cloud texture |
 | `prototypes/mars-orbit/` | The original Mars rendering prototype, kept for reference |
 | `docs/` | Spec, plan, ADRs, research, copy, and design references |
 
@@ -91,10 +94,57 @@ node scripts/posters/encode.mjs posters-out/frames.json
 
 Shots are defined in `scripts/posters/shots.json` as live-scene URL parameters with a pinned time, so re-rendering gives the same frames. Each shot renders twice: a landscape still framed for a laptop layout, and a portrait still framed for a phone layout, which tall screens get. `portraitQuery` can pick a different moment for the portrait still. The first shot also becomes `public/og.jpg`.
 
+## Frame-time benchmark
+
+`scripts/posters/bench.mjs` measures what each scene layer costs the GPU. It renders one pinned poster shot in headless Chromium over WebGPU, once with every layer on and once with each `fx=` toggle, waits for every tile to settle, and collects GPU frame times. Runs alternate in mirrored rounds (all on, shadows, bloom, then bloom, shadows, all on), so a GPU that warms up or throttles over the session weighs on every toggle alike. It prints p10, median, and p90 per toggle, each with its difference from all layers on. Like the posters, it needs the local tiles.
+
+```bash
+node scripts/posters/bench.mjs                          # starts astro dev; or --url http://localhost:4321
+node scripts/posters/bench.mjs --tier low --toggles shadows,bloom,shadows+bloom
+```
+
+| Option | Default | Effect |
+|---|---|---|
+| `--shot` | `mars-olympus` | Shot ID from `scripts/posters/shots.json`. Its pinned time and `t=0` hold the view still. |
+| `--tier` | `high` | Quality tier to force |
+| `--toggles` | every layer in `src/scene/fx.ts` | Comma-separated `fx=` values to compare. `a+b` turns several layers off in one run. |
+| `--rounds`, `--samples` | 5, 90 | Rounds of every toggle, and frame times kept per run (at most 120) |
+| `--repeat` | 16 | Renders per frame (`bench=`). Use 1 to measure frames exactly as the governor does. |
+| `--width`, `--height`, `--dpr` | 1440, 900, 2 | Viewport in CSS pixels and the browser's device pixel ratio |
+| `--scale` | the tier's own | Render at this pixel ratio. The scene never renders above the screen's ratio, so the browser's ratio is raised to match. |
+
+Each run checks that the scene turned off the layers it asked for and that the canvas has the expected size, so a run at a given scale really renders at that scale. The header prints the GPU and the canvas size.
+
+GPU time is the time from submitting a frame until the GPU reports it done (`onSubmittedWorkDone`), the same measure the governor and the `scene_perf` event use. WebGPU timestamp queries aren't used: three.js adds up per-pass spans, which overlap on Apple GPUs and read several times high. Read the numbers with these limits in mind:
+
+- At the tier's frame rate, a fast GPU idles most of each frame and drops its clocks, so one frame's time says more about the clock than the work. On an M5 Max, Mars at High read a 6 ms median that way, against 1.7 ms per frame with `--repeat 16`, and turning shadows or bloom off made frames read slower, not faster.
+- `--repeat` renders each frame several times back to back, which keeps the GPU busy and its clock up. Raise it until the all-on run medians agree to within about 0.2 ms, and until no toggle reads slower than all on. On an M5 Max that took 16; at 8, runs still varied by 0.5 ms. A slower GPU needs fewer.
+- The time per frame still includes the browser's delay in reporting completion, divided by the repeat count, and the CPU's time to encode each render if the CPU is the slower side. Compare toggles within one run of the script, not absolute numbers across repeat counts or machines.
+- Close other GPU work first. Other browser tabs, a second dev server rendering posters, or a video call all show up in the numbers.
+
 ## Deploy
 
 Cloudflare Workers Builds deploys the Worker (`wrangler.jsonc`, static assets in `dist`, and the PostHog relay in `worker/`) on every push to `main`: the Cloudflare project `falsy-dev` is connected to this repo, with build command `npm run build` and deploy command `npx wrangler deploy`. GitHub Actions only runs checks (type check, tests, build, Lighthouse) and needs no Cloudflare credentials.
 
 Tiles are served from the R2 bucket `falsy-tiles` at `tiles.falsy.dev`; see "Live Mars locally" for uploads. Secrets live in the Doppler project `falsy-dev`.
+
+### Cloud job
+
+`clouds/` is a separate Worker, deployed by hand. Every 3 hours (at minute 50, after NOAA's hourly file lands), its cron trigger finds the newest NOAA GMGSI longwave file, passes it and the clear-sky history to a `standard-1` Cloudflare Container, and writes the results to the R2 bucket `falsy-clouds` (served at `clouds.falsy.dev`) through a binding. It needs no API token or secret.
+
+- `dated/<valid>/clouds.avif` and `meta.json`: a 4096×2048 opacity texture (equirectangular, row 0 at 90°N, column 0 at 180°W; read the red channel) and its metadata. Immutable.
+- `latest.json`: the set the site shows, with `path`, the metadata, `fallback` (`source-missing`, `source-stale`, `process-failed`, `warming-up`, or `null`), `stale` (older than 6 hours), and `checked`. Written last, with a 5-minute cache.
+- `kept/<valid>/` and `kept/index.json`: the set each Earth poster in `scripts/posters/shots.json` was pinned to, kept past the 14-day expiry.
+- `state/<hour>/<day>`: the clear-sky history, one gzipped plane per 3-hour run per day.
+
+When the clouds are older than about 6 hours, each run logs `clouds stale: …` and fails, so a Cloudflare notification on the Worker's errors can alert. Run it locally (Docker required; local R2 only, nothing reaches the real bucket):
+
+```bash
+cd clouds && npm ci
+npx wrangler dev --test-scheduled --port 4437
+curl "http://localhost:4437/__scheduled?cron=50+*/3+*+*+*"
+```
+
+Deploy with `cd clouds && npm ci && npx wrangler deploy`. It builds and pushes the container image, so Docker must be running.
 
 Analytics go to the PostHog project `falsy.dev` (US Cloud). `src/analytics.ts` loads posthog-js after the page is idle, and only on `falsy.dev`, so dev, Lighthouse CI, and PR previews send nothing. Events go through `/uplink/*` on the site itself, which `worker/index.js` relays to PostHog, so ad blockers that block posthog.com don't drop them. That path is the only one that runs the Worker; everything else is served as static assets. The project token is in `.env.production`: it's public by design, since it can only send events and ships in the page anyway. It runs in cookieless mode: nothing is stored in the browser, and PostHog counts a returning visitor as new each day. Besides pageviews and clicks, a `scene_shown` event records whether each visitor got the live orbit or a poster, with the GPU backend and quality tier.
