@@ -65,13 +65,16 @@ function limbRays(m: AtmosphereModel) {
 
 /**
  * Banding is error that rises and falls across neighbouring pixels. Per channel, in 8-bit levels
- * of each ray's brightest channel, the largest gap between a ray's error and the mean error of the
- * rays within 10 px of it, on the same side of the horizon (the horizon itself is a real edge).
+ * (of each ray's brightest channel of scattered light, or of a white ground seen through the air),
+ * the largest gap between a ray's error and the mean error of the rays within 10 px of it, on the
+ * same side of the horizon (the horizon itself is a real edge). `of` picks the light or what the air
+ * lets through, which only shows where there's ground behind it.
  */
-function ripple(m: AtmosphereModel, steps: number, mode: 'even' | 'lowest') {
+function ripple(m: AtmosphereModel, steps: number, mode: 'even' | 'lowest', of: 'light' | 'throughput' = 'light') {
   const rays = limbRays(m);
   const errors = rays.map(({ ray, ref }) => {
     const got = march(m, ray, viewSamples(ray.tStart, ray.tLow, ray.tEnd, steps, mode));
+    if (of === 'throughput') return got.throughput.map((x, c) => (ray.ground ? (x - ref.throughput[c]) * 255 : 0));
     const peak = Math.max(...ref.light);
     return got.light.map((l, c) => ((l - ref.light[c]) / peak) * 255);
   });
@@ -125,6 +128,9 @@ describe('viewSamples', () => {
 
   it("leaves no visible bands in Earth's Mie haze or ozone layer on a grazing limb ray at any tier", () => {
     expect(EARTH.atmosphere!.viewSamples).toBe('lowest');
-    for (const t of TIERS) expect(ripple(earth, t.atmosphereSteps, 'lowest')).toBeLessThan(1);
+    for (const t of TIERS) {
+      expect(ripple(earth, t.atmosphereSteps, 'lowest')).toBeLessThan(1);
+      expect(ripple(earth, t.atmosphereSteps, 'lowest', 'throughput')).toBeLessThan(1);
+    }
   });
 });
