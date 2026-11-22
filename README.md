@@ -60,7 +60,7 @@ Production builds read the tile base URL from `PUBLIC_TILES_BASE` in `.env.produ
 | `live=1` / `live=0` | Force the live scene on or off, ignoring screen width and reduced motion |
 | `shot=dawn-dusk`, `shot=orbital-sunrise`, `shot=feature-flyover` | Pick the orbit instead of a weighted random one |
 | `t=N` | Preview at N× real time, or `t=0` to hold one moment. The readout shows `t×N` whenever it isn't 1. |
-| `at=2026-11-03T20:00:00Z` | Start at this moment instead of now. Lighting and orbit follow from it. |
+| `at=2026-11-03T20:00:00Z` | Start at this moment instead of now. Lighting and orbit follow from it. On Earth, the clouds are the set from the 6 hours before that moment, or the static map if there is none. |
 | `feature=olympus-mons` | Fly over this feature whatever its time of day. IDs are in `src/scene/features.ts`. |
 | `seed=N` | Make the random choices (shot type, orbit direction) repeatable. With `at=`, the same URL gives the same view. |
 | `alt=N` | Orbit altitude in km (120 to 2000). The default is per body: 200 for Mars, 100 for the Moon, 400 for Earth. Orbital speed follows from it. |
@@ -156,6 +156,8 @@ curl "http://localhost:4437/__scheduled?cron=50+*/3+*+*+*"
 
 Deploy with `cd clouds && npm ci && npx wrangler deploy`. It builds and pushes the container image, so Docker must be running.
 
-Until the scene reads `latest.json`, Earth uses a static set in `public/clouds/` (`static.avif`, and `static.json` in the shape of `latest.json`), made by the container's own handler from the 2026-11-22 11:00 UTC file and the 14 days before it at the same hour. To remake it, download those files from `noaa-gmgsi-pds` and run `node clouds/scripts/make-static.mjs <newest .nc> public/clouds <earlier .nc>...`.
+The scene reads `latest.json` from `PUBLIC_CLOUDS_BASE` (`https://clouds.falsy.dev` in `.env.production`) and loads the set it names. With `at=`, it loads the newest set from the 6 hours before that moment from `dated/` or `kept/`. A tab coming back from the background reloads the clouds only when `latest.json` names a newer set. When the live source is missing or unreachable, Earth falls back to the static set in `public/clouds/` (`static.avif`, and `static.json` in the shape of `latest.json`), made by the container's own handler from the 2026-11-22 11:00 UTC file and the 14 days before it at the same hour.
+
+The bucket's CORS rule only allows `https://falsy.dev`, so in development the scene reads a local stand-in at `/data/clouds`, served from `~/.cache/falsy-dev/tiles/clouds` (or `FALSY_TILES_CLOUDS`). Without one, dev shows the static map. `node clouds/scripts/dev-bucket.mjs 2026-11-22T09:00:00Z` adds a set valid at that time, copied from the static map, and points `latest.json` at it; `--no-latest` adds a dated set only. To remake it, download those files from `noaa-gmgsi-pds` and run `node clouds/scripts/make-static.mjs <newest .nc> public/clouds <earlier .nc>...`.
 
 Analytics go to the PostHog project `falsy.dev` (US Cloud). `src/analytics.ts` loads posthog-js after the page is idle, and only on `falsy.dev`, so dev, Lighthouse CI, and PR previews send nothing. Events go through `/uplink/*` on the site itself, which `worker/index.js` relays to PostHog, so ad blockers that block posthog.com don't drop them. That path is the only one that runs the Worker; everything else is served as static assets. The project token is in `.env.production`: it's public by design, since it can only send events and ships in the page anyway. It runs in cookieless mode: nothing is stored in the browser, and PostHog counts a returning visitor as new each day. Besides pageviews and clicks, a `scene_shown` event records whether each visitor got the live orbit or a poster, with the GPU backend and quality tier.
