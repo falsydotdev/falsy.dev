@@ -312,7 +312,7 @@ export async function startLiveScene(host, opts) {
   // While two scenes overlap in a body switch, each sees the other's GPU time as its own load.
   let governorHeld = opts.holdGovernor ?? false;
   const state = {
-    frames: 0, body: body.id, shot: shot.kind, get earth() { return earth?.status ?? 'none'; }, get shadow() { return planet.shadow; }, backend: hints.backend, gpu: hints.vendor ?? hints.description, canvas: renderer.domElement, layers, tiles: planet.stats, firstFrameMs: 0, readyAtMs: 0, startTier: tier.name,
+    frames: 0, body: body.id, shot: shot.kind, get earth() { return earth?.status ?? 'none'; }, get shadow() { return planet.shadow; }, backend: hints.backend, gpu: hints.vendor ?? hints.description, canvas: renderer.domElement, layers, tiles: planet.stats, firstFrameMs: 0, startTier: tier.name,
     tier: tier.name, timing: governor ? (gpuTiming ? 'gpu' : 'cadence') : 'forced', gpuMs: 0, gpuLog: [], load: 0, tierChanges: [],
     framing: cam,
   };
@@ -361,6 +361,12 @@ export async function startLiveScene(host, opts) {
   };
 
   let timingBusy = false;
+  // Bumped when the log restarts, so a frame still in flight from before can't land in the new one.
+  let gpuLogGen = 0;
+  const restartGpuLog = () => {
+    state.gpuLog.length = 0;
+    gpuLogGen++;
+  };
   let lastWrites = 0;
   const measure = (interval) => {
     if (governorHeld) return;
@@ -376,7 +382,7 @@ export async function startLiveScene(host, opts) {
       // Page-wide, so analytics (which loads late) still sees changes from scenes already gone.
       (window.__falsyTierLog ??= []).push({ ...change, body: state.body, gpuName: state.gpu });
       document.dispatchEvent(new CustomEvent('falsy:tier-changed'));
-      state.gpuLog.length = 0;
+      restartGpuLog();
       if (verdict === 'give-up') return giveUp();
       // Before the first frame shows, nobody sees the change; after, it crossfades like a tab return.
       if (!first) {
@@ -396,12 +402,15 @@ export async function startLiveScene(host, opts) {
     }
     timingBusy = true;
     const t0 = performance.now();
+    const gen = gpuLogGen;
     renderer.backend.device.queue.onSubmittedWorkDone().then(() => {
       timingBusy = false;
       const ms = performance.now() - t0;
       state.gpuMs = ms;
-      state.gpuLog.push(Math.round(ms * 10) / 10);
-      if (state.gpuLog.length > 120) state.gpuLog.shift();
+      if (gen === gpuLogGen) {
+        state.gpuLog.push(Math.round(ms * 10) / 10);
+        if (state.gpuLog.length > 120) state.gpuLog.shift();
+      }
       judge(ms / (1000 / tier.fps));
     }, () => {
       timingBusy = false;
@@ -446,7 +455,8 @@ export async function startLiveScene(host, opts) {
       first = false;
       planet.lean = false;
       state.firstFrameMs = Math.round(performance.now() - started);
-      state.readyAtMs = Math.round(performance.now());
+      // Only the page's first scene measures the page load; later ones are body switches.
+      window.__falsyPageReady ??= { sinceNavMs: Math.round(performance.now()), loadMs: state.firstFrameMs };
       opts.onFirstFrame?.();
     }
   });
@@ -483,6 +493,7 @@ export async function startLiveScene(host, opts) {
     setRunning(on) {
       if (on === running || stopped) return;
       governor?.reset();
+      restartGpuLog();
       lastRender = 0;
       if (!on) {
         hiddenAt = performance.now();

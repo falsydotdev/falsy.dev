@@ -31,20 +31,20 @@ function frameProps(state: LiveState) {
   return { gpu_ms_p50: t.p50, gpu_ms_p90: t.p90, gpu_samples: t.samples, timing: state.timing };
 }
 
-// One frame-time reading per scene once its tier has settled, so every visit shows its headroom,
-// not only the ones that stepped down. The clock restarts whenever the tab comes back, so the
-// sample never holds frames from before it was hidden.
-function samplePerf(posthog: PostHog, state: LiveState) {
+// One frame-time reading per scene once its tier settles, so every visit shows its headroom.
+// The scene restarts its frame log when the tab returns, and so does this clock.
+function samplePerf(posthog: PostHog, sky: HTMLElement, state: LiveState) {
   let timer = 0;
   const arm = () => {
     clearTimeout(timer);
     if (document.visibilityState === 'visible') timer = window.setTimeout(fire, PERF_SAMPLE_AFTER_MS);
   };
+  const stop = () => document.removeEventListener('visibilitychange', arm);
   const fire = () => {
-    document.removeEventListener('visibilitychange', arm);
-    // A scene switched away from, or one still crossfading in, would report stale frames.
-    if (window.__falsyLive?.state !== state || state.tier === 'frozen') return;
+    // A scene switched away from, lost to a poster, or frozen would report stale frames.
+    if (window.__falsyLive?.state !== state || sky.dataset.scene !== 'live' || state.tier === 'frozen') return stop();
     if (document.documentElement.classList.contains('body-fade')) return arm();
+    stop();
     posthog.capture('scene_perf', {
       body: state.body,
       tier: state.tier,
@@ -66,7 +66,9 @@ function reportScene(posthog: PostHog) {
   // Changes logged before analytics loaded, including from scenes already switched away or lost
   // to a poster, go out on the first flush.
   let sentChanges = 0;
+  let shown = false;
   const sendTierChanges = () => {
+    if (!shown) return;
     const log = window.__falsyTierLog ?? [];
     for (const c of log.slice(sentChanges)) {
       posthog.capture('scene_tier_changed', {
@@ -89,17 +91,19 @@ function reportScene(posthog: PostHog) {
     const props = sceneProps(mode);
     posthog.register(props);
     const live = mode === 'live' ? window.__falsyLive?.state : undefined;
+    const page = window.__falsyPageReady;
     posthog.capture('scene_shown', {
       ...props,
       ...(live && {
-        scene_ready_since_nav_ms: live.readyAtMs || null,
-        scene_load_ms: live.firstFrameMs || null,
+        scene_ready_since_nav_ms: page?.sinceNavMs ?? null,
+        scene_load_ms: page?.loadMs ?? null,
         scene_gpu: live.gpu ?? null,
         scene_dpr: devicePixelRatio,
       }),
     });
+    shown = true;
     sendTierChanges();
-    if (live) samplePerf(posthog, live);
+    if (live) samplePerf(posthog, sky, live);
     return true;
   };
   document.addEventListener('falsy:tier-changed', sendTierChanges);
@@ -108,7 +112,7 @@ function reportScene(posthog: PostHog) {
     posthog.register(sceneProps(mode));
     posthog.capture('body_switched', { from, to, mode });
     const live = mode === 'live' ? window.__falsyLive?.state : undefined;
-    if (live) samplePerf(posthog, live);
+    if (live) samplePerf(posthog, sky, live);
   });
   if (send()) return;
   const watch = new MutationObserver(() => send() && watch.disconnect());
