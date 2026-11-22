@@ -8,7 +8,14 @@ const links = [
 ---
 
 <header class="site-header" data-header>
-  <a class="home" href="/" aria-label="falsy.dev home">falsy<span>.dev</span></a>
+  <a class="home" href="/" aria-label="falsy.dev home">
+    <svg class="mark" viewBox="0 0 100 100" aria-hidden="true">
+      <circle class="night" cx="50" cy="50" r="38"></circle>
+      <path class="day" d="M50 12A38 38 0 0 1 50 88A11 38 0 0 1 50 12Z"></path>
+      <circle class="rim" cx="50" cy="50" r="38"></circle>
+    </svg>
+    <span class="name">falsy</span><span class="tld">.dev</span>
+  </a>
   <nav aria-label="Main">
     <ul>
       {links.map((l) => <li><a href={l.href}>{l.text}</a></li>)}
@@ -34,7 +41,24 @@ const links = [
     },
     { passive: true },
   );
-  document.addEventListener('astro:page-load', update);
+  // The nav wraps to two or three rows on narrow screens, so section jumps clear the measured height.
+  const sized = new ResizeObserver(([entry]) => {
+    const height = Math.ceil(entry.target.getBoundingClientRect().height);
+    document.documentElement.style.setProperty('--header-h', `${height}px`);
+  });
+
+  // The router replaces the root's attributes before it scrolls to a hash, so carry the height over.
+  document.addEventListener('astro:before-swap', (e) => {
+    const height = document.documentElement.style.getPropertyValue('--header-h');
+    if (height) e.newDocument.documentElement.style.setProperty('--header-h', height);
+  });
+
+  document.addEventListener('astro:page-load', () => {
+    update();
+    sized.disconnect();
+    const header = document.querySelector('[data-header]');
+    if (header) sized.observe(header);
+  });
 </script>
 
 <style>
@@ -67,12 +91,43 @@ const links = [
   }
 
   .home {
+    display: inline-flex;
+    align-items: baseline;
     color: var(--ink);
     text-decoration: none;
   }
 
-  .home span {
+  .mark {
+    align-self: center;
+    width: 22px;
+    height: 22px;
+    margin-right: 9px;
+  }
+
+  .night {
+    fill: color-mix(in srgb, var(--accent) 14%, #0d121a);
+  }
+
+  .day {
+    fill: var(--accent);
+  }
+
+  .rim {
+    fill: none;
+    stroke: var(--accent);
+    stroke-opacity: 0.4;
+    stroke-width: 3;
+  }
+
+  .name {
+    font: 400 1.625rem / 1 var(--display);
+    letter-spacing: 0;
+  }
+
+  .tld {
     color: var(--accent);
+    margin-left: 0.04em;
+    letter-spacing: 0.04em;
   }
 
   ul {
