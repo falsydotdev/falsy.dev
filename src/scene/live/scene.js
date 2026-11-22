@@ -17,6 +17,7 @@ import { telemetryParts } from '../telemetry';
 import { Governor, initialTier, renderPixelRatio, tier as tierByName } from '../quality.ts';
 import { frameTimes } from '../perf.ts';
 import { solveFraming } from '../composition.ts';
+import { parseFx } from '../fx.ts';
 
 const DEG = Math.PI / 180;
 // Camera defaults. Altitude comes from the body. Tilt (degrees below the horizon beyond the
@@ -46,7 +47,7 @@ function buildShot(body, kind, now, altKm, rand, featureId, rightDeg) {
  * Starts the live scene of one body inside `host`.
  * @param {HTMLElement} host
  * Resolves to null when this machine should get the poster instead.
- * @param {{ dataUrl: string, meta: unknown, lean?: boolean, body?: string, settleTimeoutMs?: number, holdGovernor?: boolean, startTier?: import('../quality.ts').TierName, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void, onLost?: () => void, farKm?: number, altKm?: number, tiltDeg?: number, rollDeg?: number, fovDeg?: number, tier?: import('../quality.ts').TierName, at?: Date, seed?: number, feature?: string | null, scale?: number, skip?: number, layout?: () => { text: import('../composition.ts').Box, headerBottom: number } | null }} opts
+ * @param {{ dataUrl: string, meta: unknown, lean?: boolean, body?: string, settleTimeoutMs?: number, holdGovernor?: boolean, startTier?: import('../quality.ts').TierName, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void, onLost?: () => void, farKm?: number, altKm?: number, tiltDeg?: number, rollDeg?: number, fovDeg?: number, tier?: import('../quality.ts').TierName, at?: Date, seed?: number, feature?: string | null, scale?: number, fx?: string | null, benchRepeats?: number, skip?: number, layout?: () => { text: import('../composition.ts').Box, headerBottom: number } | null }} opts
  */
 // One tile per array layer; 512 layers hold a 4K view with headroom and cost about 180 MB of GPU memory.
 const WANTED_LAYERS = 512;
@@ -186,6 +187,8 @@ export async function startLiveScene(host, opts) {
   sun = createSun(body);
   const stars = createStars();
   const lighting = createLighting(body);
+  const fx = parseFx(opts.fx);
+  if (fx.has('shadows')) lighting.shadows.value = 0;
   if (body.showsEarth) {
     earth = createEarth({ url: '/textures/earth.webp', lighting });
     scene.add(earth.object);
@@ -221,11 +224,12 @@ export async function startLiveScene(host, opts) {
   pipeline = new THREE.RenderPipeline(renderer);
   const sceneColor = pass(scene, camera).getTextureNode('output');
   const bloomed = sceneColor.add(bloom(sceneColor, 0.35, 0.5, 0.9));
-  pipeline.outputNode = tier.bloom ? bloomed : sceneColor;
+  const blooms = (t) => t.bloom && !fx.has('bloom');
+  pipeline.outputNode = blooms(tier) ? bloomed : sceneColor;
 
   const applyTier = (next) => {
-    if (next.bloom !== tier.bloom) {
-      pipeline.outputNode = next.bloom ? bloomed : sceneColor;
+    if (blooms(next) !== blooms(tier)) {
+      pipeline.outputNode = blooms(next) ? bloomed : sceneColor;
       pipeline.needsUpdate = true;
     }
     tier = next;
@@ -313,6 +317,9 @@ export async function startLiveScene(host, opts) {
   // three.js timestamp queries add up per-pass spans, which overlap on Apple GPUs and read several times high.
   // Submit-to-done time is the frame's real GPU cost whenever the GPU starts the frame idle.
   const gpuTiming = isWebGPU;
+  // `bench=N` renders each frame N times back to back, so a fast GPU stays busy and keeps its
+  // clock up, and the log reads a frame's cost rather than the clock's (scripts/posters/bench.mjs).
+  const repeats = Math.max(1, Math.round(opts.benchRepeats ?? 1));
   const governor = opts.tier ? null : new Governor(tier.name, gpuTiming ? GPU_LIMITS : CADENCE_LIMITS);
   // While two scenes overlap in a body switch, each sees the other's GPU time as its own load.
   let governorHeld = opts.holdGovernor ?? false;
@@ -320,6 +327,7 @@ export async function startLiveScene(host, opts) {
     frames: 0, body: body.id, shot: shot.kind, get earth() { return earth?.status ?? 'none'; }, get shadow() { return planet.shadow; }, backend: hints.backend, gpu: hints.vendor ?? hints.description, canvas: renderer.domElement, layers, tiles: planet.stats, firstFrameMs: 0, startTier: tier.name,
     tier: tier.name, timing: governor ? (gpuTiming ? 'gpu' : 'cadence') : 'forced', gpuMs: 0, gpuLog: [], load: 0, tierChanges: [],
     framing: cam,
+    fx: [...fx],
     get stopped() { return stopped; },
     get held() { return governorHeld; },
     get pixelRatio() { return renderer.getPixelRatio(); },
@@ -381,7 +389,7 @@ export async function startLiveScene(host, opts) {
     skipGpuSamples = 1;
   };
   let lastWrites = 0;
-  const measure = (interval) => {
+  const measure = (interval, renderStart) => {
     if (governorHeld) return;
     const judge = (load) => {
       if (stopped || !governor) return;
@@ -420,16 +428,17 @@ export async function startLiveScene(host, opts) {
       return;
     }
     timingBusy = true;
-    const t0 = performance.now();
+    const t0 = repeats > 1 ? renderStart : performance.now();
     const gen = gpuLogGen;
     renderer.backend.device.queue.onSubmittedWorkDone().then(() => {
       timingBusy = false;
-      const ms = performance.now() - t0;
+      const ms = (performance.now() - t0) / repeats;
       state.gpuMs = ms;
       if (gen !== gpuLogGen) return;
       if (skipGpuSamples > 0) skipGpuSamples--;
       else {
-        state.gpuLog.push(Math.round(ms * 10) / 10);
+        const unit = repeats > 1 ? 100 : 10;
+        state.gpuLog.push(Math.round(ms * unit) / unit);
         if (state.gpuLog.length > 120) state.gpuLog.shift();
       }
       judge(ms / (1000 / tier.fps));
@@ -447,10 +456,15 @@ export async function startLiveScene(host, opts) {
     // Capped, so a stall the page didn't hear about (sleep, an occluded window) can't run the clock out.
     if (first) loadMs += Math.min(interval, 250);
     const s = frame();
-    pipeline.render();
+    const renderStart = performance.now();
+    for (let i = 0; i < repeats; i++) {
+      // Passes and bloom render once per node frame, which only the animation loop advances.
+      if (i) renderer._nodes.nodeFrame.update();
+      pipeline.render();
+    }
     state.frames++;
     updateTelemetry(s, t);
-    measure(interval);
+    measure(interval, renderStart);
     if (stopped) return;
     // A long visit, or a tab left in the background, ends up over the night side. Crossfade to a
     // new shot from here, waiting until the new view's tiles are in.

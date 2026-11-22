@@ -42,6 +42,8 @@ Production builds read the tile base URL from `PUBLIC_TILES_BASE` in `.env.produ
 | `tier=high`, `tier=medium`, `tier=low` | Force a quality tier and stop the automatic step-down, to compare them. `window.__falsyLive.state` shows the tier, `gpuMs`, and any tier changes. |
 | `scale=N` | Render at N device pixels per CSS pixel (0.5 to 3, never above the screen's own), overriding the tier's resolution. For comparing sharpness. |
 | `webgl` | Force the WebGL2 backend |
+| `fx=shadows,bloom` | Turn these scene layers off, to measure what each costs. Layers are listed in `src/scene/fx.ts`; unknown names are ignored. `window.__falsyLive.state.fx` shows which layers are off. |
+| `bench=N` | Render each frame N times back to back (1 to 64) and log the GPU time per frame, for the frame-time benchmark. |
 | `ph=1` | Turn on PostHog analytics off the production host. Events go through the `/uplink` relay, which only the Worker serves, so test a build with `npm run build && npx wrangler dev`, not `astro preview` or `astro dev`. Headless browsers also need `navigator.webdriver` masked, or posthog-js drops their events as bots. |
 
 ## Where things live
@@ -52,7 +54,7 @@ Production builds read the tile base URL from `PUBLIC_TILES_BASE` in `.env.produ
 | `src/content/projects/` | One Markdown file per project. Front matter drives the card and the facts list. |
 | `src/components/Stage.astro` | The persisted background: poster, sky grid, and telemetry readout. |
 | `src/data/posters.json` | Poster metadata, written by the poster pipeline |
-| `scripts/posters/` | Poster pipeline: `render.mjs` screenshots the live scene, and `encode.mjs` writes AVIF files |
+| `scripts/posters/` | Poster pipeline: `render.mjs` screenshots the live scene, and `encode.mjs` writes AVIF files. `bench.mjs` measures frame time per layer. |
 | `src/scene/tiles/` | Cube-sphere tile addressing, LOD selection, and the tile file formats |
 | `scripts/tiles/` | Tile pipeline: source download, height and colour cutters, budget estimate |
 | `clouds/` | Cloud job: a cron Worker and a container that turn NOAA GMGSI into Earth's cloud texture |
@@ -69,6 +71,34 @@ node scripts/posters/encode.mjs posters-out/frames.json
 ```
 
 Shots are defined in `scripts/posters/shots.json` as live-scene URL parameters with a pinned time, so re-rendering gives the same frames. Each shot renders twice: a landscape still framed for a laptop layout, and a portrait still framed for a phone layout, which tall screens get. `portraitQuery` can pick a different moment for the portrait still. The first shot also becomes `public/og.jpg`.
+
+## Frame-time benchmark
+
+`scripts/posters/bench.mjs` measures what each scene layer costs the GPU. It renders one pinned poster shot in headless Chromium over WebGPU, once with every layer on and once with each `fx=` toggle, waits for every tile to settle, and collects GPU frame times. Runs alternate in mirrored rounds (all on, shadows, bloom, then bloom, shadows, all on), so a GPU that warms up or throttles over the session weighs on every toggle alike. It prints p10, median, and p90 per toggle, each with its difference from all layers on. Like the posters, it needs the local tiles.
+
+```bash
+node scripts/posters/bench.mjs                          # starts astro dev; or --url http://localhost:4321
+node scripts/posters/bench.mjs --tier low --toggles shadows,bloom,shadows+bloom
+```
+
+| Option | Default | Effect |
+|---|---|---|
+| `--shot` | `mars-olympus` | Shot ID from `scripts/posters/shots.json`. Its pinned time and `t=0` hold the view still. |
+| `--tier` | `high` | Quality tier to force |
+| `--toggles` | every layer in `src/scene/fx.ts` | Comma-separated `fx=` values to compare. `a+b` turns several layers off in one run. |
+| `--rounds`, `--samples` | 5, 90 | Rounds of every toggle, and frame times kept per run (at most 120) |
+| `--repeat` | 16 | Renders per frame (`bench=`). Use 1 to measure frames exactly as the governor does. |
+| `--width`, `--height`, `--dpr` | 1440, 900, 2 | Viewport in CSS pixels and the browser's device pixel ratio |
+| `--scale` | the tier's own | Render at this pixel ratio. The scene never renders above the screen's ratio, so the browser's ratio is raised to match. |
+
+Each run checks that the scene turned off the layers it asked for and that the canvas has the expected size, so a run at a given scale really renders at that scale. The header prints the GPU and the canvas size.
+
+GPU time is the time from submitting a frame until the GPU reports it done (`onSubmittedWorkDone`), the same measure the governor and the `scene_perf` event use. WebGPU timestamp queries aren't used: three.js adds up per-pass spans, which overlap on Apple GPUs and read several times high. Read the numbers with these limits in mind:
+
+- At the tier's frame rate, a fast GPU idles most of each frame and drops its clocks, so one frame's time says more about the clock than the work. On an M5 Max, Mars at High read a 6 ms median that way, against 1.7 ms per frame with `--repeat 16`, and turning shadows or bloom off made frames read slower, not faster.
+- `--repeat` renders each frame several times back to back, which keeps the GPU busy and its clock up. Raise it until the all-on run medians agree to within about 0.2 ms, and until no toggle reads slower than all on. On an M5 Max that took 16; at 8, runs still varied by 0.5 ms. A slower GPU needs fewer.
+- The time per frame still includes the browser's delay in reporting completion, divided by the repeat count, and the CPU's time to encode each render if the CPU is the slower side. Compare toggles within one run of the script, not absolute numbers across repeat counts or machines.
+- Close other GPU work first. Other browser tabs, a second dev server rendering posters, or a video call all show up in the numbers.
 
 ## Deploy
 
