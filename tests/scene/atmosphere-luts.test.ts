@@ -41,10 +41,11 @@ describe("Earth's atmosphere tables", () => {
   });
 
   // They're built in a worker at every scene start, so this bounds the wait before the planet shows.
-  it('build both tables in well under a second', () => {
+  // About 0.25 s on an M-series Mac; the bound leaves room for a shared CI runner.
+  it('build both tables in under two seconds', () => {
     const t0 = performance.now();
     const { transmittance, multi } = buildTables(EARTH);
-    expect(performance.now() - t0).toBeLessThan(1000);
+    expect(performance.now() - t0).toBeLessThan(2000);
     expect(transmittance.every(Number.isFinite) && multi.every(Number.isFinite)).toBe(true);
   });
 });
