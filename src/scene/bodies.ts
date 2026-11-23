@@ -73,8 +73,8 @@ export interface Body {
     // Height of the limb the Sun has to clear. Exaggerated limb mountains hold sunrise back by
     // most of a minute, which on an airless body would mean a long black opening.
     sunriseLimbKm: number;
-    // Sun elevation on the ground ahead below which the view is close to black without city
-    // lights, from renders. Haze keeps Mars lit past its terminator; the bare Moon goes dark before it.
+    // Sun elevation on the ground ahead below which daylight is gone (only city lights and any night
+    // fill remain), from renders. Haze keeps Mars lit past its terminator; the bare Moon goes dark before it.
     darkBelowDeg: number;
     // The night pass, for a body with city lights (light is 0 to 1). The track passes a city whose
     // 1° cell is above `cityAbove`, and holds while light within `reachKm` of the ground ahead is above `holdAbove`.
