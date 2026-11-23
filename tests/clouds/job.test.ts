@@ -185,6 +185,16 @@ describe('cloud job', () => {
     expect(bucket.json('latest.json')).toMatchObject({ path: previous.path, fallback: 'source-missing', checked: '2026-11-22T09:45:00.000Z' });
   });
 
+  it("takes the last slot-hour file when this slot's file is late, never filing an off-slot hour under a slot", async () => {
+    const bucket = fakeBucket({ 'latest.json': JSON.stringify(previous), ...fullHistory });
+    const container = fakeContainer();
+    await runJob({ bucket, fetch: fakeNoaa(['2026-11-22T06:00Z', '2026-11-22T07:00Z', '2026-11-22T08:00Z']), container, now: at('2026-11-22T09:50Z'), log });
+
+    expect(bucket.json('latest.json')).toMatchObject({ valid: '2026-11-22T06:00:00.000Z' });
+    expect(bucket.puts).toEqual(expect.arrayContaining(['state/06/20261122']));
+    expect(bucket.puts).not.toEqual(expect.arrayContaining(['dated/20261122T0800Z/clouds.avif']));
+  });
+
   it('keeps the last good set when the newest GMGSI file is more than 6 hours old', async () => {
     const bucket = fakeBucket({ 'latest.json': JSON.stringify(previous) });
     const container = fakeContainer();

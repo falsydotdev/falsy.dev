@@ -57,8 +57,12 @@ async function newestFile(fetch, hour) {
 
 async function findSource(fetch, now) {
   const top = Math.floor(now.getTime() / HOUR_MS) * HOUR_MS;
+  // Only slot hours: the clear-sky history is per 3-hour slot, and a late slot file must not
+  // let the hour before it warm another slot's reference.
   for (let h = 0; h <= LOOKBACK_HOURS; h++) {
-    const file = await newestFile(fetch, new Date(top - h * HOUR_MS));
+    const hour = new Date(top - h * HOUR_MS);
+    if (hour.getUTCHours() % 3) continue;
+    const file = await newestFile(fetch, hour);
     if (file) return file;
   }
   return null;
