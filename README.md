@@ -34,7 +34,7 @@ Earth's sources ship as tiles, so its bake adds a mosaic step and an optional Se
 - `node scripts/tiles/lights-grid.mjs` regenerates `src/scene/lights-grid.ts`, the committed 1° lights grid that shot planning reads. It needs only the 3 km map (`earth-mosaic.mjs --coarse lights`).
 - `node scripts/tiles/masked-decode/check.mjs --url http://localhost:4321` checks, against a running dev server, that the browser keeps colour under alpha 0 in Chromium and WebKit, on WebGPU and WebGL2.
 
-Earth is in `BODIES` but has `listed: false` in `src/scene/bodies.ts`, so production's first-visit picks and the body button leave it out until its production tiles and clouds exist. `?body=earth` still shows it, and development lists every body, so without local Earth tiles a development visit can land on Earth and fall back to a poster, and the body button stops at Earth. Flip `listed` to `true` once `earth/v1` is uploaded.
+Each body in `BODIES` has a `listed` flag in `src/scene/bodies.ts`. Production's first-visit picks, the body button, the posters, and the footer credits include only listed bodies, so a new body stays at `listed: false` until its production tiles exist. `?body=<id>` still shows an unlisted body. Mars, the Moon, and Earth are all listed. Development lists every body, so without local Earth tiles a development visit can land on Earth and fall back to its poster.
 
 To run the dev server against a test bake for one body, point `FALSY_TILES_<BODY>` at its tile folder; other bodies keep loading from `~/.cache/falsy-dev/tiles`:
 
@@ -115,7 +115,7 @@ cd clouds/container && npm ci && cd ../..
 node clouds/scripts/poster-sets.mjs        # writes kept/<valid>/ and kept/index.json under ~/.cache/falsy-dev/tiles/clouds (FALSY_TILES_CLOUDS)
 ```
 
-A full `render.mjs` run renders only listed bodies, so Earth's shots join it once Earth is listed; `--only earth-glint` renders one before then. `render.mjs` refuses an Earth still whose clouds aren't the set for its moment. The cloud job keeps a poster's set only if the moment falls after the job started running, so copy the local `kept/` directory into the `falsy-clouds` bucket for earlier moments, and redeploy the cloud job after changing `shots.json`, since it bundles the file. The page leaves Earth stills out until Earth is listed (see above).
+A full `render.mjs` run renders every listed body's shots, Earth's included; `--only earth-glint` renders one. `render.mjs` refuses an Earth still whose clouds aren't the set for its moment. The cloud job keeps a poster's set only if the moment falls after the job started running, so copy the local `kept/` directory into the `falsy-clouds` bucket for earlier moments, and redeploy the cloud job after changing `shots.json`, since it bundles the file.
 
 ## Frame-time benchmark
 
