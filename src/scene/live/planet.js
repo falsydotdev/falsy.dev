@@ -268,7 +268,8 @@ export class TiledPlanet {
       const cloudShadow = this.clouds ? this.clouds.shadowAt(positionWorld, s) : null;
       if (cloudShadow) direct = direct.mul(cloudShadow);
       const daylight = smoothstep(-0.2, 0.25, su);
-      const sky = albedo.mul(lighting.skyTint.mul(lighting.ambient).mul(daylight).add(lighting.nightFill.mul(daylight.oneMinus())));
+      // The night fill is a floor, not a crossfade: shade near the terminator never gets darker than night.
+      const sky = albedo.mul(max(lighting.skyTint.mul(lighting.ambient).mul(daylight), lighting.nightFill));
       let color = direct.add(sky);
       if (this.ocean) {
         // Colour alpha is the water mask (opaque is land); the coarse map keeps the sea floor's depth.

@@ -219,8 +219,7 @@ export function createClouds({ body, lighting, tables, set }) {
     const sunlit = select(b.greaterThan(0), float(1), smoothstep(R - 2, R + 6, miss));
     const side = facing.clamp(0, 1).mul(1 - cfg.sideLight).add(cfg.sideLight);
     const direct = vec3(lighting.sunColor).mul(lighting.sunIntensity).mul(tables.transmittance(float(R + cfg.heightKm), muS)).mul(sunlit.mul(side));
-    const daylight = smoothstep(-0.2, 0.25, muS);
-    const sky = vec3(lighting.skyTint).mul(lighting.ambient).mul(daylight).add(vec3(lighting.nightFill).mul(daylight.oneMinus()).mul(body.light.night?.clouds ?? 0));
+    const sky = max(vec3(lighting.skyTint).mul(lighting.ambient).mul(smoothstep(-0.2, 0.25, muS)), vec3(lighting.nightFill).mul(body.light.night?.clouds ?? 0));
     return vec4(direct.add(sky).mul(cfg.albedo), alpha);
   };
 
