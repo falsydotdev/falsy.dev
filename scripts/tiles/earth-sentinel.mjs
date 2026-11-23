@@ -1,23 +1,24 @@
-// Overlays the Copernicus Sentinel-2 Global Mosaic onto Earth's fine colour rasters, so Blue
-// Marble shows only where Sentinel-2 has no clear view (open ocean, beyond about ±83.75°, nodata).
-// Reads each item's cloud-optimized GeoTIFF overview nearest 300 m, with header-signed S3 range reads.
+// Overlays the Copernicus Sentinel-2 Global Mosaic onto the land of Earth's fine colour rasters,
+// from its low-resolution product (36° lat/lon tiles at 0.0036°), resampled bilinearly to 1/240°.
+// Water keeps Blue Marble, since the renderer shades it; so do nodata pixels.
 //   CDSE_S3_ACCESS_KEY=… CDSE_S3_SECRET_KEY=… node scripts/tiles/earth-sentinel.mjs
-//   node scripts/tiles/earth-sentinel.mjs --list     search only; needs no keys
+//   node scripts/tiles/earth-sentinel.mjs --list     tiles per raster; needs no keys
 // Without keys it says so and leaves Blue Marble in place. Never log the keys. Either way it
 // records the colour's period in the tiles' meta.json for the readout.
-import { mkdir, open, readFile, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, open, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { EARTH_BAKE_DATE, TILE_DIR } from './paths.mjs';
-import { listRasters, pixelDeg } from './mosaic-rasters.mjs';
-import { colorPeriod, copernicusYear, mosaicQuarter, toneReflectance } from './earth/sentinel.ts';
+import { covers, listRasters, pixelDeg } from './mosaic-rasters.mjs';
+import { colorPeriod, copernicusYear, mosaicQuarter } from './earth/sentinel.ts';
+import { LOW_RES_SIZE, LOW_RES_STEP, lowResKey, lowResTilesFor, overlayRow, sourceWindow, sourceX, sourceY, targetWindow } from './earth/lowres.ts';
 import { signHeaders } from './earth/s3.ts';
-import { toUtm } from './earth/utm.ts';
 
-const STAC = 'https://stac.dataspace.copernicus.eu/v1/search';
 const S3_ENDPOINT = 'https://eodata.dataspace.copernicus.eu';
-const TARGET_M = 300;
 const BANDS = ['B04', 'B03', 'B02'];
-const NODATA = -32768;
+// Copernicus allows 4 connections and 2000 requests a minute; stay at the first and half the second.
+const MAX_CONNECTIONS = 4;
+const MIN_GAP_MS = 60;
+const RETRIES = 8;
 
 const keys = { accessKeyId: process.env.CDSE_S3_ACCESS_KEY, secretAccessKey: process.env.CDSE_S3_SECRET_KEY };
 const listOnly = process.argv.includes('--list');
@@ -40,119 +41,215 @@ if (!listOnly && (!keys.accessKeyId || !keys.secretAccessKey)) {
 }
 
 const q = mosaicQuarter(EARTH_BAKE_DATE);
-const lastDay = new Date(Date.UTC(q.year, q.quarter * 3, 0)).getUTCDate();
-const datetime = `${q.year}-${q.firstMonth}-01T00:00:00Z/${q.year}-${String(q.quarter * 3).padStart(2, '0')}-${lastDay}T23:59:59Z`;
+// Only rasters near Blue Marble's 1/240° gain from it; the coarse test fill doesn't.
+const rasters = listRasters('colour').filter((r) => pixelDeg(r) <= 1 / 200);
+console.log(`Sentinel-2 Global Mosaic ${q.year} Q${q.quarter}, low resolution`);
 
-async function search(bbox) {
-  const items = [];
-  let body = { collections: ['sentinel-2-global-mosaics'], bbox, datetime, limit: 200 };
-  let url = STAC;
-  while (url) {
-    const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-    if (!res.ok) throw new Error(`STAC search: status ${res.status}`);
-    const page = await res.json();
-    items.push(...page.features);
-    const next = page.links?.find((l) => l.rel === 'next');
-    url = next?.href;
-    body = next?.body ?? body;
+if (listOnly) {
+  for (const raster of rasters) {
+    const tiles = lowResTilesFor(raster);
+    console.log(`  ${raster.file}: ${tiles.length} tiles`);
+    for (const tile of tiles) console.log(`    ${tile.name} s3://${lowResKey(q, tile.name, BANDS[0])}`);
   }
-  return items;
+  process.exit(0);
 }
 
-const httpsOf = (href) => `${S3_ENDPOINT}/${href.replace(/^s3:\/\//, '')}`;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+let active = 0;
+let nextStart = 0;
+const queue = [];
+const stats = { bytes: 0, requests: 0, retries: 0 };
 
-/** The overview nearest TARGET_M without going coarser, as int16 samples plus its UTM geometry. */
-async function readItem(item) {
-  const { fromUrl } = await import('geotiff');
-  const [scale, , x0, , , y0] = item.assets.B04['proj:transform'];
-  const baseW = item.assets.B04['proj:shape'][1];
-  const bands = [];
-  let geometry;
-  for (const band of BANDS) {
-    const url = httpsOf(item.assets[band].href);
-    const tiff = await fromUrl(url, { headers: signHeaders(url, { ...keys, region: 'default' }) });
-    const count = await tiff.getImageCount();
-    let pick = -1;
-    let best = Infinity;
-    for (let i = 0; i < count; i++) {
-      const m = (scale * baseW) / (await tiff.getImage(i)).getWidth();
-      if (Math.abs(m - TARGET_M) < best) [pick, best] = [i, Math.abs(m - TARGET_M)];
+/** Runs `fn` holding one of the connections, spaced so requests stay under the per-minute quota. */
+async function withConnection(fn) {
+  while (active >= MAX_CONNECTIONS) await new Promise((r) => queue.push(r));
+  active++;
+  try {
+    const now = Date.now();
+    const at = Math.max(now, nextStart);
+    nextStart = at + MIN_GAP_MS;
+    if (at > now) await sleep(at - now);
+    return await fn();
+  } finally {
+    active--;
+    queue.shift()?.();
+  }
+}
+
+const { BaseClient, BaseResponse, fromCustomClient } = await import('geotiff');
+
+class Fetched extends BaseResponse {
+  constructor(status, headers, data) {
+    super();
+    Object.assign(this, { code: status, headers, data });
+  }
+  get status() {
+    return this.code;
+  }
+  getHeader(name) {
+    return this.headers.get(name) ?? undefined;
+  }
+  async getData() {
+    return this.data;
+  }
+}
+
+/** geotiff's range reads, signed afresh on every attempt (a long run outlives one signature). */
+class SignedClient extends BaseClient {
+  async request({ headers, signal } = {}) {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const res = await withConnection(async () => {
+          const r = await fetch(this.url, { headers: { ...headers, ...signHeaders(this.url, { ...keys, region: 'default' }) }, signal });
+          return new Fetched(r.status, r.headers, await r.arrayBuffer());
+        });
+        if (res.status === 429 || res.status >= 500) throw Object.assign(new Error(`status ${res.status}`), { retry: true });
+        stats.requests++;
+        if (res.ok) stats.bytes += res.data.byteLength;
+        return res;
+      } catch (err) {
+        // fetch throws TypeError for network failures; other HTTP errors come back as a status.
+        const retry = err?.retry || err instanceof TypeError;
+        if (!retry || attempt >= RETRIES) throw err;
+        stats.retries++;
+        await sleep(Math.min(60000, 1000 * 2 ** attempt) * (0.5 + Math.random()));
+      }
     }
-    const pickedM = (scale * baseW) / (await tiff.getImage(pick)).getWidth();
-    // Without a usable overview this would read the 10 m base, about 190 MB per band.
-    if (pickedM < 100 || pickedM > 350) throw new Error(`no overview near ${TARGET_M} m (nearest ${Math.round(pickedM)} m)`);
-    const img = await tiff.getImage(pick);
-    const [data] = await img.readRasters();
-    geometry = { x0, y0, step: (scale * baseW) / img.getWidth(), w: img.getWidth(), h: img.getHeight() };
-    bands.push(data);
   }
-  return { bands, ...geometry };
 }
 
-async function overlay(raster, item, src) {
-  const epsg = Number(item.properties['proj:code'].split(':')[1]);
-  const zone = epsg % 100;
-  const north = epsg < 32700;
-  const [w, s, e, n] = item.bbox;
-  const sx = raster.w / (raster.east - raster.west);
-  const sy = raster.h / (raster.north - raster.south);
-  const c0 = Math.max(0, Math.floor((w - raster.west) * sx));
-  const c1 = Math.min(raster.w, Math.ceil((e - raster.west) * sx));
-  const r0 = Math.max(0, Math.floor((raster.north - n) * sy));
-  const r1 = Math.min(raster.h, Math.ceil((raster.north - s) * sy));
-  if (c1 <= c0 || r1 <= r0) return 0;
-  const fh = await open(raster.file, 'r+');
-  const rows = BANDS.map(() => Buffer.alloc(c1 - c0));
+async function openBand(tile, band) {
+  // Blocks let geotiff merge a strip's neighbouring internal tiles into one request.
+  const source = { blockSize: 524288, cacheSize: 64 };
+  const img = await (await fromCustomClient(new SignedClient(`${S3_ENDPOINT}/${lowResKey(q, tile.name, band)}`), source)).getImage(0);
+  const [x0, y0] = img.getOrigin();
+  const [rx] = img.getResolution();
+  if (img.getWidth() !== LOW_RES_SIZE || img.getHeight() !== LOW_RES_SIZE || Math.abs(rx - LOW_RES_STEP) > 1e-9 || x0 !== tile.west || y0 !== tile.north) {
+    throw new Error(`${tile.name} ${band}: unexpected grid ${img.getWidth()}² at ${rx}° from ${x0},${y0}`);
+  }
+  return img;
+}
+
+/** Water mask bytes (0 water) under raster row `y`, columns x0..x1, from the finest mask covering each pixel. */
+async function maskRow(raster, masks, y, x0, x1) {
+  const out = new Uint8Array(x1 - x0).fill(255);
+  const pending = new Uint8Array(x1 - x0).fill(1);
+  const lat = raster.north - ((y + 0.5) * (raster.north - raster.south)) / raster.h;
+  const lonOf = (x) => raster.west + ((x + 0.5) * (raster.east - raster.west)) / raster.w;
+  for (const m of masks) {
+    const my = Math.min(m.h - 1, Math.max(0, Math.floor(((m.north - lat) / (m.north - m.south)) * m.h)));
+    const cols = [];
+    let lo = Infinity;
+    let hi = -1;
+    for (let x = x0; x < x1; x++) {
+      if (!pending[x - x0] || !covers(m, lat, lonOf(x))) continue;
+      const mx = Math.min(m.w - 1, Math.floor(((((lonOf(x) - m.west) % 360) + 360) % 360 / (m.east - m.west)) * m.w));
+      cols.push(x, mx);
+      lo = Math.min(lo, mx);
+      hi = Math.max(hi, mx);
+    }
+    if (!cols.length) continue;
+    const seg = Buffer.alloc(hi - lo + 1);
+    await m.fh.read(seg, 0, seg.length, my * m.w + lo);
+    for (let i = 0; i < cols.length; i += 2) {
+      out[cols[i] - x0] = seg[cols[i + 1] - lo];
+      pending[cols[i] - x0] = 0;
+    }
+  }
+  return out;
+}
+
+async function overlayTile(raster, fh, masks, tile) {
+  const win = targetWindow(raster, tile);
+  if (win.x1 <= win.x0 || win.y1 <= win.y0) return 0;
+  const src = sourceWindow(raster, tile, win);
+  const w = win.x1 - win.x0;
+  const sw = src.x1 - src.x0;
+  const lands = [];
+  for (let y = win.y0; y < win.y1; y++) {
+    const mask = await maskRow(raster, masks, y, win.x0, win.x1);
+    lands.push(mask.some((v) => v !== 0) ? mask : null);
+  }
+  if (!lands.some(Boolean)) return 0;
+  const images = await Promise.all(BANDS.map((band) => openBand(tile, band)));
+  const strip = images[0].getTileHeight();
+  const fxs = Float64Array.from({ length: w }, (_, i) => sourceX(raster, tile, win.x0 + i) - src.x0);
+  // Source rows buf.y0..buf.y1 of each band. Reads end on the file's own tile rows, so none is fetched twice.
+  let buf = null;
+  async function ensure(lo, hi) {
+    if (buf && buf.y0 <= lo && hi <= buf.y1) return;
+    const keep = buf && lo >= buf.y0 && lo < buf.y1;
+    const start = keep ? buf.y1 : lo;
+    const end = Math.min(src.y1, Math.max(hi, (Math.floor(start / strip) + 1) * strip));
+    const fresh = await Promise.all(images.map((img) => img.readRasters({ window: [src.x0, start, src.x1, end], samples: [0] }).then((r) => r[0])));
+    const y0 = keep ? lo : start;
+    buf = {
+      y0,
+      y1: end,
+      bands: fresh.map((rows, b) => {
+        const data = new Int16Array((end - y0) * sw);
+        if (keep) data.set(buf.bands[b].subarray((lo - buf.y0) * sw));
+        data.set(rows, (start - y0) * sw);
+        return data;
+      }),
+    };
+  }
+  const rows = BANDS.map(() => Buffer.alloc(w));
   let written = 0;
-  for (let r = r0; r < r1; r++) {
-    for (let b = 0; b < 3; b++) await fh.read(rows[b], 0, c1 - c0, (b * raster.h + r) * raster.w + c0);
-    const lat = raster.north - (r + 0.5) / sy;
-    for (let c = c0; c < c1; c++) {
-      const { x, y } = toUtm(lat, raster.west + (c + 0.5) / sx, zone, north);
-      const fx = (x - src.x0) / src.step - 0.5;
-      const fy = (src.y0 - y) / src.step - 0.5;
-      const ix = Math.floor(fx);
-      const iy = Math.floor(fy);
-      if (ix < 0 || iy < 0 || ix + 1 >= src.w || iy + 1 >= src.h) continue;
-      const tx = fx - ix;
-      const ty = fy - iy;
-      const k = iy * src.w + ix;
-      const taps = [k, k + 1, k + src.w, k + src.w + 1];
-      if (src.bands.some((band) => taps.some((t) => band[t] === NODATA))) continue;
-      src.bands.forEach((band, b) => {
-        const dn = (band[k] * (1 - tx) + band[k + 1] * tx) * (1 - ty) + (band[k + src.w] * (1 - tx) + band[k + src.w + 1] * tx) * ty;
-        rows[b][c - c0] = toneReflectance(dn, b);
-      });
-      written++;
-    }
-    for (let b = 0; b < 3; b++) await fh.write(rows[b], 0, c1 - c0, (b * raster.h + r) * raster.w + c0);
+  for (let y = win.y0; y < win.y1; y++) {
+    const mask = lands[y - win.y0];
+    if (!mask) continue;
+    const fy = sourceY(raster, tile, y);
+    const iy = Math.min(src.y1 - 1, Math.max(src.y0, Math.floor(fy)));
+    await ensure(iy, Math.min(src.y1, iy + 2));
+    const bands = buf.bands.map((data) => ({ data, w: sw, h: buf.y1 - buf.y0 }));
+    for (let b = 0; b < 3; b++) await fh.read(rows[b], 0, w, (b * raster.h + y) * raster.w + win.x0);
+    const n = overlayRow(bands, fy - buf.y0, fxs, mask, rows);
+    if (!n) continue;
+    for (let b = 0; b < 3; b++) await fh.write(rows[b], 0, w, (b * raster.h + y) * raster.w + win.x0);
+    written += n;
   }
-  await fh.close();
   return written;
 }
 
-console.log(`Sentinel-2 Global Mosaic ${q.year} Q${q.quarter}`);
+const masks = await Promise.all(listRasters('mask').map(async (m) => ({ ...m, fh: await open(m.file, 'r') })));
+if (!masks.length) console.log('  no water mask rasters: overlaying water too');
+const t0 = Date.now();
 let total = 0;
-// Only rasters near Blue Marble's 1/240° gain from it; the coarse test fill doesn't.
-for (const raster of listRasters('colour').filter((r) => pixelDeg(r) <= 1 / 200)) {
-  const items = await search([raster.west, raster.south, raster.east, raster.north]);
-  console.log(`  ${raster.file}: ${items.length} items`);
-  if (listOnly) {
-    for (const item of items.slice(0, 5)) console.log(`    ${item.id} ${item.properties['proj:code']} ${item.assets.B04.href}`);
-    continue;
-  }
-  let pixels = 0;
+for (const raster of rasters) {
+  const tiles = lowResTilesFor(raster);
+  console.log(`  ${raster.file}: ${tiles.length} tiles`);
+  // A restart skips tiles already overlaid; earth-mosaic deletes this file when it rebuilds the raster.
+  const doneFile = `${raster.file}.sentinel-done`;
+  const tag = `${q.year}Q${q.quarter}`;
+  const done = new Map(
+    (await readFile(doneFile, 'utf8').catch(() => ''))
+      .split('\n')
+      .map((line) => line.split(' '))
+      .filter(([t, name]) => t === tag && tiles.some((tile) => tile.name === name))
+      .map(([, name, n]) => [name, Number(n)]),
+  );
+  let pixels = [...done.values()].reduce((a, n) => a + n, 0);
   let failed = 0;
-  for (const [i, item] of items.entries()) {
+  const fh = await open(raster.file, 'r+');
+  for (const tile of tiles.filter((t) => !done.has(t.name))) {
+    const started = Date.now();
+    const before = stats.bytes;
     try {
-      pixels += await overlay(raster, item, await readItem(item));
+      const n = await overlayTile(raster, fh, masks, tile);
+      pixels += n;
+      await appendFile(doneFile, `${tag} ${tile.name} ${n}\n`);
+      console.log(`    ${tile.name}: ${n} pixels, ${((stats.bytes - before) / 1e6).toFixed(1)} MB in ${((Date.now() - started) / 1000).toFixed(1)}s`);
     } catch (err) {
       // Only the message: a stack or request could carry the signed headers, which hold the key ID.
       failed++;
-      console.log(`    ${item.id} skipped: ${String(err?.message ?? err).replace(/https?:\/\/\S+/g, '<url>')}`);
+      console.log(`    ${tile.name} skipped: ${String(err?.message ?? err).replace(/https?:\/\/\S+/g, '<url>')}`);
     }
-    process.stdout.write(`    ${i + 1}/${items.length} items, ${pixels} pixels from Sentinel-2${failed ? `, ${failed} skipped` : ''}\n`);
   }
+  await fh.close();
+  console.log(`    ${pixels} pixels from Sentinel-2${failed ? `, ${failed} tiles skipped` : ''}`);
   total += pixels;
 }
-if (!listOnly) await recordPeriod(total);
+for (const m of masks) await m.fh.close();
+console.log(`  fetched ${(stats.bytes / 1e6).toFixed(1)} MB in ${stats.requests} requests (${stats.retries} retried), ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+await recordPeriod(total);
