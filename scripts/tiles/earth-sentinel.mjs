@@ -1,7 +1,7 @@
 // Overlays the Copernicus Sentinel-2 Global Mosaic onto Earth's fine colour rasters, so Blue
 // Marble shows only where Sentinel-2 has no clear view (open ocean, beyond about ±83.75°, nodata).
 // Reads each item's cloud-optimized GeoTIFF overview nearest 300 m, through presigned S3 URLs.
-//   COPERNICUS_S3_ACCESS_KEY=… COPERNICUS_S3_SECRET_KEY=… node scripts/tiles/earth-sentinel.mjs
+//   CDSE_S3_ACCESS_KEY=… CDSE_S3_SECRET_KEY=… node scripts/tiles/earth-sentinel.mjs
 //   node scripts/tiles/earth-sentinel.mjs --list     search only; needs no keys
 // Without keys it says so and leaves Blue Marble in place. Never log the keys. Either way it
 // records the colour's period in the tiles' meta.json for the readout.
@@ -19,7 +19,7 @@ const TARGET_M = 300;
 const BANDS = ['B04', 'B03', 'B02'];
 const NODATA = -32768;
 
-const keys = { accessKeyId: process.env.COPERNICUS_S3_ACCESS_KEY, secretAccessKey: process.env.COPERNICUS_S3_SECRET_KEY };
+const keys = { accessKeyId: process.env.CDSE_S3_ACCESS_KEY, secretAccessKey: process.env.CDSE_S3_SECRET_KEY };
 const listOnly = process.argv.includes('--list');
 
 async function recordPeriod(sentinelPixels) {
@@ -34,7 +34,7 @@ async function recordPeriod(sentinelPixels) {
 }
 
 if (!listOnly && (!keys.accessKeyId || !keys.secretAccessKey)) {
-  console.log('Sentinel-2 skipped: set COPERNICUS_S3_ACCESS_KEY and COPERNICUS_S3_SECRET_KEY to overlay it. Colour stays Blue Marble.');
+  console.log('Sentinel-2 skipped: set CDSE_S3_ACCESS_KEY and CDSE_S3_SECRET_KEY to overlay it. Colour stays Blue Marble.');
   await recordPeriod(0);
   process.exit(0);
 }
