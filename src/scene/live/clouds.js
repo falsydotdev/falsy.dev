@@ -150,11 +150,12 @@ export function createClouds({ body, lighting, tables, set }) {
   const surface = (ro, rd, t, sun) => {
     const pc = ro.add(rd.mul(t));
     const up = normalize(pc);
-    const lat = asin(up.y);
-    const lon = atan(up.z.negate(), up.x);
+    // Variables up front: the relief branch would otherwise be where they're first built.
+    const lat = asin(up.y).toVar();
+    const lon = atan(up.z.negate(), up.x).toVar();
     const footprint = t.mul(u.pixelAngle);
     const slant = float(1).div(max(dot(rd, up).abs(), 0.05));
-    const lod = max(log2(footprint.mul(sqrt(slant)).div(texelKm)), 0);
+    const lod = max(log2(footprint.mul(sqrt(slant)).div(texelKm)), 0).toVar();
     const warp = mx_noise_vec3(pc.div(WARP_KM)).mul(clamp(float(WARP_KM).div(footprint.mul(slant).mul(2)).sub(1), 0, 1)).mul(0.5 * texelKm / Rc);
     const c = sampleAt(lat.add(warp.y), lon.add(warp.x.div(max(cos(lat), 0.05))), lod).mul(capFade(lat));
 
