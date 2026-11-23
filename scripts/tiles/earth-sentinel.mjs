@@ -216,6 +216,7 @@ const masks = await Promise.all(listRasters('mask').map(async (m) => ({ ...m, fh
 if (!masks.length) console.log('  no water mask rasters: overlaying water too');
 const t0 = Date.now();
 let total = 0;
+let totalFailed = 0;
 for (const raster of rasters) {
   const tiles = lowResTilesFor(raster);
   console.log(`  ${raster.file}: ${tiles.length} tiles`);
@@ -249,7 +250,13 @@ for (const raster of rasters) {
   await fh.close();
   console.log(`    ${pixels} pixels from Sentinel-2${failed ? `, ${failed} tiles skipped` : ''}`);
   total += pixels;
+  totalFailed += failed;
 }
 for (const m of masks) await m.fh.close();
 console.log(`  fetched ${(stats.bytes / 1e6).toFixed(1)} MB in ${stats.requests} requests (${stats.retries} retried), ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+// A skipped tile would leave a 36° square of Blue Marble, so fail and let a rerun resume it.
+if (totalFailed) {
+  console.log(`Sentinel-2 incomplete: ${totalFailed} tiles skipped. Rerun to resume them.`);
+  process.exit(1);
+}
 await recordPeriod(total);
