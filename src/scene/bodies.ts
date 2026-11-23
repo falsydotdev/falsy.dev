@@ -37,6 +37,7 @@ export interface Body {
     // The fallback set's pointer, shaped like the cloud bucket's latest.json. The live base URL is
     // site config (PUBLIC_CLOUDS_BASE), like the tiles'.
     staticUrl: string;
+    // True cloud height, which lights them; the shell is drawn at heightKm × relief, like the terrain.
     heightKm: number;
     albedo: number;
     // How far full cover stands above clear sky when shading the clouds from their coverage's slope.

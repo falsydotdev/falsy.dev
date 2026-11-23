@@ -161,7 +161,8 @@ export function createClouds({ body, lighting, tables, set }) {
         const up = normalize(pc);
         const toCam = cameraPosition.sub(p);
         const slant = float(1).div(max(dot(normalize(toCam), normalize(p)).abs(), 0.05));
-        const lod = max(log2(length(toCam).mul(u.pixelAngle).mul(sqrt(slant)).div(texelKm)), 0);
+        // No finer than mip 1: magnified further, the sharpened bilinear map shows its texel grid.
+        const lod = max(log2(length(toCam).mul(u.pixelAngle).mul(sqrt(slant)).div(texelKm)), 1);
         lit.assign(smoothstep(0.08, 0.92, coverage(up, lod)).mul(-SHADOW_DARKNESS).add(1));
       });
     });
@@ -190,9 +191,8 @@ export function createClouds({ body, lighting, tables, set }) {
     const detail = bumps.add(detailAt(pc, footprint, BUMP_OCTAVES));
     const alpha = smoothstep(0.08, 0.92, c.add(detail.mul(DETAIL_STRENGTH).mul(c).mul(c.oneMinus()).mul(4)));
 
-    // Sunlight on the top's slope, along the Sun's bearing: the map's cover reliefKm high at full
-    // cover, differenced across a texel so its bilinear grid doesn't show, plus the coarse detail
-    // octaves as lumps, differenced over about a pixel.
+    // Sunlight on the top's slope toward the Sun: the map's cover (reliefKm high at full cover)
+    // differenced across a texel so its grid doesn't show, plus the coarse octaves as lumps.
     const muS = dot(up, sun).toVar();
     const facing = muS.toVar();
     If(u.relief.greaterThan(0.5), () => {
@@ -205,7 +205,7 @@ export function createClouds({ body, lighting, tables, set }) {
       const dLat = dot(toward, north).mul(texel).div(Rc);
       const dLon = dot(toward, east).mul(texel).div(max(cos(lat), 0.05).mul(Rc));
       const mapSlope = sampleAt(wLat.add(dLat), wLon.add(dLon), lod).sub(sampleAt(wLat.sub(dLat), wLon.sub(dLon), lod)).div(texel.mul(2));
-      const step = clamp(footprint, 1.5, 20);
+      const step = clamp(footprint, 1.5, 8);
       const bumpSlope = detailAt(pc.add(toward.mul(step)), footprint, 0, BUMP_OCTAVES).sub(bumps).div(step);
       const s = mapSlope.mul(cfg.reliefKm).add(bumpSlope.mul(cfg.bumpKm));
       facing.assign(muS.sub(s.mul(flat)).div(sqrt(s.mul(s).add(1))));
