@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { uniform } from 'three/tsl';
+import { smoothstep, uniform } from 'three/tsl';
 
 // Body frame (x: lon 0, y: lon 90E, z: north) -> three.js world (y up).
 export const toWorld = (b) => new THREE.Vector3(b[0], b[2], -b[1]);
@@ -9,6 +9,12 @@ export const toWorld = (b) => new THREE.Vector3(b[0], b[2], -b[1]);
  * two run at once during a body switch.
  * @param {import('../bodies.ts').Body} body
  */
+/**
+ * How much of the night fill reaches a surface whose Sun is at sine `su`: none in daylight, so day
+ * shadows keep their contrast, all of it past the terminator, where sunlight is already that dim.
+ */
+export const nightSide = (su) => smoothstep(-0.05, 0.05, su).oneMinus();
+
 export function createLighting(body) {
   const l = body.light;
   return {

@@ -10,7 +10,7 @@ import { drawnHeightRangeKm, isOpenSea, layerTile, layerTilesFor, layerWants, se
 import { TILES, HEIGHT_SIZE, SHADOW_MAP } from '../tiles/layout.ts';
 import { COLOR_LAYER, HEIGHT_LAYER, LIGHTS_LAYER, layerPath } from '../tiles/layers.ts';
 import { LayerArray } from './tile-atlas.js';
-import { toWorld } from './terrain.js';
+import { nightSide, toWorld } from './terrain.js';
 
 const GRID = 32;
 const MAX_INSTANCES = 4096;
@@ -268,8 +268,7 @@ export class TiledPlanet {
       const cloudShadow = this.clouds ? this.clouds.shadowAt(positionWorld, s) : null;
       if (cloudShadow) direct = direct.mul(cloudShadow);
       const daylight = smoothstep(-0.2, 0.25, su);
-      // The night fill is a floor, not a crossfade: shade near the terminator never gets darker than night.
-      const sky = albedo.mul(max(lighting.skyTint.mul(lighting.ambient).mul(daylight), lighting.nightFill));
+      const sky = albedo.mul(max(lighting.skyTint.mul(lighting.ambient).mul(daylight), lighting.nightFill.mul(nightSide(su))));
       let color = direct.add(sky);
       if (this.ocean) {
         // Colour alpha is the water mask (opaque is land); the coarse map keeps the sea floor's depth.
