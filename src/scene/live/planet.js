@@ -223,8 +223,9 @@ export class TiledPlanet {
       const N = normalize(cross(dPds, dPdt));
 
       const n = normalize(positionWorld);
-      const lat = asin(n.y);
-      const lon = atan(n.z.negate(), n.x);
+      // Variables here, not first built inside the shadow branch, because the sea floor reads them too.
+      const lat = asin(n.y).toVar();
+      const lon = atan(n.z.negate(), n.x).toVar();
       const s = lighting.sunDir;
       const ndl = max(dot(N, s), 0);
       const su = dot(n, s);
