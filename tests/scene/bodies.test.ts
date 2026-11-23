@@ -59,9 +59,10 @@ describe('poster-mode switching', () => {
 });
 
 describe('bodies offered before their production tiles exist', () => {
-  it('leaves Earth out of production picks and the switch button until it is listed', () => {
-    expect(EARTH.listed).toBe(false);
-    expect(listedBodyIds(false)).toEqual(['mars', 'moon']);
+  it('offers production picks and the switch button only the listed bodies', () => {
+    const listed = Object.values(BODIES).filter((b) => b.listed).map((b) => b.id);
+    expect(listedBodyIds(false)).toEqual(listed);
+    expect(listed).toEqual(['mars', 'moon', 'earth']);
   });
 
   it('offers every body in development', () => {
