@@ -145,7 +145,7 @@ Behind this page is Mars or the Moon, rendered from real NASA and USGS data. On 
 
 **Credits (footer):** Mars terrain from USGS Astrogeology: MOLA elevation and the Viking MDIM 2.1 colour mosaic. Moon terrain from NASA/GSFC/Arizona State University: LOLA elevation, and LROC colour by NASA's Scientific Visualization Studio. Earth from NASA's Blue Marble, by the Scientific Visualization Studio.
 
-Once Earth is listed, the footer adds (pending approval): Earth elevation from the GEBCO_2026 Grid (GEBCO Bathymetric Compilation Group 2026, doi:10.5285/4f68d5c7-45eb-f999-e063-7086abc036fa). Earth colour from Copernicus Sentinel-2 and NASA Blue Marble, and city lights from NASA Black Marble, by NASA Earth Observatory. Clouds from NOAA GMGSI (NESDIS). Contains modified Copernicus Sentinel data 2025. The year is `EARTH.tiles.sentinelYear` in `src/scene/bodies.ts`. A Blue Marble-only bake drops the Copernicus sentence and reads "Earth colour from NASA Blue Marble, and city lights …".
+With Earth listed, the footer adds: Earth elevation from the GEBCO_2026 Grid (GEBCO Bathymetric Compilation Group 2026, doi:10.5285/4f68d5c7-45eb-f999-e063-7086abc036fa). Earth colour from Copernicus Sentinel-2 and NASA Blue Marble, and city lights from NASA Black Marble, by NASA Earth Observatory. Clouds from NOAA GMGSI (NESDIS). Contains modified Copernicus Sentinel data 2025. The year is `EARTH.tiles.sentinelYear` in `src/scene/bodies.ts`. A Blue Marble-only bake drops the Copernicus sentence and reads "Earth colour from NASA Blue Marble, and city lights …".
 
 ## Contact
 
@@ -178,14 +178,14 @@ For consulting, the quickest way to start is a 30-minute call. I work Adelaide h
 | 404 heading | This page is falsy |
 | 404 body | There's nothing here but empty space. |
 | 404 link | Back to the home page |
-| Loading (live scene) | Loading Mars terrain… / Loading lunar terrain… / Loading Earth terrain… (Earth: pending approval, ships with `listed: true`) |
+| Loading (live scene) | Loading Mars terrain… / Loading lunar terrain… / Loading Earth terrain…  |
 | Telemetry example | MARS  18.6°N  226.2°E  LST 06:20  ALT 200 km  v 3.45 km/s  relief×2.5 |
 | Explorer edge (v2) | You've reached the edge of the observable universe. Past here, everything is undefined. |
 | Reduced-motion note (title text on the readout) | Orbit paused because your device prefers reduced motion. |
 
-## Earth (pending approval, ships with `listed: true`)
+## Earth (approved 2026-11-23, live with `listed: true`)
 
-Justin hasn't approved this wording yet. It replaces the live lines above in the same change that sets `EARTH.listed` to `true` in `src/scene/bodies.ts`, after the full bake and the tile and cloud uploads. Until then the site doesn't name Earth.
+Justin approved this wording on 2026-11-23. It shipped in the change that set `EARTH.listed` to `true` in `src/scene/bodies.ts`, so the right-hand column is now the live wording.
 
 | Where | Live wording now | Wording once Earth is listed |
 |---|---|---|

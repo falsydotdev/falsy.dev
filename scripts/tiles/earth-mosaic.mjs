@@ -7,7 +7,7 @@
 //   node scripts/tiles/earth-mosaic.mjs --coarse [lights]   global 1/12° heights and mask, 8 km colour, 3 km lights
 // --box limits a raster to a region (snapped out to 1/120°), for test bakes over a coarse fill;
 // --remote reads GEBCO rows with range requests instead of from downloaded files.
-import { open, mkdir, writeFile } from 'node:fs/promises';
+import { open, mkdir, rm, writeFile } from 'node:fs/promises';
 import { existsSync, mkdtempSync, readFileSync, readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
@@ -176,7 +176,10 @@ async function fineHeights(box, remote) {
 async function fineColour(box) {
   const w = Math.round((box.east - box.west) * FINE);
   const h = Math.round((box.north - box.south) * FINE);
-  const out = await open(await writeHeader('colour', box.tag, { w, h, ...box }, 'uint8', 3), 'w');
+  const file = await writeHeader('colour', box.tag, { w, h, ...box }, 'uint8', 3);
+  // A rebuilt raster has lost its Sentinel-2 overlay, so earth-sentinel must redo every tile.
+  await rm(`${file}.sentinel-done`, { force: true });
+  const out = await open(file, 'w');
   await out.truncate(w * h * 3);
   const bx = Math.round((box.west + 180) * FINE);
   const by = Math.round((90 - box.north) * FINE);

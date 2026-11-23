@@ -538,5 +538,221 @@
         }
       ]
     }
+  },
+  {
+    "id": "earth-terminator",
+    "label": "Dusk over the Tibetan Plateau",
+    "focus": "70% 50%",
+    "horizon": 0.42,
+    "body": "Earth",
+    "relief": 2.5,
+    "lat": 38.3,
+    "lon": 77.9,
+    "lst": "16:38",
+    "altKm": 400,
+    "at": "2026-11-20T11:13:00.000Z",
+    "sources": [
+      {
+        "src": "/posters/earth-terminator-960.avif",
+        "width": 960,
+        "bytes": 27532
+      },
+      {
+        "src": "/posters/earth-terminator-1600.avif",
+        "width": 1600,
+        "bytes": 61526
+      },
+      {
+        "src": "/posters/earth-terminator-2560.avif",
+        "width": 2560,
+        "bytes": 125968
+      }
+    ],
+    "portrait": {
+      "lat": 38.3,
+      "lon": 77.9,
+      "lst": "16:38",
+      "altKm": 400,
+      "at": "2026-11-20T11:13:00.000Z",
+      "sources": [
+        {
+          "src": "/posters/earth-terminator-portrait-600.avif",
+          "width": 600,
+          "bytes": 41049
+        },
+        {
+          "src": "/posters/earth-terminator-portrait-800.avif",
+          "width": 800,
+          "bytes": 60537
+        },
+        {
+          "src": "/posters/earth-terminator-portrait-1170.avif",
+          "width": 1170,
+          "bytes": 102700
+        }
+      ]
+    }
+  },
+  {
+    "id": "earth-sunrise",
+    "label": "Orbital sunrise over Italy",
+    "focus": "70% 50%",
+    "horizon": 0.42,
+    "body": "Earth",
+    "relief": 2.5,
+    "lat": 42,
+    "lon": 6,
+    "lst": "05:43",
+    "altKm": 400,
+    "at": "2026-11-20T05:05:00.000Z",
+    "sources": [
+      {
+        "src": "/posters/earth-sunrise-960.avif",
+        "width": 960,
+        "bytes": 26225
+      },
+      {
+        "src": "/posters/earth-sunrise-1600.avif",
+        "width": 1600,
+        "bytes": 53949
+      },
+      {
+        "src": "/posters/earth-sunrise-2560.avif",
+        "width": 2560,
+        "bytes": 100959
+      }
+    ],
+    "portrait": {
+      "lat": 42,
+      "lon": 6,
+      "lst": "05:43",
+      "altKm": 400,
+      "at": "2026-11-20T05:05:00.000Z",
+      "sources": [
+        {
+          "src": "/posters/earth-sunrise-portrait-600.avif",
+          "width": 600,
+          "bytes": 31928
+        },
+        {
+          "src": "/posters/earth-sunrise-portrait-800.avif",
+          "width": 800,
+          "bytes": 45233
+        },
+        {
+          "src": "/posters/earth-sunrise-portrait-1170.avif",
+          "width": 1170,
+          "bytes": 72645
+        }
+      ]
+    }
+  },
+  {
+    "id": "earth-night-pass",
+    "label": "The Nile Delta at night",
+    "focus": "70% 50%",
+    "horizon": 0.42,
+    "body": "Earth",
+    "relief": 2.5,
+    "lat": 23.9,
+    "lon": 31.4,
+    "lst": "21:20",
+    "altKm": 400,
+    "at": "2026-11-20T19:01:00.000Z",
+    "sources": [
+      {
+        "src": "/posters/earth-night-pass-960.avif",
+        "width": 960,
+        "bytes": 15862
+      },
+      {
+        "src": "/posters/earth-night-pass-1600.avif",
+        "width": 1600,
+        "bytes": 30423
+      },
+      {
+        "src": "/posters/earth-night-pass-2560.avif",
+        "width": 2560,
+        "bytes": 52502
+      }
+    ],
+    "portrait": {
+      "lat": 23.9,
+      "lon": 31.4,
+      "lst": "21:20",
+      "altKm": 400,
+      "at": "2026-11-20T19:01:00.000Z",
+      "sources": [
+        {
+          "src": "/posters/earth-night-pass-portrait-600.avif",
+          "width": 600,
+          "bytes": 16939
+        },
+        {
+          "src": "/posters/earth-night-pass-portrait-800.avif",
+          "width": 800,
+          "bytes": 23554
+        },
+        {
+          "src": "/posters/earth-night-pass-portrait-1170.avif",
+          "width": 1170,
+          "bytes": 35469
+        }
+      ]
+    }
+  },
+  {
+    "id": "earth-glint",
+    "label": "Sunlight on the Aegean Sea",
+    "focus": "70% 50%",
+    "horizon": 0.42,
+    "body": "Earth",
+    "relief": 2.5,
+    "lat": 36.7,
+    "lon": 16.8,
+    "lst": "06:07",
+    "altKm": 400,
+    "at": "2026-07-15T05:06:00.000Z",
+    "sources": [
+      {
+        "src": "/posters/earth-glint-960.avif",
+        "width": 960,
+        "bytes": 17850
+      },
+      {
+        "src": "/posters/earth-glint-1600.avif",
+        "width": 1600,
+        "bytes": 36807
+      },
+      {
+        "src": "/posters/earth-glint-2560.avif",
+        "width": 2560,
+        "bytes": 68999
+      }
+    ],
+    "portrait": {
+      "lat": 36.7,
+      "lon": 16.8,
+      "lst": "06:07",
+      "altKm": 400,
+      "at": "2026-07-15T05:06:00.000Z",
+      "sources": [
+        {
+          "src": "/posters/earth-glint-portrait-600.avif",
+          "width": 600,
+          "bytes": 17265
+        },
+        {
+          "src": "/posters/earth-glint-portrait-800.avif",
+          "width": 800,
+          "bytes": 25810
+        },
+        {
+          "src": "/posters/earth-glint-portrait-1170.avif",
+          "width": 1170,
+          "bytes": 43000
+        }
+      ]
+    }
   }
 ]
