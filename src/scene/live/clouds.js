@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import {
-  If, asin, atan, clamp, cos, dot, float, length, log2, max, mx_noise_float, mx_noise_vec3, normalize, select, sin, smoothstep, sqrt, texture, uniform, vec2, vec3, vec4,
+  If, asin, atan, cameraPosition, clamp, cos, dot, float, length, log2, max, mx_noise_float, mx_noise_vec3, normalize, select, sin, smoothstep, sqrt, texture, uniform, vec2, vec3, vec4,
 } from 'three/tsl';
 import { CLOUD_TEXTURE, cloudsNewer } from '../clouds.ts';
 
@@ -16,7 +16,7 @@ const DETAIL_STRENGTH = 1.6;
 // The map is warped by up to about half a texel, so close-in clouds don't show its grid.
 const WARP_KM = 20;
 // Cloud tops are lit from the side as well as from above, so a low Sun still lights them.
-const SIDE_LIGHT = 0.4;
+const SIDE_LIGHT = 0.25;
 
 // The cloud job's bucket. In development, a local stand-in laid out like it, served at /data/clouds
 // (FALSY_TILES_CLOUDS picks its folder); clouds.falsy.dev only answers the production site.
@@ -45,7 +45,8 @@ export function loadCloudSet(candidates) {
 export function createClouds({ body, lighting, tables, set }) {
   const cfg = body.clouds;
   const R = body.radiusKm;
-  const Rc = R + cfg.heightKm;
+  // Raised like the terrain, so clouds clear exaggerated peaks and cast shadows at the same scale.
+  const Rc = R + cfg.heightKm * body.relief;
   const { width: W, height: H } = CLOUD_TEXTURE;
   const texelKm = (2 * Math.PI * Rc) / W;
 
@@ -132,14 +133,32 @@ export function createClouds({ body, lighting, tables, set }) {
     return sampleAt(lat, lon, lod).mul(capFade(lat));
   };
 
-  /** Sunlight reaching ground point `p` (world km) past the clouds, 0 to 1. One coarse sample. */
+  /** Summed detail noise at shell point `p`, each octave full strength at 4 pixels a wavelength and gone at 2. */
+  const detailAt = (p, footprint) => {
+    let sum = float(0);
+    DETAIL_KM.forEach((km, k) => {
+      const fade = clamp(float(km).div(footprint.mul(2)).sub(1), 0, 1);
+      sum = sum.add(mx_noise_float(p.div(km).add(k * 17.3)).mul(0.5 ** k).mul(fade));
+    });
+    return sum;
+  };
+
+  /**
+   * Sunlight reaching ground point `p` (world km) past the clouds, 0 to 1. One sample at the ground's
+   * own pixel size, edged like the drawn cloud, so each cloud casts a crisp outline offset from the Sun.
+   */
   const shadowAt = (p, sun) => {
     const lit = float(1).toVar();
     If(u.shadows.greaterThan(0.5), () => {
       const b = dot(p, sun);
       const t = b.negate().add(sqrt(max(b.mul(b).sub(dot(p, p)).add(Rc * Rc), 0)));
       If(length(p).lessThan(Rc), () => {
-        lit.assign(coverage(normalize(p.add(sun.mul(t))), float(2)).mul(-SHADOW_DARKNESS).add(1));
+        const pc = p.add(sun.mul(t));
+        const up = normalize(pc);
+        const toCam = cameraPosition.sub(p);
+        const slant = float(1).div(max(dot(normalize(toCam), normalize(p)).abs(), 0.05));
+        const lod = max(log2(length(toCam).mul(u.pixelAngle).mul(sqrt(slant)).div(texelKm)), 0);
+        lit.assign(smoothstep(0.08, 0.92, coverage(up, lod)).mul(-SHADOW_DARKNESS).add(1));
       });
     });
     return lit;
@@ -153,38 +172,41 @@ export function createClouds({ body, lighting, tables, set }) {
     // Variables up front: the relief branch would otherwise be where they're first built.
     const lat = asin(up.y).toVar();
     const lon = atan(up.z.negate(), up.x).toVar();
-    const footprint = t.mul(u.pixelAngle);
     const slant = float(1).div(max(dot(rd, up).abs(), 0.05));
-    const lod = max(log2(footprint.mul(sqrt(slant)).div(texelKm)), 0).toVar();
-    const warp = mx_noise_vec3(pc.div(WARP_KM)).mul(clamp(float(WARP_KM).div(footprint.mul(slant).mul(2)).sub(1), 0, 1)).mul(0.5 * texelKm / Rc);
+    const footprint = t.mul(u.pixelAngle).mul(slant).toVar();
+    const lod = max(log2(footprint.div(sqrt(slant)).div(texelKm)), 0).toVar();
+    const warp = mx_noise_vec3(pc.div(WARP_KM)).mul(clamp(float(WARP_KM).div(footprint.mul(2)).sub(1), 0, 1)).mul(0.5 * texelKm / Rc);
     const c = sampleAt(lat.add(warp.y), lon.add(warp.x.div(max(cos(lat), 0.05))), lod).mul(capFade(lat));
 
     // Synthesised detail only reshapes partial cover: clear sky stays clear and full decks stay solid.
-    let detail = float(0);
-    DETAIL_KM.forEach((km, k) => {
-      // Full strength at 4 pixels a wavelength, gone at 2.
-      const fade = clamp(float(km).div(footprint.mul(slant).mul(2)).sub(1), 0, 1);
-      detail = detail.add(mx_noise_float(pc.div(km).add(k * 17.3)).mul(0.5 ** k).mul(fade));
-    });
+    // A variable: first read inside the relief branch below.
+    const detail = detailAt(pc, footprint).toVar();
     const alpha = smoothstep(0.08, 0.92, c.add(detail.mul(DETAIL_STRENGTH).mul(c).mul(c.oneMinus()).mul(4)));
 
-    const N = up.toVar();
+    // Sunlight on the top's slope, along the Sun's bearing: the map's cover reliefKm high at full
+    // cover, plus the detail noise as lumps, differenced over about a pixel.
+    const muS = dot(up, sun).toVar();
+    const facing = muS.toVar();
     If(u.relief.greaterThan(0.5), () => {
       const east = vec3(sin(lon).negate(), 0, cos(lon).negate());
-      const north = vec3(sin(lat).negate().mul(cos(lon)), cos(lat), sin(lat).mul(sin(lon)));
-      const dLon = float((2 * Math.PI) / W);
-      const dLat = float(Math.PI / H);
-      const gE = sampleAt(lat, lon.add(dLon), lod).sub(sampleAt(lat, lon.sub(dLon), lod)).div(max(cos(lat), 0.05).mul(2 * texelKm));
-      const gN = sampleAt(lat.add(dLat), lon, lod).sub(sampleAt(lat.sub(dLat), lon, lod)).div(2 * texelKm);
-      N.assign(normalize(up.sub(east.mul(gE).add(north.mul(gN)).mul(cfg.reliefKm))));
+      // Nudged east so the bearing stays defined with the Sun overhead.
+      const toward = normalize(sun.sub(up.mul(muS)).add(east.mul(0.02)));
+      const flat = dot(sun, toward);
+      const step = clamp(footprint, 1.5, 20);
+      const q = pc.add(toward.mul(step));
+      const qUp = normalize(q);
+      const qLat = asin(qUp.y);
+      const qLon = atan(qUp.z.negate(), qUp.x);
+      const rise = sampleAt(qLat, qLon, lod).sub(sampleAt(lat, lon, lod)).mul(cfg.reliefKm).add(detailAt(q, footprint).sub(detail).mul(cfg.bumpKm));
+      const s = rise.div(step);
+      facing.assign(muS.sub(s.mul(flat)).div(sqrt(s.mul(s).add(1))));
     });
 
-    const muS = dot(up, sun);
-    // The planet's own shadow at cloud height: tops stay lit until the Sun is ~3° below the ground's horizon.
+    // The planet's own shadow at cloud height: tops stay lit until the Sun is acos(R/Rc) below the ground's horizon.
     const b = dot(pc, sun);
     const miss = sqrt(max(dot(pc, pc).sub(b.mul(b)), 0));
     const sunlit = select(b.greaterThan(0), float(1), smoothstep(R - 2, R + 6, miss));
-    const side = dot(N, sun).clamp(0, 1).mul(1 - SIDE_LIGHT).add(SIDE_LIGHT);
+    const side = facing.clamp(0, 1).mul(1 - SIDE_LIGHT).add(SIDE_LIGHT);
     const direct = vec3(lighting.sunColor).mul(lighting.sunIntensity).mul(tables.transmittance(float(Rc), muS)).mul(sunlit.mul(side));
     const sky = vec3(lighting.skyTint).mul(lighting.ambient).mul(smoothstep(-0.2, 0.25, muS));
     return vec4(direct.add(sky).mul(cfg.albedo), alpha);
