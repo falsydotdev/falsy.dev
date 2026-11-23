@@ -1,24 +1,32 @@
 import { describe, expect, it } from 'vitest';
-import { bmngMonth, colorPeriod, mosaicQuarter, toneReflectance } from '../../scripts/tiles/earth/sentinel.ts';
+import { bmngMonth, colorPeriod, mosaicQuarter, TONE, toneReflectance } from '../../scripts/tiles/earth/sentinel.ts';
 
 describe('Sentinel-2 tone curve', () => {
-  it('follows the Copernicus true-colour display mapping (DN / 10000 × 2.5) below the shoulder', () => {
-    expect(toneReflectance(0)).toBe(0);
-    expect(toneReflectance(1000)).toBe(64);
-    expect(toneReflectance(2000)).toBe(128);
+  const RED = 0, GREEN = 1, BLUE = 2;
+
+  it('lifts farmland reflectance to Blue Marble brightness, per channel, below the shoulder', () => {
+    expect(toneReflectance(0, GREEN)).toBe(0);
+    expect(toneReflectance(800, GREEN)).toBe(Math.round(Math.pow(0.08 * TONE.gain[GREEN], 1 / TONE.gamma) * 255));
+    expect(toneReflectance(800, GREEN)!).toBeGreaterThan(Math.round(0.08 * 2.5 * 255));
+  });
+
+  it('warms the colour, since surface reflectance reads blue next to Blue Marble', () => {
+    expect(toneReflectance(600, RED)!).toBeGreaterThan(toneReflectance(600, BLUE)!);
+    expect(toneReflectance(600, GREEN)!).toBeGreaterThan(toneReflectance(600, BLUE)!);
   });
 
   it('rolls bright surfaces off instead of clipping them', () => {
-    const at = (dn: number) => toneReflectance(dn) as number;
-    expect(at(4000)).toBeLessThan(250);
-    expect(at(4000)).toBeGreaterThan(at(3500));
-    expect(at(6000)).toBeGreaterThan(at(4000));
-    expect(at(10000)).toBe(255);
-    for (let dn = 0; dn < 12000; dn += 50) expect(at(dn + 50)).toBeGreaterThanOrEqual(at(dn));
+    for (const c of [RED, GREEN, BLUE]) {
+      const at = (dn: number) => toneReflectance(dn, c) as number;
+      expect(at(3000)).toBeLessThan(250);
+      expect(at(6000)).toBeGreaterThan(at(3000));
+      expect(at(20000)).toBe(255);
+      for (let dn = 0; dn < 12000; dn += 50) expect(at(dn + 50)).toBeGreaterThanOrEqual(at(dn));
+    }
   });
 
   it('leaves nodata for Blue Marble to fill', () => {
-    expect(toneReflectance(-32768)).toBeNull();
+    expect(toneReflectance(-32768, RED)).toBeNull();
   });
 });
 

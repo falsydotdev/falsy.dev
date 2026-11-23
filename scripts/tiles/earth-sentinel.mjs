@@ -121,7 +121,7 @@ async function overlay(raster, item, src) {
       if (src.bands.some((band) => taps.some((t) => band[t] === NODATA))) continue;
       src.bands.forEach((band, b) => {
         const dn = (band[k] * (1 - tx) + band[k + 1] * tx) * (1 - ty) + (band[k + src.w] * (1 - tx) + band[k + src.w + 1] * tx) * ty;
-        rows[b][c - c0] = toneReflectance(dn);
+        rows[b][c - c0] = toneReflectance(dn, b);
       });
       written++;
     }

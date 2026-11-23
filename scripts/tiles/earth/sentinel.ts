@@ -6,15 +6,15 @@ import type { ColorPeriod } from '../../../src/scene/telemetry.ts';
 const NODATA = -32768;
 
 /**
- * Below the knee this is the Copernicus true-colour visualisation, reflectance × 2.5; above it,
- * an exponential shoulder keeps snow and cloud remnants from clipping flat. Tune with the look test.
+ * Gains (red, green, blue) and gamma fitted to Blue Marble over the Netherlands test region: the
+ * plain ×2.5 true-colour mapping read dark and blue there. The shoulder keeps snow from clipping.
  */
-export const TONE = { gain: 2.5, knee: 0.8 };
+export const TONE = { gain: [2.25, 2.04, 1.2], gamma: 1.4, knee: 0.8 };
 
-/** Display byte (0–255, already display-encoded like Blue Marble) for a band DN, or null for nodata. */
-export function toneReflectance(dn: number): number | null {
+/** Display byte (0–255) for a band DN in channel 0 red, 1 green, 2 blue, or null for nodata. */
+export function toneReflectance(dn: number, channel: number): number | null {
   if (dn === NODATA) return null;
-  const v = Math.max(0, (dn / 10000) * TONE.gain);
+  const v = Math.pow(Math.max(0, (dn / 10000) * TONE.gain[channel]), 1 / TONE.gamma);
   const { knee } = TONE;
   const shaped = v <= knee ? v : knee + (1 - knee) * (1 - Math.exp(-(v - knee) / (1 - knee)));
   return Math.min(255, Math.round(shaped * 255));
