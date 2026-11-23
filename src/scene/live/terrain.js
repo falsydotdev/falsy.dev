@@ -18,6 +18,7 @@ export function createLighting(body) {
     sunDiameter: uniform(body.sunDiameterRad),
     ambient: uniform(l.ambient),
     skyTint: uniform(new THREE.Color(...l.skyTint)),
+    nightFill: uniform(new THREE.Color(...(l.night?.tint ?? [0, 0, 0])).multiplyScalar(l.night?.level ?? 0)),
     shadows: uniform(1),
   };
 }

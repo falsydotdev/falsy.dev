@@ -31,6 +31,9 @@ export interface Body {
     sunIntensity: number;
     ambient: number;
     skyTint: RGB; // colour of the diffuse skylight on the ground
+    // Fill on the night side, as in a long exposure by moonlight, so land shows under the city lights
+    // (real moonlight is about a millionth of sunlight). Clouds take `clouds` of it, or they swamp the lights.
+    night?: { tint: RGB; level: number; clouds: number };
   };
   // A cloud layer: one global coverage map drawn as a shell at a fixed height.
   clouds?: {
@@ -209,6 +212,7 @@ export const EARTH: Body = {
     sunIntensity: 3.4,
     ambient: 0.03,
     skyTint: [0.55, 0.7, 1],
+    night: { tint: [0.6, 0.72, 1], level: 0.06, clouds: 0.2 },
   },
   seaLevel: true,
   // 7 m/s is roughly the global mean over the oceans (unsourced; Young et al. 2020 would confirm).

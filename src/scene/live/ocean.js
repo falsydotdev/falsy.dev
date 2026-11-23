@@ -82,7 +82,7 @@ export function createOcean(ocean, { lighting, air, radiusKm }) {
       const fresnel = schlick(nv);
       const shallow = shallowness(seaFloor);
       const water = mix(vec3(...ocean.deep), vec3(...ocean.shallow), shallow);
-      const ambient = lighting.skyTint.mul(lighting.ambient).mul(daylight);
+      const ambient = lighting.skyTint.mul(lighting.ambient).mul(daylight).add(lighting.nightFill.mul(daylight.oneMinus()));
       const leaving = water.mul(sunlight(through).mul(max(dot(n, s), 0)).add(ambient)).mul(float(1).sub(fresnel));
       out.assign(mix(leaving.add(sky.mul(fresnel)).add(spec), color, land));
     });
