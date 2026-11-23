@@ -555,17 +555,17 @@
       {
         "src": "/posters/earth-terminator-960.avif",
         "width": 960,
-        "bytes": 32024
+        "bytes": 30930
       },
       {
         "src": "/posters/earth-terminator-1600.avif",
         "width": 1600,
-        "bytes": 69584
+        "bytes": 67563
       },
       {
         "src": "/posters/earth-terminator-2560.avif",
         "width": 2560,
-        "bytes": 139034
+        "bytes": 135156
       }
     ],
     "portrait": {
@@ -578,17 +578,17 @@
         {
           "src": "/posters/earth-terminator-portrait-600.avif",
           "width": 600,
-          "bytes": 43054
+          "bytes": 42756
         },
         {
           "src": "/posters/earth-terminator-portrait-800.avif",
           "width": 800,
-          "bytes": 62872
+          "bytes": 62735
         },
         {
           "src": "/posters/earth-terminator-portrait-1170.avif",
           "width": 1170,
-          "bytes": 105787
+          "bytes": 105625
         }
       ]
     }
@@ -609,17 +609,17 @@
       {
         "src": "/posters/earth-sunrise-960.avif",
         "width": 960,
-        "bytes": 26702
+        "bytes": 26358
       },
       {
         "src": "/posters/earth-sunrise-1600.avif",
         "width": 1600,
-        "bytes": 55232
+        "bytes": 54269
       },
       {
         "src": "/posters/earth-sunrise-2560.avif",
         "width": 2560,
-        "bytes": 103754
+        "bytes": 102150
       }
     ],
     "portrait": {
@@ -632,17 +632,17 @@
         {
           "src": "/posters/earth-sunrise-portrait-600.avif",
           "width": 600,
-          "bytes": 32338
+          "bytes": 31901
         },
         {
           "src": "/posters/earth-sunrise-portrait-800.avif",
           "width": 800,
-          "bytes": 46072
+          "bytes": 45710
         },
         {
           "src": "/posters/earth-sunrise-portrait-1170.avif",
           "width": 1170,
-          "bytes": 74325
+          "bytes": 73622
         }
       ]
     }
@@ -668,12 +668,12 @@
       {
         "src": "/posters/earth-night-pass-1600.avif",
         "width": 1600,
-        "bytes": 30339
+        "bytes": 30340
       },
       {
         "src": "/posters/earth-night-pass-2560.avif",
         "width": 2560,
-        "bytes": 51818
+        "bytes": 51833
       }
     ],
     "portrait": {
@@ -686,17 +686,17 @@
         {
           "src": "/posters/earth-night-pass-portrait-600.avif",
           "width": 600,
-          "bytes": 16878
+          "bytes": 16866
         },
         {
           "src": "/posters/earth-night-pass-portrait-800.avif",
           "width": 800,
-          "bytes": 23518
+          "bytes": 23564
         },
         {
           "src": "/posters/earth-night-pass-portrait-1170.avif",
           "width": 1170,
-          "bytes": 35934
+          "bytes": 35966
         }
       ]
     }
@@ -717,17 +717,17 @@
       {
         "src": "/posters/earth-glint-960.avif",
         "width": 960,
-        "bytes": 18432
+        "bytes": 18465
       },
       {
         "src": "/posters/earth-glint-1600.avif",
         "width": 1600,
-        "bytes": 38451
+        "bytes": 38216
       },
       {
         "src": "/posters/earth-glint-2560.avif",
         "width": 2560,
-        "bytes": 72554
+        "bytes": 71809
       }
     ],
     "portrait": {
@@ -740,17 +740,17 @@
         {
           "src": "/posters/earth-glint-portrait-600.avif",
           "width": 600,
-          "bytes": 17987
+          "bytes": 18109
         },
         {
           "src": "/posters/earth-glint-portrait-800.avif",
           "width": 800,
-          "bytes": 26967
+          "bytes": 27015
         },
         {
           "src": "/posters/earth-glint-portrait-1170.avif",
           "width": 1170,
-          "bytes": 45128
+          "bytes": 45150
         }
       ]
     }

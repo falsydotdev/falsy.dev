@@ -215,7 +215,7 @@ export const EARTH: Body = {
   // The spec's twilight: Sun 2.9° up to 8.6° down. Warm white, between sodium and LED street lighting.
   lights: { color: [1, 0.82, 0.6], intensity: 3, fadeSin: [0.05, -0.15] },
   // The static map: GMGSI for 2026-11-22 11:00 UTC against the 14 days before it.
-  clouds: { staticUrl: '/clouds/static.json', heightKm: 8, albedo: 0.85, reliefKm: 12, bumpKm: 8, sideLight: 0.25 },
+  clouds: { staticUrl: '/clouds/static.json', heightKm: 8, albedo: 0.85, reliefKm: 12, bumpKm: 8, sideLight: 0.4 },
   // Colour stops at level 6 and carries the water mask in alpha (opaque is land).
   // Set sentinelYear to the value earth-sentinel.mjs prints for the bake you upload; null is Blue Marble only.
   tiles: { version: 'v1', sentinelYear: 2025, layers: [{ ...COLOR_LAYER, format: 'masked', maxLevel: 6 }, HEIGHT_LAYER, LIGHTS_LAYER] },

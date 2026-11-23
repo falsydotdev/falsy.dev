@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import {
-  If, asin, atan, cameraPosition, clamp, cos, dot, float, length, log2, max, mx_noise_float, mx_noise_vec3, normalize, select, sin, smoothstep, sqrt, texture, uniform, vec2, vec3, vec4,
+  If, asin, atan, cameraPosition, clamp, cos, dot, exp2, float, length, log2, max, mx_noise_float, mx_noise_vec3, normalize, select, sin, smoothstep, sqrt, texture, uniform, vec2, vec3, vec4,
 } from 'three/tsl';
 import { CLOUD_TEXTURE, cloudsNewer } from '../clouds.ts';
 
@@ -180,7 +180,9 @@ export function createClouds({ body, lighting, tables, set }) {
     const footprint = t.mul(u.pixelAngle).mul(slant).toVar();
     const lod = max(log2(footprint.div(sqrt(slant)).div(texelKm)), 0).toVar();
     const warp = mx_noise_vec3(pc.div(WARP_KM)).mul(clamp(float(WARP_KM).div(footprint.mul(2)).sub(1), 0, 1)).mul(0.5 * texelKm / Rc);
-    const c = sampleAt(lat.add(warp.y), lon.add(warp.x.div(max(cos(lat), 0.05))), lod).mul(capFade(lat));
+    const wLat = lat.add(warp.y).toVar();
+    const wLon = lon.add(warp.x.div(max(cos(lat), 0.05))).toVar();
+    const c = sampleAt(wLat, wLon, lod).mul(capFade(lat));
 
     // Synthesised detail only reshapes partial cover: clear sky stays clear and full decks stay solid.
     // A variable: first read inside the relief branch below.
@@ -189,30 +191,34 @@ export function createClouds({ body, lighting, tables, set }) {
     const alpha = smoothstep(0.08, 0.92, c.add(detail.mul(DETAIL_STRENGTH).mul(c).mul(c.oneMinus()).mul(4)));
 
     // Sunlight on the top's slope, along the Sun's bearing: the map's cover reliefKm high at full
-    // cover, plus the coarse detail octaves as lumps, differenced over about a pixel.
+    // cover, differenced across a texel so its bilinear grid doesn't show, plus the coarse detail
+    // octaves as lumps, differenced over about a pixel.
     const muS = dot(up, sun).toVar();
     const facing = muS.toVar();
     If(u.relief.greaterThan(0.5), () => {
       const east = vec3(sin(lon).negate(), 0, cos(lon).negate());
       // Nudged east so the bearing stays defined with the Sun overhead.
       const toward = normalize(sun.sub(up.mul(muS)).add(east.mul(0.02)));
+      const north = vec3(sin(lat).negate().mul(cos(lon)), cos(lat), sin(lat).mul(sin(lon)));
       const flat = dot(sun, toward);
+      const texel = float(texelKm).mul(exp2(lod));
+      const dLat = dot(toward, north).mul(texel).div(Rc);
+      const dLon = dot(toward, east).mul(texel).div(max(cos(lat), 0.05).mul(Rc));
+      const mapSlope = sampleAt(wLat.add(dLat), wLon.add(dLon), lod).sub(sampleAt(wLat.sub(dLat), wLon.sub(dLon), lod)).div(texel.mul(2));
       const step = clamp(footprint, 1.5, 20);
-      const q = pc.add(toward.mul(step));
-      const qUp = normalize(q);
-      const qLat = asin(qUp.y);
-      const qLon = atan(qUp.z.negate(), qUp.x);
-      const rise = sampleAt(qLat, qLon, lod).sub(sampleAt(lat, lon, lod)).mul(cfg.reliefKm).add(detailAt(q, footprint, 0, BUMP_OCTAVES).sub(bumps).mul(cfg.bumpKm));
-      const s = rise.div(step);
+      const bumpSlope = detailAt(pc.add(toward.mul(step)), footprint, 0, BUMP_OCTAVES).sub(bumps).div(step);
+      const s = mapSlope.mul(cfg.reliefKm).add(bumpSlope.mul(cfg.bumpKm));
       facing.assign(muS.sub(s.mul(flat)).div(sqrt(s.mul(s).add(1))));
     });
 
-    // The planet's own shadow at cloud height: tops stay lit until the Sun is acos(R/Rc) below the ground's horizon.
-    const b = dot(pc, sun);
-    const miss = sqrt(max(dot(pc, pc).sub(b.mul(b)), 0));
+    // Lit at the clouds' true height, as the terrain is lit at R: the planet's shadow keeps tops lit
+    // until the Sun is ~3° below the ground's horizon, and their sunlight reddens through the haze.
+    const pTrue = up.mul(R + cfg.heightKm);
+    const b = dot(pTrue, sun);
+    const miss = sqrt(max(dot(pTrue, pTrue).sub(b.mul(b)), 0));
     const sunlit = select(b.greaterThan(0), float(1), smoothstep(R - 2, R + 6, miss));
     const side = facing.clamp(0, 1).mul(1 - cfg.sideLight).add(cfg.sideLight);
-    const direct = vec3(lighting.sunColor).mul(lighting.sunIntensity).mul(tables.transmittance(float(Rc), muS)).mul(sunlit.mul(side));
+    const direct = vec3(lighting.sunColor).mul(lighting.sunIntensity).mul(tables.transmittance(float(R + cfg.heightKm), muS)).mul(sunlit.mul(side));
     const sky = vec3(lighting.skyTint).mul(lighting.ambient).mul(smoothstep(-0.2, 0.25, muS));
     return vec4(direct.add(sky).mul(cfg.albedo), alpha);
   };

@@ -500,6 +500,7 @@ export class TiledPlanet {
     return ready >= this.selected.length * SETTLED_FRACTION;
   }
 
+  // Clouds take body.relief once for their shell height; a runtime change here leaves them behind.
   setRelief(relief) {
     this.relief = relief;
     this.exaggeration.value = relief;
