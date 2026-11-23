@@ -197,3 +197,7 @@ Justin approved this wording on 2026-11-23. It shipped in the change that set `E
 | About, sentence 2 | …about 200 km up over Mars and 100 km over the Moon… | …about 200 km up over Mars, 100 km over the Moon and 400 km over Earth… |
 | About, new sentence after sentence 2 | (none) | Earth's clouds come from satellite images a few hours old, and its cities light up at night. |
 | Earth readout, surface item (after `relief×2.5`) | (none) | surface 2025 Q4 (Sentinel-2 quarter) · surface 2004 (Blue Marble) (bake without Sentinel-2) |
+| Earth readout, cloud item (after the surface item) | (none) | clouds 22 NOV 09:00Z, detail synthesised (the live set's time) · clouds 21 NOV 09:00Z, stale, detail synthesised (set over 6 hours old) · clouds: static map, detail synthesised · clouds: no polar data (view past the data's polar edge) · clouds: unavailable |
+| Readout title, night pass | (none) | Live: night pass. Lit by the Sun's real position now, … |
+| Readout title, home pass | (none) | Live: home pass. Lit by the Sun's real position now, … |
+| Poster labels (`scripts/posters/shots.json`) | (none) | Dusk over the Tibetan Plateau · Orbital sunrise over Italy · The Nile Delta at night · Sunlight on the Aegean Sea (the final moments after the full bake; the approved drafts named test-region moments over the North Sea and the Netherlands) |

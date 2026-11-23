@@ -136,14 +136,16 @@ export function createAtmosphere({ tables, terrainHeight, viewSteps, clouds = nu
       }
       if (clouds) clouds.composite(cloudList, t, throughput, cloudLight);
       const p = ro.add(rd.mul(t));
-      const r = length(p);
-      const h = r.sub(R);
-      const muS = dot(p, sun).div(r);
+      // Variables before the direct-light branch, since the multiple scattering and extinction after
+      // it read them too, including in the planet's shadow where the branch is skipped.
+      const r = length(p).toVar();
+      const h = r.sub(R).toVar();
+      const muS = dot(p, sun).div(r).toVar();
       let phased = vec3(0);
       let scatter = vec3(0);
       let extinction = vec3(0);
       for (const c of coeffs) {
-        const dens = densityAt(c.profile, h);
+        const dens = densityAt(c.profile, h).toVar();
         phased = phased.add(c.phased.mul(dens));
         scatter = scatter.add(c.scatter.mul(dens));
         extinction = extinction.add(c.extinction.mul(dens));

@@ -36,12 +36,13 @@ export function createOcean(ocean, { lighting, air, radiusKm }) {
   const shade = ({ land, color, n, su, shadow, seaFloor }) => {
     const s = lighting.sunDir;
     const R = float(radiusKm);
-    // TSL declares a shared node where it is first built, so one first built inside an If branch
-    // reads as zero after it. Each branch builds its own nodes from these.
+    // TSL declares a shared node where it is first built, so one first built inside an Else branch
+    // reads as zero after it. Shared inputs become variables up front; branches build their own nodes.
+    const lit = shadow.toVar();
     const view = () => normalize(cameraPosition.sub(positionWorld));
     const toSun = () => exp(air.opticalDepth(R, max(su, 0)).negate());
     const sunlight = (through) => {
-      const sun = lighting.sunColor.mul(lighting.sunIntensity).mul(shadow);
+      const sun = lighting.sunColor.mul(lighting.sunIntensity).mul(lit);
       return air ? sun.mul(through).mul(clamp(su.div(lighting.sunDiameter).add(0.5), 0, 1)) : sun;
     };
     const glare = (distribution) => {

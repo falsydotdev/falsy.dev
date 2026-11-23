@@ -600,6 +600,8 @@ export async function startLiveScene(host, opts) {
       state.firstFrameMs = Math.round(performance.now() - started);
       // Only the page's first scene measures the page load; later ones are body switches.
       window.__falsyPageReady ??= { body: body.id, sinceNavMs: Math.round(performance.now()), renderMs: Math.round(loadMs), hiddenDuringLoad: !!window.__falsyHiddenSinceNav };
+      // The home pass belongs to the first visit, so the flag is used up even when it fell back to
+      // another shot (Justin's call).
       if (homeEligible) markHomePassSeen();
       cloudsCheckedAt = t;
       opts.onFirstFrame?.();
