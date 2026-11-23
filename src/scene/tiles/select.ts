@@ -1,5 +1,7 @@
 // Picks which quadtree tiles to draw for a camera, by screen-space texel size, with horizon
 // and frustum culling. Shared by the renderer and the download-budget measurement.
+import type { TileLayer } from './layers.ts';
+import { type FlatOcean, isFlatOcean } from './flat-ocean.ts';
 import { type TileKey, type Vec3, children, parent, roots, tileAngularRadius, tileDir, tileEdgeKm, tileId } from './cube.ts';
 
 export interface CameraPose {
@@ -120,6 +122,61 @@ export function tilesToFetch(selected: Selected[], { pinnedLevel = 1, lean = fal
     let p = parent(s.key);
     while (lean && p && p.level > LEAN_FALLBACK_LEVEL) p = parent(p);
     if (p) out.set(tileId(p), p);
+  }
+  return [...out.values()];
+}
+
+/** The tile that holds a layer's texels for `key`: `key` itself, or its ancestor at the layer's level cap. */
+export function layerTile(key: TileKey, layer: Pick<TileLayer, 'maxLevel'>): TileKey {
+  let k = key;
+  while (k.level > layer.maxLevel) k = parent(k)!;
+  return k;
+}
+
+/**
+ * The terrain's drawn height range in km, from the tiles' range in metres: exaggerated, and held at
+ * sea level from below on a body whose sea is drawn flat.
+ */
+export function drawnHeightRangeKm(heightRangeM: readonly [number, number] | number[], body: { relief: number; seaLevel?: boolean }): [number, number] {
+  const km = (m: number) => ((body.seaLevel ? Math.max(m, 0) : m) / 1000) * body.relief;
+  return [km(heightRangeM[0]), km(heightRangeM[1])];
+}
+
+// Every height sample is sea, so the tile draws flat without its height tile. It borrows no ancestor,
+// whose coarser samples could bleed coastal land in; levels 0 and 1 always load as the fallback.
+export const isOpenSea = (key: TileKey, flatOcean?: FlatOcean): boolean => key.level > 1 && isFlatOcean(flatOcean, key);
+
+// `sunDir` is the unit vector to the Sun in the body frame. A tile wants a night-only layer while
+// any of its ground sees the Sun below the limit.
+export function layerWants(key: TileKey, layer: TileLayer, sunDir?: Vec3, flatOcean?: FlatOcean): boolean {
+  if (layer.format === 'height' && isOpenSea(key, flatOcean)) return false;
+  if (layer.sunBelowDeg === undefined) return true;
+  if (!sunDir) return false;
+  const centreDeg = (Math.asin(Math.max(-1, Math.min(1, dot(tileDir(key, 0.5, 0.5), sunDir)))) * 180) / Math.PI;
+  return centreDeg - (tileAngularRadius(key) * 180) / Math.PI < layer.sunBelowDeg;
+}
+
+/**
+ * A Sun-rule layer only lights ground in view, so it skips the pinned global fallbacks. Each tile it
+ * wants brings its ancestors, which hold that tile's ground, so the Sun rule wants them too.
+ */
+export function layerTilesFor(selected: Selected[], layer: TileLayer, { lean = false, sunDir, flatOcean }: { lean?: boolean; sunDir?: Vec3; flatOcean?: FlatOcean } = {}): TileKey[] {
+  if (layer.sunBelowDeg === undefined) return layerTilesToFetch(tilesToFetch(selected, { lean }), layer, sunDir, flatOcean);
+  const out = new Map<string, TileKey>();
+  for (const s of selected) {
+    const k = layerTile(s.key, layer);
+    if (out.has(tileId(k)) || !layerWants(k, layer, sunDir, flatOcean)) continue;
+    for (let a: TileKey | null = k; a && !out.has(tileId(a)); a = parent(a)) out.set(tileId(a), a);
+  }
+  return [...out.values()];
+}
+
+/** One layer's share of `tilesToFetch`: held to the layer's level cap, minus tiles its fetch rule skips. */
+export function layerTilesToFetch(keys: TileKey[], layer: TileLayer, sunDir?: Vec3, flatOcean?: FlatOcean): TileKey[] {
+  const out = new Map<string, TileKey>();
+  for (const key of keys) {
+    const k = layerTile(key, layer);
+    if (layerWants(k, layer, sunDir, flatOcean)) out.set(tileId(k), k);
   }
   return [...out.values()];
 }

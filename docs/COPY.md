@@ -143,7 +143,9 @@ In JavaScript, a `falsy` value acts false without actually being false. That's k
 
 Behind this page is Mars or the Moon, rendered from real NASA and USGS data. On a computer, you're watching it live from a real orbit, about 200 km up over Mars and 100 km over the Moon, moving as fast as a spacecraft would, with the Sun where it really is right now. On a phone, you get a still from the same renderer. The mountains are stretched 2.5 times taller so they show up from that height. I built it because I love space and physics, and I wanted my site to show the kind of work I do. (Updated 2026-11-04 to be accurate for both the live view and the stills, and 2026-11-08 for the Moon.)
 
-**Credits (footer):** Terrain from USGS Astrogeology: MOLA elevation and the Viking MDIM 2.1 colour mosaic. Moon data from NASA's Scientific Visualization Studio.
+**Credits (footer):** Mars terrain from USGS Astrogeology: MOLA elevation and the Viking MDIM 2.1 colour mosaic. Moon terrain from NASA/GSFC/Arizona State University: LOLA elevation, and LROC colour by NASA's Scientific Visualization Studio. Earth from NASA's Blue Marble, by the Scientific Visualization Studio.
+
+With Earth listed, the footer adds: Earth elevation from the GEBCO_2026 Grid (GEBCO Bathymetric Compilation Group 2026, doi:10.5285/4f68d5c7-45eb-f999-e063-7086abc036fa). Earth colour from Copernicus Sentinel-2 and NASA Blue Marble, and city lights from NASA Black Marble, by NASA Earth Observatory. Clouds from NOAA GMGSI (NESDIS). Contains modified Copernicus Sentinel data 2025. The year is `EARTH.tiles.sentinelYear` in `src/scene/bodies.ts`. A Blue Marble-only bake drops the Copernicus sentence and reads "Earth colour from NASA Blue Marble, and city lights …".
 
 ## Contact
 
@@ -176,7 +178,26 @@ For consulting, the quickest way to start is a 30-minute call. I work Adelaide h
 | 404 heading | This page is falsy |
 | 404 body | There's nothing here but empty space. |
 | 404 link | Back to the home page |
-| Loading (live scene) | Loading Mars terrain… / Loading lunar terrain… |
+| Loading (live scene) | Loading Mars terrain… / Loading lunar terrain… / Loading Earth terrain…  |
 | Telemetry example | MARS  18.6°N  226.2°E  LST 06:20  ALT 200 km  v 3.45 km/s  relief×2.5 |
 | Explorer edge (v2) | You've reached the edge of the observable universe. Past here, everything is undefined. |
 | Reduced-motion note (title text on the readout) | Orbit paused because your device prefers reduced motion. |
+
+## Earth (approved 2026-11-23, live with `listed: true`)
+
+Justin approved this wording on 2026-11-23. It shipped in the change that set `EARTH.listed` to `true` in `src/scene/bodies.ts`, so the right-hand column is now the live wording.
+
+| Where | Live wording now | Wording once Earth is listed |
+|---|---|---|
+| Meta description (`src/config/brand.ts`) | …and a view of Mars or the Moon rendered from real data. | …and a view of Mars, the Moon or Earth rendered from real data. |
+| Project card line (`src/content/projects/falsy-dev.md`) | This site, and the live orbit of Mars or the Moon behind it, rendered from real NASA data. | This site, and the live orbit of Mars, the Moon or Earth behind it, rendered from real data. |
+| Project page, paragraph 1 | The background is a live render of Mars or the Moon from a real orbit, about 200 km up over Mars and 100 km over the Moon. | The background is a live render of Mars, the Moon or Earth from a real orbit, about 200 km up over Mars, 100 km over the Moon and 400 km over Earth. |
+| Project page, paragraph 2, after the Moon's sources | (none) | Earth uses GEBCO elevation, Copernicus Sentinel-2 and NASA Blue Marble colour, and NASA Black Marble city lights. Its clouds come from NOAA satellite images, updated every three hours. |
+| About (`src/pages/index.astro`), sentence 1 | Behind this page is Mars or the Moon, rendered from real NASA and USGS data. | Behind this page is Mars, the Moon or Earth, rendered from real NASA, USGS, NOAA and Copernicus data. |
+| About, sentence 2 | …about 200 km up over Mars and 100 km over the Moon… | …about 200 km up over Mars, 100 km over the Moon and 400 km over Earth… |
+| About, new sentence after sentence 2 | (none) | Earth's clouds come from satellite images a few hours old, and its cities light up at night. |
+| Earth readout, surface item (after `relief×2.5`) | (none) | surface 2025 Q4 (Sentinel-2 quarter) · surface 2004 (Blue Marble) (bake without Sentinel-2) |
+| Earth readout, cloud item (after the surface item) | (none) | clouds 22 NOV 09:00Z, detail synthesised (the live set's time) · clouds 21 NOV 09:00Z, stale, detail synthesised (set over 6 hours old) · clouds: static map, detail synthesised · clouds: no polar data (view past the data's polar edge) · clouds: unavailable |
+| Readout title, night pass | (none) | Live: night pass. Lit by the Sun's real position now, … |
+| Readout title, home pass | (none) | Live: home pass. Lit by the Sun's real position now, … |
+| Poster labels (`scripts/posters/shots.json`) | (none) | Dusk over the Tibetan Plateau · Orbital sunrise over Italy · The Nile Delta at night · Sunlight on the Aegean Sea (the final moments after the full bake; the approved drafts named test-region moments over the North Sea and the Netherlands) |

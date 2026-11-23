@@ -28,6 +28,10 @@ declare global {
     readonly pixelRatio: number;
     readonly throttled: boolean;
     canvas: HTMLCanvasElement;
+    /** Whether the GPU shares the CPU's memory (see isIntegrated). */
+    integrated: boolean;
+    readonly msaa: number;
+    readonly gpuMemoryMB: number;
   }
   interface TierChange {
     from: string;
@@ -38,8 +42,9 @@ declare global {
   }
 }
 
-import { isTierName } from './quality.ts';
-import { type Body, BODIES, bodyById } from './bodies.ts';
+import { isTierName, switchesFromStill } from './quality.ts';
+import { type Body, bodyById, listedBodyIds, nextBodyId } from './bodies.ts';
+import { layerPath } from './tiles/layers.ts';
 
 // Load times from a tab that was hidden at any point include the wait, so analytics flags them.
 window.__falsyHiddenSinceNav ||=
@@ -113,8 +118,8 @@ const FADE_MS = 1000;
 // A switch fades in once the new view has its coarse tiles; fine detail streams in after, as on any load.
 const SWITCH_SETTLE_MS = 2500;
 const PREWARM_LEVELS = 2;
-const BODY_IDS = Object.keys(BODIES);
-const nextBody = (b: Body) => bodyById(BODY_IDS[(BODY_IDS.indexOf(b.id) + 1) % BODY_IDS.length]);
+const BODY_IDS = listedBodyIds(import.meta.env.DEV);
+const nextBody = (b: Body) => bodyById(nextBodyId(BODY_IDS, b.id));
 const throttledNow = () => scrollY > innerHeight * 0.8;
 
 // Loads the next body's coarse tiles into the HTTP cache (they're immutable), so a switch has
@@ -124,12 +129,14 @@ async function prewarm(body: Body) {
   const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
   if (prewarmed.has(body.id) || connection?.saveData) return;
   prewarmed.add(body.id);
-  const { colorPath, heightPath, SHADOW_MAP } = await import('./tiles/layout.ts');
+  const { SHADOW_MAP } = await import('./tiles/layout.ts');
+  // A layer with a Sun rule depends on where the switch lands, so it isn't worth guessing at here.
+  const tileLayers = body.tiles.layers.filter((l) => l.sunBelowDeg === undefined);
   const paths: string[] = ['meta.json', SHADOW_MAP.path];
   for (let level = 0; level <= PREWARM_LEVELS; level++) {
     const n = 2 ** level;
     for (let face = 0; face < 6; face++) {
-      for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) paths.push(colorPath({ face, level, x, y }), heightPath({ face, level, x, y }));
+      for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) for (const l of tileLayers) if (level <= l.maxLevel) paths.push(layerPath(l, { face, level, x, y }));
     }
   }
   const queue = paths.map((p) => `${tilesUrl(body)}/${p}`);
@@ -178,6 +185,9 @@ export async function boot() {
     scale: numberParam(params, 'scale', 0.5, 3),
     timeScale: Number.isFinite(tParam) ? Math.max(0, tParam) : 1,
     forceWebGL: params.has('webgl'),
+    // Parsed in the scene chunk, so the page's own script stays as small as it was.
+    fx: params.get('fx'),
+    benchRepeats: numberParam(params, 'bench', 1, 64),
     layout: measureLayout,
   };
 
@@ -227,7 +237,7 @@ export async function boot() {
     firstSlot.scene.setRunning(document.visibilityState === 'visible');
 
     // The new body loads under the old one, which keeps moving, and they crossfade at its first frame.
-    // The lowest tier and WebGL2 can't carry two scenes, so they fade from the old one's frozen frame.
+    // Low, WebGL2, and integrated GPUs don't carry two scenes, so they fade from the old one's frozen frame.
     const switchTo = async (id: string) => {
       const from = current;
       const old = from?.scene;
@@ -238,7 +248,7 @@ export async function boot() {
       setBusy(true);
       // A frozen scene already gave up on Low, so it's switched like Low and the next body starts there.
       const frozen = old.state.tier === 'frozen';
-      const light = frozen || old.state.tier === 'low' || old.state.backend === 'WebGL2';
+      const light = switchesFromStill(old.state);
       const cover = light ? old.freeze() : null;
       if (!light) old.holdGovernor(true);
 

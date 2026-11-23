@@ -96,7 +96,7 @@ Claude drafts all copy in Justin's voice with the `sound-like-justin` skill, and
 | v1 launch | Mars and the Moon, which share the rocky terrain pipeline |
 | v1.x | Earth, then Jupiter, then Saturn, each its own release |
 
-Each load picks a body, with weights favoring the most striking ones. The site never shows the same body twice in a row for one visitor, using browser storage that tolerates being empty.
+A first visit picks a body at random, each equally likely, and later loads take the next body in turn. The site never shows the same body twice in a row for one visitor, using browser storage that tolerates being empty.
 
 ### Shots
 
@@ -105,6 +105,7 @@ The camera rides a real low orbit at real orbital speed. For Mars at 200 km (the
 - **Dawn-dusk orbit:** an orbit whose plane is perpendicular to the Sun line, so it rides the terminator. It gives long shadows on the day-night line. It isn't a true sun-synchronous orbit, which at this altitude needs an inclination of about 93° and relies on Mars' J2 oblateness. Over a visit of minutes the two look the same, and the readout never claims sun-synchronous.
 - **Orbital sunrise:** an orbit that crosses the terminator. The camera starts about a minute before orbital sunrise, on the night side, with the Sun behind the planet. The atmosphere's rim glows, and light shafts fan through the dust before the Sun breaks the limb. Bodies without an atmosphere, like the Moon, get a hard-edged sunrise with no glow, which opens on a black limb, so the Moon leaves it out of its shot mix (decided 2026-11-08); `?shot=orbital-sunrise` still shows it.
 - **Feature flyover:** an orbit whose ground track passes over a named feature from the body's list (for example, Olympus Mons, Valles Marineris, Gale Crater, or Tycho) that currently has a low Sun. If no listed feature is well lit, it falls back to a dawn-dusk orbit.
+- **Night pass (Earth only):** a ground track past a lit city on the night side, with the lights fully on. It holds while there are city lights (or daylight) in the view ahead and re-shoots when the view goes dark. If no lit track qualifies, it falls back to a flyover.
 - **Earthrise (Moon only):** an orbit that brings Earth up over the lunar horizon 20 seconds after load, right of centre, at its real phase and rotation, over sunlit ground with the Sun on the right. Earth is NASA's Blue Marble with clouds, from the Scientific Visualization Studio. It qualifies only when at least a third of Earth is lit and the ground under the rise is lit, about 58% of the time; otherwise it falls back to a flyover. It uses a 28° lens instead of 50°, as Apollo 8 used a telephoto lens, so Earth reads at about twice the size. Earthshine is left out.
 
 The Sun's disc is drawn at its true apparent size (0.35° from Mars, 0.53° from the Moon), centred on the camera so it sits where the light on the terrain comes from, with a glare halo that reads without bloom.
@@ -127,12 +128,12 @@ Composition rules:
 
 ### Fidelity
 
-- **Terrain:** streaming terrain tiles give close-up quality everywhere. The tiles are a pyramid cut from the USGS and NASA source data, compressed to KTX2, and served from R2. Level of detail (LOD) is a quadtree on a cube-sphere.
+- **Terrain:** streaming terrain tiles give close-up quality everywhere. The tiles are a pyramid cut from the USGS and NASA source data and served from R2. Colour tiles ship as AVIF and height tiles in a custom lossless format (ADR 0004). Level of detail (LOD) is a quadtree on a cube-sphere.
 - **Relief:** height is exaggerated 2.5× by default on rocky bodies. The telemetry says so, for example `RELIEF ×2.5`.
 - **Shadows:** terrain shadows are raymarched through the height data.
 - **Atmosphere:** Hillaire-style physically based scattering, with dust-dominated Mie scattering for Mars and no atmosphere for the Moon. It includes light shafts (volumetric shadowing) for the orbital sunrise shot.
 - **Heavy effects:** precomputed lookup tables keep the atmosphere to about 0.5 ms per frame, so temporal accumulation isn't needed. It stays an option if a heavier effect arrives, because the scene changes slowly.
-- **Scale:** the renderer uses a floating origin and reversed depth from day one, so the v2 zoom across 17 orders of magnitude works without a rewrite.
+- **Scale:** the renderer uses a logarithmic depth buffer, without a floating origin. ADR 0001 planned a floating origin and reversed depth for the v2 zoom across 17 orders of magnitude; neither is built yet.
 
 ### Telemetry readout
 
@@ -140,14 +141,15 @@ The readout sits in a corner, for example `MARS  18.4°N  226.0°E  LST 06:12  A
 
 ### Fallback poster
 
-- A still frame of our own scene, re-rendered daily by an automated job. It loads instantly and fades into the live scene on capable devices.
+- A fixed still frame of our own scene, rendered once at a pinned moment and committed with the site. It loads instantly and fades into the live scene on capable devices.
 - While a poster shows, the telemetry readout describes that frame and ends with `still DD MON HH:MM UTC`, the moment its lighting was computed for. That keeps the readout true when the frame isn't live.
 - Phones, low-power devices, devices without WebGPU or WebGL2, and reduced-motion visitors keep the poster.
 - The live scene picks a quality tier from the measured frame rate.
 
 ### Later bodies
 
-- **Earth:** shows that day's real clouds from NASA's daily imagery, fetched by the daily job. It falls back to the previous day, then to a static cloud map. Night-side city lights come from NASA Black Marble.
+- **Earth:** shows real clouds from NOAA's GMGSI geostationary infrared composite, refreshed every 3 hours by the cloud job (a cron Worker that runs a Cloudflare Container). If the newest clouds are missing or more than about 6 hours old, it keeps the last good set and the readout says so; with no set at all, it falls back to a static cloud map. Night-side city lights come from NASA Black Marble.
+- **Earth's home pass:** on a visitor's first live Earth scene, a flyover passes about 150 km beside their timezone's principal city at their real local time. Coordinates come from IANA tzdb's `zone.tab` plus the `backward` aliases (both public domain), generated into `src/scene/zones.ts` by `scripts/zones.mjs`. The spec first named `zone1970.tab`, but that file merges countries: it gives Stockholm, Oslo, and Copenhagen Berlin's coordinates, and Amsterdam Brussels'. Browsers also report legacy names such as `Asia/Calcutta`, which only `backward` lists. UTC, `Etc/*`, unknown zones, and night passes over dark ground without city lights get the normal shot mix. The location stays in the browser and never reaches analytics.
 - **Jupiter and Saturn:** cloud bands drift at their real, latitude-dependent rotation rates, using Cassini and Juno maps with flow distortion. At real time that drift is slow, so the camera's orbit carries the motion. Saturn's rings and the planet shadow each other.
 
 ## Easter egg: the explorer (v2)
@@ -199,4 +201,4 @@ Credits appear in the about page or the footer:
 
 - **Baked shading:** the Viking color mosaic has shading from the original photos baked in, so some slopes look lit twice. Evaluate de-shading the mosaic, or using another color source, during Phase 2.
 - **Persisted canvas:** resolved. The Phase 1 spike showed a WebGPU canvas surviving navigation under `transition:persist` (ADR 0002).
-- **Payload:** the prototype downloads about 20 MB for mode A and 31 MB with the close-up, as unoptimized PNG and JPEG. Its GPU textures take about 220 MB uncompressed. KTX2 compression and tiling must bring a typical view under the Phase 2 budget.
+- **Payload:** the prototype downloads about 20 MB for mode A and 31 MB with the close-up, as unoptimized PNG and JPEG. Its GPU textures take about 220 MB uncompressed. Tile compression and tiling must bring a typical view under the Phase 2 budget.

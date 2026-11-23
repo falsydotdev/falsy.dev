@@ -8,7 +8,7 @@ The site's physics credibility rests on the scene being real right now. Real tim
 
 ## Decision
 
-- **Real-time clock:** keep the clock at real time. Compute Sun direction and body orientation with `astronomy-engine`, which uses the IAU 2015 rotation models.
+- **Real-time clock:** keep the clock at real time. Compute Sun direction and body orientation with `astronomy-engine`, which uses the IAU 2015 rotation models for Mars and the Moon. Earth turns to its true pole of date and Greenwich apparent sidereal time instead (amended 2026-11-23, see below).
 - **Real orbit:** get the motion from the camera instead. It rides a real low orbit at real orbital speed: a circular two-body orbit using the body's GM. At Mars, 200 km up, that's 3.45 km/s with a period of 1.82 hours. (Lowered from 380 km on 2026-11-03: at 200 km the ground appears to move about twice as fast, at real speed. Real orbiters fly this low; MAVEN dips to about 150 km.)
 - **Orbit choice:** each load picks one of three orbits:
   - A dawn-dusk orbit that rides the terminator.
@@ -33,5 +33,10 @@ The math lives in `src/scene/` (`orbit.ts`, `shots.ts`, `ephemeris.ts`), tested 
 
 - **Honest copy:** the copy can truthfully say the lighting is where the Sun is right now, and that the viewer is in a real orbit.
 - **Light shafts:** the orbital sunrise shot needs volumetric shadowing in the atmosphere, which is added to Phase 2.
-- **Night side:** Mars has no city lights, so night side views are a dark disc with a glowing rim. Orbital sunrise only starts there for about a minute.
+- **Night side:** Mars and the Moon have no city lights, so their night side views are a dark disc with a glowing rim, and orbital sunrise only starts there for about a minute. Earth's night side shows real city lights (amended 2026-11-23, see below).
 - **Gas giants:** cloud band drift is slow at real time, so the orbit carries the visible motion.
+
+## Amended 2026-11-23: Earth
+
+- **Earth's orientation:** the IAU's simple Earth rotation model drifts about 0.5° (56 km at the equator) from where Earth really points. Earth turns to the true pole of date and Greenwich apparent sidereal time, both from `astronomy-engine` (`earthFrame` in `ephemeris.ts`). Polar motion is ignored. Mars and the Moon keep the IAU 2015 models.
+- **City lights:** Earth's night side is no longer something to leave. It shows NASA Black Marble 2016 city lights, which fade in through twilight and dim under clouds (see `docs/SPEC.md`). That keeps night passes on Earth worth watching at real time, so the clock still never shifts to find daylight.

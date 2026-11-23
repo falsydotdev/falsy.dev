@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { orbitCameraPose } from '../../src/scene/camera';
 import { vec, type Vec3 } from '../../src/scene/ephemeris';
-import { type TileKey, dirOf, tileAt, tileId, parent } from '../../src/scene/tiles/cube';
-import { type CameraPose, selectTiles, tilesToFetch } from '../../src/scene/tiles/select';
+import { type TileKey, dirOf, tileAt, tileDir, tileId, parent } from '../../src/scene/tiles/cube';
+import { type CameraPose, drawnHeightRangeKm, isOpenSea, layerTile, layerTilesFor, layerTilesToFetch, layerWants, selectTiles, tilesToFetch } from '../../src/scene/tiles/select';
+import { FlatOceanBuilder } from '../../src/scene/tiles/flat-ocean';
+import type { TileLayer } from '../../src/scene/tiles/layers';
+import { EARTH, MARS, MOON } from '../../src/scene/bodies';
 
 const R = 3396.19;
 const opts = { radiusKm: R, heightRangeKm: [-8.2 * 2.5, 21.3 * 2.5] as [number, number], tilePx: 256, maxLevel: 7 };
@@ -102,5 +105,144 @@ describe('tiles to fetch', () => {
     for (const t of tiles) if (t.key.level > 0) expect(fetchIds(keys).has(tileId(coarse(parent(t.key))!))).toBe(true);
     for (const t of tiles) expect(fetchIds(keys).has(t.id)).toBe(true);
     expect(keys.length).toBeLessThan(tilesToFetch(tiles).length);
+  });
+});
+
+describe('a body with an extra tile layer', () => {
+  const tiles = selectTiles(pose(200, 12), opts);
+  const keys = tilesToFetch(tiles);
+  const fetchIdsOf = (ks: TileKey[]) => new Set(ks.map(tileId));
+  const lights: TileLayer = { id: 'lights', format: 'mono', dir: 'l', ext: 'avif', sizePx: 128, maxLevel: 6, sunBelowDeg: 5 };
+
+  it('fetches a capped layer from ancestors at its cap, covering every selected tile', () => {
+    const capped = { ...lights, sunBelowDeg: undefined };
+    const ids = new Set(layerTilesToFetch(keys, capped).map(tileId));
+    expect(Math.max(...[...ids].map((id) => Number(id.split('/')[0])))).toBe(6);
+    for (const t of tiles) {
+      let k: TileKey | null = t.key;
+      while (k && k.level > 6) k = parent(k);
+      expect(ids.has(tileId(k!))).toBe(true);
+    }
+  });
+
+  it('fetches a night-only layer for every tile with ground under a Sun below its limit, and skips full daylight', () => {
+    // Sun 90° east of the camera's ground point, so the terminator runs under the camera.
+    const sun = dirOf(10, 120);
+    const ids = new Set(layerTilesToFetch(keys, lights, sun).map(tileId));
+    const capped = layerTilesToFetch(keys, { ...lights, sunBelowDeg: undefined });
+    let night = 0;
+    let day = 0;
+    for (const k of capped) {
+      let minDeg = 90;
+      for (let i = 0; i <= 4; i++) for (let j = 0; j <= 4; j++) minDeg = Math.min(minDeg, (Math.asin(vec.dot(tileDir(k, i / 4, j / 4), sun)) * 180) / Math.PI);
+      if (minDeg < 5) expect(ids.has(tileId(k))).toBe(true), night++;
+      if (minDeg > 8) expect(ids.has(tileId(k))).toBe(false), day++;
+    }
+    expect(night).toBeGreaterThan(20);
+    expect(day).toBeGreaterThan(20);
+  });
+
+  it('fetches nothing of a night-only layer under a high Sun', () => {
+    expect(layerTilesToFetch(keys.filter((k) => k.level >= 4), lights, dirOf(10, 30))).toHaveLength(0);
+  });
+
+  it('leaves Mars and the Moon fetching exactly the colour and height tiles they always did', () => {
+    const all = [...fetchIdsOf(keys)].sort();
+    for (const body of [MARS, MOON]) {
+      expect(body.tiles.layers.map((l) => l.id)).toEqual(['color', 'height']);
+      for (const layer of body.tiles.layers) expect([...fetchIdsOf(layerTilesToFetch(keys, layer, dirOf(10, 120)))].sort()).toEqual(all);
+    }
+  });
+});
+
+describe("Earth's tiles", () => {
+  const ER = EARTH.radiusKm;
+  const earthPose = (): CameraPose => {
+    const rBody = vec.scale(dirOf(52.3, 5.3), ER + EARTH.altKm);
+    const { position, forward, up } = orbitCameraPose(rBody, vec.cross([0, 0, 1], rBody), ER, 12);
+    return { position, forward, up, fovYRad: (50 * Math.PI) / 180, aspect: 16 / 9, viewportHeightPx: 1080 };
+  };
+  const [colour, height] = EARTH.tiles.layers;
+  const sea = { face: 4, level: 5, x: 3, y: 9 };
+  const ocean = new FlatOceanBuilder(7);
+  ocean.set(sea, true);
+  ocean.set({ face: 4, level: 1, x: 0, y: 0 }, true);
+  const flatOcean = ocean.toJSON();
+
+  it('selects about as many tiles from 400 km as Mars does from 200 km', () => {
+    const range = drawnHeightRangeKm([-10436, 7173], EARTH);
+    const earth = selectTiles(earthPose(), { radiusKm: ER, heightRangeKm: range, tilePx: 256, maxLevel: 7 });
+    const mars = selectTiles(pose(200, 12), opts);
+    expect(earth.length / mars.length).toBeGreaterThan(0.6);
+    expect(earth.length / mars.length).toBeLessThan(1.6);
+  });
+
+  it('bounds the terrain at sea level, since the sea is drawn flat', () => {
+    expect(drawnHeightRangeKm([-10436, 7173], EARTH)).toEqual([0, 7.173 * 2.5]);
+    expect(drawnHeightRangeKm([-8200, 21300], MARS)).toEqual([-8.2 * 2.5, 21.3 * 2.5]);
+  });
+
+  it('skips the height tiles of open ocean, but still fetches their colour', () => {
+    expect(layerWants(sea, height, undefined, flatOcean)).toBe(false);
+    expect(layerWants(sea, colour, undefined, flatOcean)).toBe(true);
+    expect(layerWants({ ...sea, x: 4 }, height, undefined, flatOcean)).toBe(true);
+    const keys = [sea, { ...sea, x: 4 }];
+    expect(layerTilesToFetch(keys, height, undefined, flatOcean).map(tileId)).toEqual([tileId({ ...sea, x: 4 })]);
+  });
+
+  it('keeps the pinned fallback levels, which every drawn tile can borrow heights from', () => {
+    expect(layerWants({ face: 4, level: 1, x: 0, y: 0 }, height, undefined, flatOcean)).toBe(true);
+  });
+
+  it('marks open-sea tiles, which draw at sea level without any height tile', () => {
+    expect(isOpenSea(sea, flatOcean)).toBe(true);
+    expect(isOpenSea({ ...sea, x: 4 }, flatOcean)).toBe(false);
+    expect(isOpenSea({ face: 4, level: 1, x: 0, y: 0 }, flatOcean)).toBe(false);
+  });
+
+  it('reads no flat ocean on a body without the bitmap', () => {
+    expect(layerWants(sea, height, undefined, undefined)).toBe(true);
+  });
+});
+
+describe("Earth's city lights", () => {
+  const ER = EARTH.radiusKm;
+  const lights = EARTH.tiles.layers.find((l) => l.id === 'lights')!;
+  const colour = EARTH.tiles.layers.find((l) => l.id === 'color')!;
+  const range = drawnHeightRangeKm([-10436, 7173], EARTH);
+  const overNetherlands = (): CameraPose => {
+    const rBody = vec.scale(dirOf(52.3, 5.3), ER + EARTH.altKm);
+    const { position, forward, up } = orbitCameraPose(rBody, vec.cross([0, 0, 1], rBody), ER, 12);
+    return { position, forward, up, fovYRad: (50 * Math.PI) / 180, aspect: 16 / 9, viewportHeightPx: 1080 };
+  };
+  const selected = selectTiles(overNetherlands(), { radiusKm: ER, heightRangeKm: range, tilePx: 256, maxLevel: 7 });
+  // The Sun overhead at 23.4°N 15°E is late morning of the June solstice; 180° away is midnight.
+  const noon = dirOf(23.4, 15);
+  const midnight = dirOf(-23.4, -165);
+
+  it('is a single-channel layer of 128 px tiles, capped at level 6 and fetched while the Sun is below 5°', () => {
+    expect(lights).toMatchObject({ format: 'mono', sizePx: 128, maxLevel: 6, sunBelowDeg: 5 });
+  });
+
+  it('fetches nothing in a daylight view, though colour still loads', () => {
+    for (const lean of [true, false]) {
+      expect(layerTilesFor(selected, lights, { lean, sunDir: noon })).toHaveLength(0);
+      expect(layerTilesFor(selected, colour, { lean, sunDir: noon }).length).toBeGreaterThan(30);
+    }
+  });
+
+  it('fetches every visible tile at night from its ancestor at level 6, and every coarser ancestor to borrow from', () => {
+    const ids = new Set(layerTilesFor(selected, lights, { sunDir: midnight }).map(tileId));
+    for (const s of selected) {
+      for (let k: TileKey | null = layerTile(s.key, lights); k; k = parent(k)) expect(ids.has(tileId(k))).toBe(true);
+    }
+    expect(Math.max(...[...ids].map((id) => Number(id.split('/')[0])))).toBe(6);
+  });
+
+  it('skips the far side of the planet, unlike the fallback levels every required layer pins', () => {
+    const far = tilesToFetch([], { pinnedLevel: 1 }).filter((k) => vec.dot(tileDir(k, 0.5, 0.5), dirOf(52.3, 5.3)) < -0.5);
+    const ids = new Set(layerTilesFor(selected, lights, { sunDir: midnight }).map(tileId));
+    expect(far.length).toBeGreaterThan(0);
+    for (const k of far) expect(ids.has(tileId(k))).toBe(false);
   });
 });

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { vec } from '../../src/scene/ephemeris';
 import { circularOrbit, orbitalPeriod, orbitalSpeed, sample, stateAt } from '../../src/scene/orbit';
-import { MARS } from '../../src/scene/bodies';
-import { formatTelemetry } from '../../src/scene/telemetry';
+import { EARTH, MARS } from '../../src/scene/bodies';
+import { formatTelemetry, surfaceReadout } from '../../src/scene/telemetry';
 
 const EPOCH = new Date('2026-11-02T12:00:00Z');
 const MARS_SIDEREAL_DAY_S = 88642.66;
@@ -45,5 +45,44 @@ describe('circular orbit at 380 km', () => {
   it('reports altitude and speed in the telemetry line', () => {
     const line = formatTelemetry(sample(orbit, at(0)), { body: 'Mars', relief: 2.5 });
     expect(line).toMatch(/^MARS {2}\d+\.\d°[NS] {2}\d+\.\d°E {2}LST \d\d:\d\d {2}ALT 380 km {2}v 3\.37 km\/s {2}relief×2\.5$/);
+  });
+});
+
+describe("Earth's 400 km orbit", () => {
+  const earthOrbit = circularOrbit(EARTH, EPOCH, EARTH.altKm, [1, 0, 0], [0, 0.6, 0.8], 0.3);
+
+  it('flies at 7.67 km/s with a 92.4-minute period', () => {
+    expect(EARTH.altKm).toBe(400);
+    expect(orbitalSpeed(earthOrbit)).toBeCloseTo(7.67, 2);
+    expect(orbitalPeriod(earthOrbit) / 60).toBeCloseTo(92.4, 1);
+  });
+
+  it('reads altitude above the mean radius in the telemetry line', () => {
+    const s = sample(earthOrbit, at(600));
+    expect(s.altKm).toBeCloseTo(400, 6);
+    const line = formatTelemetry(s, { body: EARTH.name, relief: EARTH.relief });
+    expect(line).toMatch(/^EARTH {2}\d+\.\d°[NS] {2}\d+\.\d°E {2}LST \d\d:\d\d {2}ALT 400 km {2}v 7\.67 km\/s {2}relief×2\.5$/);
+  });
+
+  it('ends the telemetry line with the clouds, after the positional items posters parse', () => {
+    const line = formatTelemetry(sample(earthOrbit, at(600)), { body: EARTH.name, relief: EARTH.relief, clouds: 'clouds: static map, detail synthesised' });
+    expect(line).toMatch(/ {2}ALT 400 km {2}v 7\.67 km\/s {2}relief×2\.5 {2}clouds: static map, detail synthesised$/);
+  });
+
+  it('names the surface imagery period after relief, before the clouds', () => {
+    const surface = surfaceReadout({ source: 'sentinel-2', year: 2025, quarter: 4 });
+    const line = formatTelemetry(sample(earthOrbit, at(600)), { body: EARTH.name, relief: EARTH.relief, surface, clouds: 'clouds: unavailable' });
+    expect(line).toMatch(/ {2}relief×2\.5 {2}surface 2025 Q4 {2}clouds: unavailable$/);
+  });
+});
+
+describe('surface imagery period', () => {
+  it('reads a Sentinel-2 quarter or the Blue Marble year', () => {
+    expect(surfaceReadout({ source: 'sentinel-2', year: 2025, quarter: 4 })).toBe('surface 2025 Q4');
+    expect(surfaceReadout({ source: 'blue-marble', year: 2004, month: 11 })).toBe('surface 2004 (Blue Marble)');
+  });
+
+  it('says nothing for tiles baked without a period, as Mars and the Moon are', () => {
+    expect(surfaceReadout(undefined)).toBeNull();
   });
 });

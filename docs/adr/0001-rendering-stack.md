@@ -10,7 +10,7 @@ The hero needs console-quality planetary rendering: physically based atmosphere,
 
 - Use three.js `WebGPURenderer`, writing shaders in TSL, its node-based shading language.
 - Write our own Hillaire-style atmosphere, so it has per-planet parameters. Mars needs dust-dominated Mie scattering with per-channel phase asymmetry, and the Moon has no atmosphere.
-- Build a floating origin and reversed depth from day one.
+- Build a floating origin and reversed depth from day one. The renderer uses a logarithmic depth buffer and no floating origin instead, since neither is needed from orbit; both wait for the v2 zoom (amended 2026-11-23).
 
 ## Consequences
 

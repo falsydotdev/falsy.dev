@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // The cloud job: a cron Worker that feeds GMGSI files to a container and writes R2 by binding.
+  // Separate from the site's Worker; deploy it by hand from this directory.
+  "name": "falsy-clouds",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-10-15",
+  "workers_dev": false,
+  // GMGSI files land about 40 minutes after their hour.
+  "triggers": { "crons": ["50 */3 * * *"] },
+  "r2_buckets": [{ "binding": "CLOUDS", "bucket_name": "falsy-clouds" }],
+  "containers": [
+    {
+      "class_name": "CloudContainer",
+      "image": "./container/Dockerfile",
+      "image_build_context": ".",
+      "instance_type": "standard-1",
+      "max_instances": 1
+    }
+  ],
+  "durable_objects": { "bindings": [{ "name": "CLOUD_CONTAINER", "class_name": "CloudContainer" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["CloudContainer"] }],
+  "observability": { "enabled": true }
+}

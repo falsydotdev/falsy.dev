@@ -5,17 +5,26 @@ import { toWorld, createLighting } from './terrain.js';
 import { TiledPlanet } from './planet.js';
 import { orbitCameraPose } from '../camera.ts';
 import { createAtmosphere } from './atmosphere.js';
+import { createAtmosphereTables } from './atmosphere-tables.js';
+import { CLOUDS_BASE, createClouds, loadCloudSet } from './clouds.js';
 import { createStars } from './stars.js';
 import { createSun } from './sun.js';
 import { createEarth } from './earth.js';
+import { createOcean } from './ocean.js';
 import { bodyFrame, vec } from '../ephemeris';
 import { sample } from '../orbit';
-import { chooseShot, dawnDusk, earthrise, orbitalSunrise, featureFlyover, seededRandom, wantsReshoot, SHOT_FOV_DEG } from '../shots';
+import { chooseShot, dawnDusk, earthrise, orbitalSunrise, featureFlyover, nightPass, seededRandom, wantsReshoot, SHOT_FOV_DEG } from '../shots';
 import { bodyById } from '../bodies.ts';
-import { telemetryParts } from '../telemetry';
-import { Governor, initialTier, renderPixelRatio, tier as tierByName } from '../quality.ts';
+import { surfaceReadout, telemetryParts } from '../telemetry';
+import { Governor, initialTier, isIntegrated, renderPixelRatio, tier as tierByName } from '../quality.ts';
+import { atlasLayers, memoryClass, msaaSamples, sceneGpuBytes } from '../gpu-memory.ts';
 import { frameTimes } from '../perf.ts';
 import { solveFraming } from '../composition.ts';
+import { parseFx } from '../fx.ts';
+import { cloudCandidates, cloudReadout, cloudsRecheckDue, overCloudCap } from '../clouds.ts';
+import { homePass } from '../home-pass.ts';
+import { lightsAround } from '../lights.ts';
+import { zoneCoords } from '../timezone.ts';
 
 const DEG = Math.PI / 180;
 // Camera defaults. Altitude comes from the body. Tilt (degrees below the horizon beyond the
@@ -30,24 +39,51 @@ const WIDE_FROM = 4;
 // Earth rises this far right of centre: clear of the text in a wide view, still on a phone screen.
 const earthRightDeg = (fovDeg, aspect) => Math.min(15, Math.max(4, 0.45 * Math.atan(Math.tan((fovDeg * DEG) / 2) * aspect) / DEG));
 
-function buildShot(body, kind, now, altKm, rand, featureId, rightDeg) {
-  const o = { body, altKm, rand, rightDeg };
+function buildShot(body, kind, now, altKm, rand, featureId, rightDeg, ctx) {
+  const o = { body, altKm, rand, rightDeg, ctx };
   const feature = body.features.find((f) => f.id === featureId);
   if (feature) return featureFlyover(now, { ...o, features: [feature], anySun: true });
   if (kind === 'dawn-dusk') return dawnDusk(now, o);
   if (kind === 'orbital-sunrise') return orbitalSunrise(now, o);
   if (kind === 'earthrise') return earthrise(now, o) ?? featureFlyover(now, o) ?? dawnDusk(now, o);
   if (kind === 'feature-flyover') return featureFlyover(now, o) ?? dawnDusk(now, o);
+  if (kind === 'night-pass') return nightPass(now, o) ?? featureFlyover(now, o) ?? dawnDusk(now, o);
   return chooseShot(now, o);
 }
+
+// The home pass plays on a visitor's first live Earth scene only. The flag records that much and no
+// location; the module-level copy covers storage that throws.
+const HOME_PASS_KEY = 'falsy:home-pass';
+let homePassSeen = false;
+function homePassDue() {
+  if (homePassSeen) return false;
+  try {
+    return localStorage.getItem(HOME_PASS_KEY) === null;
+  } catch {
+    return true;
+  }
+}
+function markHomePassSeen() {
+  homePassSeen = true;
+  try {
+    localStorage.setItem(HOME_PASS_KEY, '1');
+  } catch {}
+}
+const browserZone = () => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch {
+    return undefined;
+  }
+};
 
 /**
  * Starts the live scene of one body inside `host`.
  * @param {HTMLElement} host
  * Resolves to null when this machine should get the poster instead.
- * @param {{ dataUrl: string, meta: unknown, lean?: boolean, body?: string, settleTimeoutMs?: number, holdGovernor?: boolean, startTier?: import('../quality.ts').TierName, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void, onLost?: () => void, farKm?: number, altKm?: number, tiltDeg?: number, rollDeg?: number, fovDeg?: number, tier?: import('../quality.ts').TierName, at?: Date, seed?: number, feature?: string | null, scale?: number, skip?: number, layout?: () => { text: import('../composition.ts').Box, headerBottom: number } | null }} opts
+ * @param {{ dataUrl: string, meta: unknown, lean?: boolean, body?: string, settleTimeoutMs?: number, holdGovernor?: boolean, startTier?: import('../quality.ts').TierName, shot?: string | null, timeScale?: number, forceWebGL?: boolean, telemetry?: HTMLElement | null, onFirstFrame?: () => void, onLost?: () => void, farKm?: number, altKm?: number, tiltDeg?: number, rollDeg?: number, fovDeg?: number, tier?: import('../quality.ts').TierName, at?: Date, seed?: number, feature?: string | null, scale?: number, fx?: string | null, benchRepeats?: number, skip?: number, layout?: () => { text: import('../composition.ts').Box, headerBottom: number } | null }} opts
  */
-// One tile per array layer; 512 layers hold a 4K view with headroom and cost about 180 MB of GPU memory.
+// One tile per array layer. Most scenes hold 512 (see atlasLayers in gpu-memory.ts).
 const WANTED_LAYERS = 512;
 // Show the scene once every visible tile has its own texels, or this long after the shadow map
 // arrives regardless. With no shadow map by twice this, it shows without one.
@@ -92,8 +128,9 @@ export async function startLiveScene(host, opts) {
   const probe = await probeAdapter(forceWebGL);
   let gpuLayers = probe.layers;
   const makeRenderer = async (layers) => {
+    // MSAA is set on the scene pass instead (see msaaSamples), so a tier change can switch it.
     const r = new THREE.WebGPURenderer({
-      antialias: true,
+      antialias: false,
       logarithmicDepthBuffer: true,
       forceWebGL,
       requiredLimits: layers ? { maxTextureArrayLayers: layers } : undefined,
@@ -116,11 +153,17 @@ export async function startLiveScene(host, opts) {
     return null;
   }
   let tier = tierByName(startTier);
+  const integrated = isIntegrated(hints);
+  // Each scene is sized for the ceiling of the tier it starts at; a body switch starts a new scene.
+  const memClass = memoryClass({ tier: startTier, backend: hints.backend, integrated });
   // `scale` is a preview override for comparing render resolutions on one screen.
   const pixelRatio = (t) => (opts.scale ? Math.min(devicePixelRatio, opts.scale) : renderPixelRatio(t, devicePixelRatio, innerWidth, innerHeight));
 
   let planet;
   let atmosphere;
+  let atmosphereTables;
+  let clouds = null;
+  let cloudSet = null;
   let pipeline;
   let layers;
   // Time spent rendering before the first fade-in. A tab loaded in the background doesn't run it down.
@@ -144,6 +187,7 @@ export async function startLiveScene(host, opts) {
     camera.updateProjectionMatrix();
     renderer.setPixelRatio(pixelRatio(tier));
     renderer.setSize(innerWidth, innerHeight);
+    setSamples();
     // Earthrise's orbit puts Earth where this screen shape can see it; a new shape needs a new orbit.
     if (shot?.kind === 'earthrise' && Math.abs(Math.log(camera.aspect / shotAspect)) > 0.2) reshootPending = true;
   };
@@ -156,6 +200,9 @@ export async function startLiveScene(host, opts) {
     clearTimeout(reframe);
     planet?.dispose();
     atmosphere?.dispose();
+    clouds?.dispose();
+    cloudSet?.cancel();
+    atmosphereTables?.dispose();
     sun?.dispose();
     earth?.dispose();
     pipeline?.dispose();
@@ -183,6 +230,10 @@ export async function startLiveScene(host, opts) {
   sun = createSun(body);
   const stars = createStars();
   const lighting = createLighting(body);
+  const fx = parseFx(opts.fx);
+  const streamedLayers = body.tiles.layers.filter((l) => !fx.has(l.id));
+  if (fx.has('shadows')) lighting.shadows.value = 0;
+  let setGlint = () => {};
   if (body.showsEarth) {
     earth = createEarth({ url: '/textures/earth.webp', lighting });
     scene.add(earth.object);
@@ -198,34 +249,68 @@ export async function startLiveScene(host, opts) {
   // The device can be lost while tiles load; teardown has run, so nothing more may start.
   if (stopped) throw new Error('GPU device lost while the scene was loading');
   async function loadPlanet() {
-    const meta = await opts.meta;
+    // The cloud map downloads with the tiles; the scene's first fade-in waits for it.
+    // A pinned moment draws the clouds of that moment, as the poster stills were rendered with.
+    if (body.clouds && !fx.has('clouds')) {
+      const at = opts.at && new Date(opts.at.getTime() + (opts.skip ?? 0) * 1000);
+      cloudSet = loadCloudSet(cloudCandidates({ base: CLOUDS_BASE, staticUrl: body.clouds.staticUrl, at }));
+    }
+    // The terrain material reads sunlight through the atmosphere, so its tables come first.
+    const [meta, tables] = await Promise.all([opts.meta, body.atmosphere ? createAtmosphereTables(body.atmosphere, body.radiusKm) : null]);
+    atmosphereTables = tables;
+    const ocean = body.ocean ? createOcean(body.ocean, { lighting, air: tables, radiusKm: body.radiusKm }) : null;
+    setGlint = (t) => ocean?.setGlint(fx.has('glint') ? 'off' : t.glint);
+    setGlint(tier);
     if (!meta) throw new Error(`No tiles at ${opts.dataUrl}`);
     if (meta.body !== body.id || Math.abs(meta.radiusKm - body.radiusKm) > 1e-6) console.warn(`Tiles at ${opts.dataUrl} are for ${meta.body}, not ${body.id}.`);
-    layers = isWebGPU ? gpuLayers ?? 256 : Math.min(WANTED_LAYERS, renderer.backend.gl.getParameter(renderer.backend.gl.MAX_ARRAY_TEXTURE_LAYERS));
-    planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: body.relief, layers, lighting, relaxBeyondKm: opts.farKm });
+    const deviceLayers = isWebGPU ? gpuLayers ?? 256 : Math.min(WANTED_LAYERS, renderer.backend.gl.getParameter(renderer.backend.gl.MAX_ARRAY_TEXTURE_LAYERS));
+    layers = body.memoryCeilings ? atlasLayers({ cls: memClass, tier: tier.name, tileLayers: streamedLayers, clouds: Boolean(cloudSet && tables), maxLayers: deviceLayers }) : deviceLayers;
+    if (cloudSet && tables) {
+      clouds = createClouds({ body, lighting, tables, set: cloudSet });
+      clouds.setTier(tier, fx.has('cloudShadows'));
+    }
+    // A layer switched off with `fx=` (city lights) is neither fetched nor drawn.
+    planet = new TiledPlanet(renderer, { baseUrl: opts.dataUrl, meta, relief: body.relief, seaLevel: body.seaLevel, layers, tileLayers: streamedLayers, lighting, nightLights: body.lights, atmosphere: tables, clouds, ocean, relaxBeyondKm: opts.farKm });
     const tiledPlanet = planet;
     planet.lean = opts.lean ?? true;
     // Tiles stream while the shadow map downloads; the first fade-in waits for it (see the loop).
     planet.init().then(() => (shadowAtMs = loadMs));
-    atmosphere = body.atmosphere ? await createAtmosphere({ planetRadius: body.radiusKm, density: body.atmosphere.density, terrainHeight: (n) => tiledPlanet.coarseHeight(n) }) : null;
+    atmosphere = tables && !fx.has('atmosphere') ? createAtmosphere({ tables, terrainHeight: (n) => tiledPlanet.coarseHeight(n), viewSteps: tier.atmosphereSteps, clouds }) : null;
     scene.add(planet.mesh);
     sun.useTerrain((n) => tiledPlanet.coarseHeight(n));
     if (atmosphere) scene.add(atmosphere.mesh);
   }
 
+  const blooms = (t) => t.bloom && !fx.has('bloom');
+  // The pass's sample count can change in place: the backend rebuilds its target on the next frame.
+  const memory = (msaa) => ({ canvasPx: renderer.domElement.width * renderer.domElement.height, msaa, bloom: blooms(tier), atlasLayers: layers, tileLayers: streamedLayers, clouds: Boolean(clouds) });
+  const wantedSamples = () => msaaSamples({ cls: memClass, tier: tier.name, integrated, ceilings: Boolean(body.memoryCeilings), preview: Boolean(opts.scale), ...memory(false) });
   pipeline = new THREE.RenderPipeline(renderer);
-  const sceneColor = pass(scene, camera).getTextureNode('output');
+  const scenePass = pass(scene, camera, { samples: 0 });
+  const setSamples = () => {
+    const n = wantedSamples();
+    if (scenePass.options.samples === n) return;
+    scenePass.options.samples = n;
+    scenePass.renderTarget.samples = n;
+    pipeline.needsUpdate = true;
+  };
+  const sceneColor = scenePass.getTextureNode('output');
   const bloomed = sceneColor.add(bloom(sceneColor, 0.35, 0.5, 0.9));
-  pipeline.outputNode = tier.bloom ? bloomed : sceneColor;
+  pipeline.outputNode = blooms(tier) ? bloomed : sceneColor;
+  setSamples();
 
   const applyTier = (next) => {
-    if (next.bloom !== tier.bloom) {
-      pipeline.outputNode = next.bloom ? bloomed : sceneColor;
+    if (blooms(next) !== blooms(tier)) {
+      pipeline.outputNode = blooms(next) ? bloomed : sceneColor;
       pipeline.needsUpdate = true;
     }
     tier = next;
+    setGlint(next);
+    clouds?.setTier(next, fx.has('cloudShadows'));
+    atmosphere?.setSteps(next.atmosphereSteps);
     renderer.setPixelRatio(pixelRatio(next));
     renderer.setSize(innerWidth, innerHeight);
+    setSamples();
     state.tier = next.name;
   };
 
@@ -235,7 +320,9 @@ export async function startLiveScene(host, opts) {
   const simNow = () => new Date(simStart + (opts.skip ?? 0) * 1000 + (Date.now() - wallStart) * timeScale);
   const rand = opts.seed === undefined ? Math.random : seededRandom(opts.seed);
   const lensFor = (kind) => opts.fovDeg ?? SHOT_FOV_DEG[kind] ?? CAMERA_DEFAULTS.fovDeg;
-  const nextShot = (at) => buildShot(body, opts.shot, at, cam.altKm, rand, opts.feature, earthRightDeg(lensFor('earthrise'), innerWidth / innerHeight));
+  // With city lights off (`fx=lights`), shot planning doesn't look for them either.
+  const viewContext = body.lights && !fx.has('lights') ? { lightsAround } : {};
+  const nextShot = (at) => buildShot(body, opts.shot, at, cam.altKm, rand, opts.feature, earthRightDeg(lensFor('earthrise'), innerWidth / innerHeight), viewContext);
   // Each shot brings its own lens. The change happens before the first frame shows, or under a crossfade.
   const applyLens = () => {
     cam.fovDeg = lensFor(shot.kind);
@@ -246,11 +333,15 @@ export async function startLiveScene(host, opts) {
   let shotBuilt = new Date(simStart);
   let shotAspect = innerWidth / innerHeight;
   let reshootPending = false;
-  let shot = nextShot(shotBuilt);
-  applyLens();
   // A view pinned by the URL (posters, previews) stays put even after it goes dark.
   const pinned = Boolean(opts.at || opts.seed !== undefined || opts.skip || opts.feature);
+  // A URL that picks the view never gets the home pass, so posters don't depend on this machine's timezone.
+  const homeEligible = Boolean(body.shots.homePass) && !pinned && !opts.shot;
+  const wantsHome = !opts.feature && (opts.shot === 'home-pass' || (homeEligible && homePassDue()));
+  let shot = (wantsHome && homePass(shotBuilt, { body, altKm: cam.altKm, home: zoneCoords(browserZone()), ctx: viewContext })) || nextShot(shotBuilt);
+  applyLens();
   const starMatrix = new THREE.Matrix4();
+  let lastPose = null;
 
   function frame() {
     const date = simNow();
@@ -262,7 +353,9 @@ export async function startLiveScene(host, opts) {
     camera.position.copy(toWorld(s.rBody));
     camera.up.copy(toWorld(pose.up));
     camera.lookAt(toWorld(vec.add(s.rBody, pose.forward)));
-    planet.update(pose, { fovYRad: cam.fovDeg * DEG, aspect: camera.aspect, viewportHeightPx: renderer.domElement.height });
+    lastPose = pose;
+    if (clouds) clouds.uniforms.pixelAngle.value = (cam.fovDeg * DEG) / renderer.domElement.height;
+    planet.update(pose, { fovYRad: cam.fovDeg * DEG, aspect: camera.aspect, viewportHeightPx: renderer.domElement.height }, s.sunBody);
 
     const sunW = toWorld(s.sunBody);
     sun.update(camera, sunW, earth?.update(camera, f, sunW, date));
@@ -283,7 +376,8 @@ export async function startLiveScene(host, opts) {
   function updateTelemetry(s, t) {
     if (!telemetryEl || t - lastTelemetry < 500) return;
     lastTelemetry = t;
-    const parts = telemetryParts(s, { body: body.name, relief: body.relief });
+    const cloudItem = clouds && cloudReadout({ status: clouds.state.status, set: clouds.state.set, now: s.date, overCap: Boolean(clouds.state.polar && overCloudCap(lastPose, body.radiusKm, clouds.state.polar)) });
+    const parts = telemetryParts(s, { body: body.name, relief: body.relief, surface: surfaceReadout(planet?.meta.colorPeriod), clouds: cloudItem });
     if (timeScale !== 1) parts.push(`t×${timeScale}`);
     // Nodes are updated in place, so the body switch button keeps focus and hover.
     const label = telemetryEl.querySelector('.body-switch');
@@ -308,16 +402,24 @@ export async function startLiveScene(host, opts) {
   // three.js timestamp queries add up per-pass spans, which overlap on Apple GPUs and read several times high.
   // Submit-to-done time is the frame's real GPU cost whenever the GPU starts the frame idle.
   const gpuTiming = isWebGPU;
+  // `bench=N` renders each frame N times back to back, so a fast GPU stays busy and keeps its
+  // clock up, and the log reads a frame's cost rather than the clock's (scripts/posters/bench.mjs).
+  const repeats = Math.max(1, Math.round(opts.benchRepeats ?? 1));
   const governor = opts.tier ? null : new Governor(tier.name, gpuTiming ? GPU_LIMITS : CADENCE_LIMITS);
   // While two scenes overlap in a body switch, each sees the other's GPU time as its own load.
   let governorHeld = opts.holdGovernor ?? false;
   const state = {
-    frames: 0, body: body.id, shot: shot.kind, get earth() { return earth?.status ?? 'none'; }, get shadow() { return planet.shadow; }, backend: hints.backend, gpu: hints.vendor ?? hints.description, canvas: renderer.domElement, layers, tiles: planet.stats, firstFrameMs: 0, startTier: tier.name,
+    frames: 0, body: body.id, shot: shot.kind, get earth() { return earth?.status ?? 'none'; }, get shadow() { return planet.shadow; }, get clouds() { return clouds?.state.status ?? 'none'; }, get cloudSet() { const set = clouds?.state.set; return set ? { source: set.source, valid: set.valid.toISOString() } : null; }, backend: hints.backend, gpu: hints.vendor ?? hints.description, canvas: renderer.domElement, layers, tiles: planet.stats, firstFrameMs: 0, startTier: tier.name,
     tier: tier.name, timing: governor ? (gpuTiming ? 'gpu' : 'cadence') : 'forced', gpuMs: 0, gpuLog: [], load: 0, tierChanges: [],
     framing: cam,
+    fx: [...fx],
     get stopped() { return stopped; },
     get held() { return governorHeld; },
     get pixelRatio() { return renderer.getPixelRatio(); },
+    integrated,
+    get msaa() { return scenePass.options.samples; },
+    /** Estimated GPU memory in MB, tallied in gpu-memory.ts. */
+    get gpuMemoryMB() { return Math.round(sceneGpuBytes(memory(scenePass.options.samples > 0)) / 1e6); },
     get throttled() { return throttled; },
   };
   const started = performance.now();
@@ -376,7 +478,7 @@ export async function startLiveScene(host, opts) {
     skipGpuSamples = 1;
   };
   let lastWrites = 0;
-  const measure = (interval) => {
+  const measure = (interval, renderStart) => {
     if (governorHeld) return;
     const judge = (load) => {
       if (stopped || !governor) return;
@@ -415,16 +517,17 @@ export async function startLiveScene(host, opts) {
       return;
     }
     timingBusy = true;
-    const t0 = performance.now();
+    const t0 = repeats > 1 ? renderStart : performance.now();
     const gen = gpuLogGen;
     renderer.backend.device.queue.onSubmittedWorkDone().then(() => {
       timingBusy = false;
-      const ms = performance.now() - t0;
+      const ms = (performance.now() - t0) / repeats;
       state.gpuMs = ms;
       if (gen !== gpuLogGen) return;
       if (skipGpuSamples > 0) skipGpuSamples--;
       else {
-        state.gpuLog.push(Math.round(ms * 10) / 10);
+        const unit = repeats > 1 ? 100 : 10;
+        state.gpuLog.push(Math.round(ms * unit) / unit);
         if (state.gpuLog.length > 120) state.gpuLog.shift();
       }
       judge(ms / (1000 / tier.fps));
@@ -433,8 +536,20 @@ export async function startLiveScene(host, opts) {
     });
   };
 
+  // Asks the latest pointer for a newer set. The loop only runs while the tab is visible, so a hidden
+  // tab doesn't poll; it checks once when it comes back.
+  let cloudsCheckedAt = 0;
+  const recheckClouds = (t) => {
+    cloudsCheckedAt = t;
+    if (!clouds || opts.at || !CLOUDS_BASE) return;
+    clouds.refresh(`${CLOUDS_BASE}/latest.json`);
+  };
+
+  // A bench batch that outruns the frame interval would queue behind the last one and be timed
+  // with its backlog, so the next batch waits for the GPU to finish.
+  let batchInFlight = false;
   renderer.setAnimationLoop((t) => {
-    if (!running) return;
+    if (!running || batchInFlight) return;
     // 0.9 absorbs rAF jitter so a 120 Hz display renders every 4th vsync, and a 60 Hz one every 2nd.
     if (t - lastRender < (throttled ? THROTTLED_FRAME_MS : 1000 / tier.fps) * 0.9) return;
     const interval = lastRender ? t - lastRender : 0;
@@ -442,14 +557,24 @@ export async function startLiveScene(host, opts) {
     // Capped, so a stall the page didn't hear about (sleep, an occluded window) can't run the clock out.
     if (first) loadMs += Math.min(interval, 250);
     const s = frame();
-    pipeline.render();
+    const renderStart = performance.now();
+    for (let i = 0; i < repeats; i++) {
+      // Private three.js API, bench only: passes and bloom render once per node frame, and only the
+      // animation loop advances it, so each repeat steps it by hand.
+      if (i) renderer._nodes.nodeFrame.update();
+      pipeline.render();
+    }
+    if (repeats > 1 && gpuTiming) {
+      batchInFlight = true;
+      renderer.backend.device.queue.onSubmittedWorkDone().finally(() => (batchInFlight = false));
+    }
     state.frames++;
     updateTelemetry(s, t);
-    measure(interval);
+    measure(interval, renderStart);
     if (stopped) return;
     // A long visit, or a tab left in the background, ends up over the night side. Crossfade to a
     // new shot from here, waiting until the new view's tiles are in.
-    if (!first && !pinned && !governorHeld && (reshootPending || wantsReshoot(shot, shotBuilt, s.date))) {
+    if (!first && !pinned && !governorHeld && (reshootPending || wantsReshoot(shot, shotBuilt, s.date, viewContext))) {
       reshootPending = false;
       shotAspect = innerWidth / innerHeight;
       if (!resumeStarted) takeSnapshot();
@@ -465,16 +590,22 @@ export async function startLiveScene(host, opts) {
       fadeSnapshot();
     }
     const settleMs = opts.settleTimeoutMs ?? SETTLE_TIMEOUT_MS;
-    // Without the shadow map, shadows and the Sun's halo would pop in, so the timeout runs from its arrival.
+    // The timeout runs from the shadow map's arrival, so shadows and the Sun's halo don't pop in. Settled
+    // tiles wait for the clouds but the timeouts don't, so a slow cloud map can't outlast the poster fallback.
     const shadowIn = planet.shadow !== 'loading';
-    if (first && ((shadowIn && (planet.settled() || loadMs - shadowAtMs > settleMs)) || loadMs > settleMs * 2)) {
+    const cloudsIn = clouds?.state.status !== 'loading';
+    if (first && ((shadowIn && ((planet.settled() && cloudsIn) || loadMs - shadowAtMs > settleMs)) || loadMs > settleMs * 2)) {
       first = false;
       planet.lean = false;
       state.firstFrameMs = Math.round(performance.now() - started);
       // Only the page's first scene measures the page load; later ones are body switches.
       window.__falsyPageReady ??= { body: body.id, sinceNavMs: Math.round(performance.now()), renderMs: Math.round(loadMs), hiddenDuringLoad: !!window.__falsyHiddenSinceNav };
+      // The home pass belongs to the first visit, so the flag is used up even when it fell back to
+      // another shot (Justin's call).
+      if (homeEligible) markHomePassSeen();
+      cloudsCheckedAt = t;
       opts.onFirstFrame?.();
-    }
+    } else if (!first && cloudsRecheckDue(cloudsCheckedAt, t)) recheckClouds(t);
   });
 
   addEventListener('resize', onResize);
@@ -515,9 +646,12 @@ export async function startLiveScene(host, opts) {
       if (!on) {
         hiddenAt = performance.now();
         if (!first) takeSnapshot();
-      } else if (snapshot) {
-        if (performance.now() - hiddenAt > RESUME_SNAPSHOT_AFTER_MS) resumeStarted = performance.now();
-        else dropSnapshot();
+      } else {
+        if (snapshot) {
+          if (performance.now() - hiddenAt > RESUME_SNAPSHOT_AFTER_MS) resumeStarted = performance.now();
+          else dropSnapshot();
+        }
+        recheckClouds(performance.now());
       }
       running = on;
     },

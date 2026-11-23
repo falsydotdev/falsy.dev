@@ -10,16 +10,23 @@ export interface Tier {
   /** Upper bound on rendered pixels, so a 5K display doesn't render 6 MP at High. */
   maxMegapixels: number;
   bloom: boolean;
+  /** Sun glint on the sea: Cox-Munk's slope distribution, or GGX as a cheaper stand-in. */
+  glint: 'cox-munk' | 'ggx';
   /** The camera moves slowly, so 30 looks the same as 60. A divisor of 60 and 120, so the cap lands on whole refreshes. */
   fps: number;
+  cloudShadows: boolean;
+  /** Clouds are shaded from the slope of their coverage. */
+  cloudRelief: boolean;
+  /** Samples along each view ray through the atmosphere shell. */
+  atmosphereSteps: number;
 }
 
 // Terrain texels are about a screen pixel at best, so rendering past 1.25× mostly sharpens
 // stars; side by side, High at 2× and Low at 1× differed by under 1/255 per pixel.
 export const TIERS: readonly Tier[] = [
-  { name: 'high', pixelRatio: 1.25, maxMegapixels: 4.2, bloom: true, fps: 30 },
-  { name: 'medium', pixelRatio: 1, maxMegapixels: 3.7, bloom: true, fps: 30 },
-  { name: 'low', pixelRatio: 0.75, maxMegapixels: 2.1, bloom: false, fps: 20 },
+  { name: 'high', pixelRatio: 1.25, maxMegapixels: 4.2, bloom: true, glint: 'cox-munk', fps: 30, cloudShadows: true, cloudRelief: true, atmosphereSteps: 24 },
+  { name: 'medium', pixelRatio: 1, maxMegapixels: 3.7, bloom: true, glint: 'cox-munk', fps: 30, cloudShadows: true, cloudRelief: false, atmosphereSteps: 24 },
+  { name: 'low', pixelRatio: 0.75, maxMegapixels: 2.1, bloom: false, glint: 'ggx', fps: 20, cloudShadows: false, cloudRelief: false, atmosphereSteps: 20 },
 ];
 
 export function tier(name: TierName): Tier {
@@ -53,6 +60,29 @@ export function initialTier(h: GpuHints): TierName | 'poster' {
   if (h.backend === 'WebGL2') return 'low';
   if (/apple|nvidia|amd|ati/i.test(h.vendor ?? '')) return 'high';
   return 'medium';
+}
+
+// Arc cards carry a model number (A770, A370M, Pro A60, B580); Core Ultra chips call their integrated GPU Arc too.
+const ARC_CARD = /xe2?-hpg|gen-12hp|\barc(\(tm\))?\s+(pro\s+)?[ab]\d{2,3}m?\b/i;
+// AMD's laptop chips report as "Radeon Graphics" or by an M model number (680M, 780M, 890M).
+const AMD_INTEGRATED = /radeon(\(tm\))? graphics|radeon \d{3}m\b|vega \d+ graphics/i;
+const INTEGRATED_VENDOR = /^(qualcomm|arm|imagination|samsung|broadcom)$/i;
+
+// Whether the GPU shares the CPU's memory. Browsers don't say, so this goes by vendor and name;
+// an AMD laptop chip that reports no name passes as discrete.
+export function isIntegrated(h: GpuHints): boolean {
+  const vendor = h.vendor ?? '';
+  const text = `${vendor} ${h.architecture ?? ''} ${h.description ?? ''}`;
+  if (INTEGRATED_VENDOR.test(vendor)) return true;
+  if (/intel/i.test(text)) return !ARC_CARD.test(text);
+  if (/amd|ati\b|radeon/i.test(text)) return AMD_INTEGRATED.test(text);
+  return false;
+}
+
+// Whether a body switch fades from the old scene's frozen frame rather than crossfading two live
+// scenes: Low and WebGL2 can't carry two, and on an integrated GPU both would sit in shared memory.
+export function switchesFromStill(scene: { tier: string; backend: string; integrated: boolean }) {
+  return scene.tier === 'frozen' || scene.tier === 'low' || scene.backend === 'WebGL2' || scene.integrated;
 }
 
 export type Verdict = 'hold' | 'down' | 'give-up';

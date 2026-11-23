@@ -69,5 +69,35 @@
     "query": "body=moon&shot=earthrise&at=2026-11-30T04:00:00Z&seed=1&skip=60",
     "focus": "70% 50%",
     "horizon": 0.42
+  },
+  {
+    "id": "earth-terminator",
+    "label": "Dusk over the Tibetan Plateau",
+    "query": "body=earth&shot=dawn-dusk&at=2026-11-20T11:00:00Z&seed=1&skip=780",
+    "focus": "70% 50%",
+    "horizon": 0.42
+  },
+  {
+    "id": "earth-sunrise",
+    "label": "Orbital sunrise over Italy",
+    "query": "body=earth&shot=orbital-sunrise&at=2026-11-20T05:03:00Z&seed=290&skip=120",
+    "portraitQuery": "fov=78",
+    "focus": "70% 50%",
+    "horizon": 0.42
+  },
+  {
+    "id": "earth-night-pass",
+    "label": "The Nile Delta at night",
+    "query": "body=earth&shot=night-pass&at=2026-11-20T19:00:00Z&seed=271&skip=60",
+    "focus": "70% 50%",
+    "horizon": 0.42
+  },
+  {
+    "id": "earth-glint",
+    "label": "Sunlight on the Aegean Sea",
+    "query": "body=earth&shot=orbital-sunrise&at=2026-07-15T04:56:00Z&seed=402&skip=600&tilt=12",
+    "portraitQuery": "fov=80&roll=16",
+    "focus": "70% 50%",
+    "horizon": 0.42
   }
 ]

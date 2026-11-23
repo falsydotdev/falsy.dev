@@ -7,7 +7,8 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { chromium } from 'playwright';
-import { bodyById } from '../../src/scene/bodies.ts';
+import { bodyById, listedBodyIds } from '../../src/scene/bodies.ts';
+import { cloudsStale } from '../../src/scene/clouds.ts';
 
 const { values: args } = parseArgs({
   options: {
@@ -69,7 +70,12 @@ const browser = await chromium.launch({
   headless: true,
 });
 
-const shots = JSON.parse(await readFile(resolve(import.meta.dirname, 'shots.json'), 'utf8')).filter((s) => !args.only || s.id === args.only);
+// A full run renders the bodies production lists, so it works before an unlisted body's data exists
+// locally and encode.mjs never ships that body's stills. `--only` renders any shot.
+const listed = listedBodyIds(false);
+const shots = JSON.parse(await readFile(resolve(import.meta.dirname, 'shots.json'), 'utf8')).filter((s) =>
+  args.only ? s.id === args.only : listed.includes(new URLSearchParams(s.query).get('body')),
+);
 const frames = [];
 try {
   for (const shot of shots) {
@@ -92,7 +98,7 @@ try {
         () => {
           const s = window.__falsyLive?.state;
           if (s?.shadow === 'failed') throw new Error('The shadow map failed to load, so the poster would have no long shadows.');
-          return s && s.tiles.pending === 0 && s.tiles.inFlight === 0 && s.frames > 30 && s.earth !== 'loading' && s.shadow === 'ready';
+          return s && s.tiles.pending === 0 && s.tiles.inFlight === 0 && s.frames > 30 && s.earth !== 'loading' && s.clouds !== 'loading' && s.shadow === 'ready';
         },
         null,
         { timeout: TIMEOUT, polling: 250 },
@@ -102,10 +108,20 @@ try {
         const s = window.__falsyLive.state;
         return {
           backend: s.backend,
+          clouds: s.clouds,
+          cloudSet: s.cloudSet,
           spans: [...document.querySelectorAll('#telemetry span')].map((el) => el.textContent),
         };
       });
       if (state.backend !== 'WebGPU') throw new Error(`Expected WebGPU, got ${state.backend}`);
+      // A pinned still must draw its own moment's clouds; the static map or no clouds would pass the wait.
+      if (bodyById(params.get('body')).clouds && !params.get('fx')?.split(',').includes('clouds')) {
+        const set = state.cloudSet;
+        const valid = set && new Date(set.valid);
+        if (state.clouds !== 'ready' || set.source !== 'live' || valid > at || cloudsStale(valid, at)) {
+          throw new Error(`${shot.id}: no cloud set for ${at.toISOString()} (clouds ${state.clouds}, set ${JSON.stringify(set)}). Run clouds/scripts/poster-sets.mjs.`);
+        }
+      }
       await page.addStyleTag({
         content:
           'header, main, footer, .skip, #telemetry, .sky .grid, .sky .scrim, astro-dev-toolbar { visibility: hidden !important } html { scrollbar-width: none }',

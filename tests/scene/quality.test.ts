@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Governor, initialTier, renderPixelRatio, tier } from '../../src/scene/quality.ts';
+import { Governor, TIERS, initialTier, isIntegrated, renderPixelRatio, switchesFromStill, tier } from '../../src/scene/quality.ts';
 
 const opts = { warmup: 2, window: 4, patience: 2, limit: 0.5, giveUpLimit: 0.75 };
 const feed = (g: Governor, load: number, n: number, showing = true) => Array.from({ length: n }, () => g.sample(load, showing));
@@ -91,3 +91,73 @@ describe('renderPixelRatio', () => {
   });
 });
 
+
+describe('cloud effects per tier', () => {
+  it('casts cloud shadows on High and Medium, not on Low', () => {
+    expect(tier('high').cloudShadows).toBe(true);
+    expect(tier('medium').cloudShadows).toBe(true);
+    expect(tier('low').cloudShadows).toBe(false);
+  });
+
+  it('keeps cloud relief for High only', () => {
+    expect(TIERS.filter((t) => t.cloudRelief).map((t) => t.name)).toEqual(['high']);
+  });
+});
+
+describe('sun glint', () => {
+  it('uses Cox-Munk on High and Medium and the cheaper GGX on Low', () => {
+    expect(tier('high').glint).toBe('cox-munk');
+    expect(tier('medium').glint).toBe('cox-munk');
+    expect(tier('low').glint).toBe('ggx');
+  });
+});
+
+describe('isIntegrated', () => {
+  it('counts Intel graphics as integrated, except Arc cards', () => {
+    expect(isIntegrated({ backend: 'WebGPU', vendor: 'intel', architecture: 'gen-12lp' })).toBe(true);
+    expect(isIntegrated({ backend: 'WebGPU', vendor: 'intel', architecture: 'xe-lpg' })).toBe(true);
+    expect(isIntegrated({ backend: 'WebGL2', description: 'ANGLE (Intel, Intel(R) Iris(R) Xe Graphics (0x00009A49) Direct3D11 vs_5_0 ps_5_0, D3D11)' })).toBe(true);
+    expect(isIntegrated({ backend: 'WebGPU', vendor: 'intel', architecture: 'xe-hpg', description: 'Intel(R) Arc(TM) A770 Graphics' })).toBe(false);
+    expect(isIntegrated({ backend: 'WebGPU', vendor: 'intel', architecture: 'xe2-hpg' })).toBe(false);
+    expect(isIntegrated({ backend: 'WebGL2', description: 'ANGLE (Intel, Intel(R) Arc(TM) A370M Graphics (0x00005693) Direct3D11 vs_5_0 ps_5_0, D3D11)' })).toBe(false);
+    expect(isIntegrated({ backend: 'WebGL2', description: 'ANGLE (Intel, Intel(R) Arc(TM) Pro A60 Graphics Direct3D11 vs_5_0 ps_5_0, D3D11)' })).toBe(false);
+    expect(isIntegrated({ backend: 'WebGL2', description: 'ANGLE (Intel, Intel(R) Arc(TM) B580 Graphics (0x0000E20B) Direct3D11 vs_5_0 ps_5_0, D3D11)' })).toBe(false);
+  });
+
+  it("counts Core Ultra chips' integrated Arc graphics as integrated", () => {
+    expect(isIntegrated({ backend: 'WebGPU', vendor: 'intel', architecture: 'xe-lpg', description: 'Intel(R) Arc(TM) Graphics' })).toBe(true);
+    expect(isIntegrated({ backend: 'WebGPU', vendor: 'intel', architecture: 'xe2-lpg', description: 'Intel(R) Arc(TM) 140V GPU (16GB)' })).toBe(true);
+  });
+
+  it("counts AMD's laptop Radeon graphics as integrated and its cards as discrete", () => {
+    expect(isIntegrated({ backend: 'WebGPU', vendor: 'amd', architecture: 'rdna-3', description: 'AMD Radeon 780M Graphics' })).toBe(true);
+    expect(isIntegrated({ backend: 'WebGL2', description: 'ANGLE (AMD, AMD Radeon(TM) Graphics (0x00001681) Direct3D11 vs_5_0 ps_5_0, D3D11)' })).toBe(true);
+    expect(isIntegrated({ backend: 'WebGPU', vendor: 'amd', architecture: 'rdna-3', description: 'AMD Radeon RX 7800 XT' })).toBe(false);
+  });
+
+  it('counts Apple, NVIDIA, and AMD with nothing more to go on as discrete', () => {
+    expect(isIntegrated({ backend: 'WebGPU', vendor: 'apple', architecture: 'metal-3' })).toBe(false);
+    expect(isIntegrated({ backend: 'WebGPU', vendor: 'nvidia', architecture: 'turing', description: 'NVIDIA GeForce GTX 1650' })).toBe(false);
+    expect(isIntegrated({ backend: 'WebGPU', vendor: 'amd', architecture: 'rdna-3' })).toBe(false);
+  });
+
+  it('counts phone-class and Arm laptop GPUs as integrated', () => {
+    expect(isIntegrated({ backend: 'WebGPU', vendor: 'qualcomm', architecture: 'adreno-7xx' })).toBe(true);
+    expect(isIntegrated({ backend: 'WebGPU', vendor: 'arm', architecture: 'valhall' })).toBe(true);
+  });
+});
+
+describe('switchesFromStill', () => {
+  const scene = { tier: 'high', backend: 'WebGPU', integrated: false } as const;
+  it('crossfades two live scenes on a discrete or Apple GPU above Low', () => {
+    expect(switchesFromStill(scene)).toBe(false);
+    expect(switchesFromStill({ ...scene, tier: 'medium' })).toBe(false);
+  });
+
+  it('switches from a frozen frame on Low, on WebGL2, once frozen, and on integrated GPUs, so two scenes never share memory', () => {
+    expect(switchesFromStill({ ...scene, tier: 'low' })).toBe(true);
+    expect(switchesFromStill({ ...scene, tier: 'frozen' })).toBe(true);
+    expect(switchesFromStill({ ...scene, backend: 'WebGL2' })).toBe(true);
+    expect(switchesFromStill({ ...scene, integrated: true })).toBe(true);
+  });
+});

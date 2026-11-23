@@ -1,8 +1,10 @@
 // Downloads a body's source mosaics with parallel range requests (single streams run at
 // about 3 MB/s from Australia). Resumable: finished chunks are recorded beside the file.
-//   node scripts/tiles/fetch-sources.mjs [--body mars|moon] [source]
-import { open, mkdir, readFile, writeFile, unlink } from 'node:fs/promises';
+//   node scripts/tiles/fetch-sources.mjs [--body mars|moon|earth] [source[,source…]]
+// Any source in SOURCES can be named, so `--body earth gebcoCoarse,bmngCoarse` fetches the test fill.
+import { open, mkdir, readFile, writeFile, unlink, rename } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { SOURCES, SOURCE_DIR, PIPELINE, bodyArg } from './paths.mjs';
 
 const CHUNK = 32 * 1024 * 1024;
@@ -16,15 +18,62 @@ async function fetchChunk(url, start, end, attempt = 0) {
     if (buf.length !== end - start + 1) throw new Error(`short read ${buf.length}`);
     return buf;
   } catch (err) {
-    if (attempt >= 6) throw err;
-    await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
+    if (attempt >= 12) throw err;
+    await new Promise((r) => setTimeout(r, Math.min(30000, 1000 * 2 ** attempt)));
     return fetchChunk(url, start, end, attempt + 1);
   }
 }
 
+// For responses built per request (OPeNDAP), which can't be fetched in ranges.
+async function downloadWhole({ url, file }, attempt = 0) {
+  if (existsSync(file)) return console.log(`${file} already complete`);
+  let bytes;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`${url}: status ${res.status}`);
+    bytes = new Uint8Array(await res.arrayBuffer());
+  } catch (err) {
+    if (attempt >= 12) throw err;
+    await new Promise((r) => setTimeout(r, Math.min(30000, 1000 * 2 ** attempt)));
+    return downloadWhole({ url, file }, attempt + 1);
+  }
+  await writeFile(`${file}.part`, bytes);
+  await rename(`${file}.part`, file);
+  console.log(`${file} complete`);
+}
+
+async function headWithRetry(url, attempt = 0) {
+  try {
+    const res = await fetch(url, { method: 'HEAD' });
+    if (!res.ok) throw new Error(`status ${res.status}`);
+    return res;
+  } catch (err) {
+    if (attempt >= 12) throw err;
+    await new Promise((r) => setTimeout(r, Math.min(30000, 1000 * 2 ** attempt)));
+    return headWithRetry(url, attempt + 1);
+  }
+}
+
+// Some hosts (NASA's assets) gzip a HEAD response and drop its length; a one-byte range gives the size.
+async function sizeOf(url) {
+  const head = await headWithRetry(url);
+  const length = head.headers.get('content-length');
+  if (length && !head.headers.get('content-encoding')) return Number(length);
+  const probe = await fetchChunkResponse(url);
+  const size = Number(probe.headers.get('content-range')?.split('/')[1]);
+  if (!(size > 0)) throw new Error(`${url}: no size in HEAD or a range response`);
+  return size;
+}
+
+async function fetchChunkResponse(url) {
+  const res = await fetch(url, { headers: { Range: 'bytes=0-0' } });
+  await res.arrayBuffer();
+  if (res.status !== 206) throw new Error(`${url}: status ${res.status} for a range`);
+  return res;
+}
+
 async function download({ url, file }) {
-  const head = await fetch(url, { method: 'HEAD' });
-  const size = Number(head.headers.get('content-length'));
+  const size = await sizeOf(url);
   const progressFile = `${file}.progress.json`;
   const done = new Set(existsSync(progressFile) ? JSON.parse(await readFile(progressFile, 'utf8')) : []);
   if (existsSync(file) && !existsSync(progressFile)) return console.log(`${file} already complete`);
@@ -63,10 +112,12 @@ async function download({ url, file }) {
 
 await mkdir(SOURCE_DIR, { recursive: true });
 const spec = PIPELINE[bodyArg()];
-const wanted = [spec.heights.source, spec.heights.label, spec.colour.source].filter(Boolean);
-const only = process.argv.slice(2).find((a, i, all) => !a.startsWith('--') && all[i - 1] !== '--body');
-for (const [name, src] of Object.entries(SOURCES)) {
-  if (!wanted.includes(name) || (only && only !== name)) continue;
+const only = process.argv.slice(2).find((a, i, all) => !a.startsWith('--') && all[i - 1] !== '--body')?.split(',');
+const wanted = only ?? spec.fetch ?? [spec.heights.source, spec.heights.label, spec.colour.source].filter(Boolean);
+for (const name of wanted) {
+  const src = SOURCES[name];
+  if (!src) throw new Error(`Unknown source ${name}`);
   console.log(`${name}: ${src.url}`);
-  await download(src);
+  await mkdir(dirname(src.file), { recursive: true });
+  await (src.whole ? downloadWhole(src) : download(src));
 }

@@ -18,9 +18,6 @@ export function createLighting(body) {
     sunDiameter: uniform(body.sunDiameterRad),
     ambient: uniform(l.ambient),
     skyTint: uniform(new THREE.Color(...l.skyTint)),
-    extinction: uniform(new THREE.Vector3(...l.extinction)),
     shadows: uniform(1),
-    // The surface haze is thinner than the full limb path the scattering shell models.
-    opticalDepth: uniform((body.atmosphere?.density ?? 0) * 0.7),
   };
 }
