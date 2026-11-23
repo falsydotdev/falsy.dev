@@ -82,12 +82,23 @@ async function process({ bucket, fetch, container, source, valid, log }) {
   const days = Array.from({ length: WINDOW_DAYS + 1 }, (_, i) => dayOf(new Date(valid.getTime() - i * DAY_MS)));
   const before = dayOf(new Date(valid.getTime() - (WINDOW_DAYS + 1) * DAY_MS));
   const { objects: listed } = await listAll(bucket, { prefix: `state/${slot}/`, startAfter: `state/${slot}/${before}` });
-  const stored = new Map(listed.map((o) => [o.key.split('/').pop(), o.size]));
+  const listedDays = new Set(listed.map((o) => o.key.split('/').pop()));
 
+  // The bundle's length is fixed before it streams, so each part is confirmed first: a day the
+  // lifecycle rule expired since the listing is backfilled like any other gap.
+  const stored = new Map();
+  for (const day of days.filter((d) => listedDays.has(d))) {
+    const head = await bucket.head(`state/${slot}/${day}`);
+    if (head) stored.set(day, head.size);
+  }
   const parts = [];
-  for (const day of days.filter((d) => stored.has(d))) {
-    const body = async () => (await bucket.get(`state/${slot}/${day}`)).body;
-    parts.push({ name: `history/${day}`, size: stored.get(day), body });
+  for (const [day, size] of stored) {
+    const body = async () => {
+      const object = await bucket.get(`state/${slot}/${day}`);
+      if (!object) throw new Error(`state/${slot}/${day} disappeared while the bundle was streaming`);
+      return object.body;
+    };
+    parts.push({ name: `history/${day}`, size, body });
   }
   let backfilled = 0;
   for (const day of days.filter((d) => d !== today && !stored.has(d))) {

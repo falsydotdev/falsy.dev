@@ -259,6 +259,24 @@ describe('cloud job', () => {
     expect(bucket.objects.has('state/09/20261118')).toBe(true);
   });
 
+  it('backfills a clear-sky day whose state expires between the listing and the read', async () => {
+    const bucket = fakeBucket({ 'latest.json': JSON.stringify(previous), ...fullHistory });
+    const list = bucket.list;
+    bucket.list = async (options) => {
+      const page = await list(options);
+      bucket.objects.delete('state/09/20261108');
+      return page;
+    };
+    const container = fakeContainer();
+    await runJob({ bucket, fetch: fakeNoaa(['2026-11-22T09:00Z', '2026-11-08T09:00Z']), container, now: at('2026-11-22T09:45Z'), log });
+
+    const names = container.requests[0].names;
+    expect(names).not.toContain('history/20261108');
+    expect(names).toContain('backfill/20261108');
+    expect(bucket.json('latest.json')).toMatchObject({ valid: '2026-11-22T09:00:00.000Z', fallback: null });
+    expect(log.error).not.toHaveBeenCalled();
+  });
+
   it('opens each download only when the container reads it, within the Worker connection limit', async () => {
     connections.max = 0;
     connections.open = 0;
