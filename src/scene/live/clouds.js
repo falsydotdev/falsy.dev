@@ -15,8 +15,8 @@ const DETAIL_KM = [24, 12, 6, 3];
 const DETAIL_STRENGTH = 1.6;
 // The map is warped by up to about half a texel, so close-in clouds don't show its grid.
 const WARP_KM = 20;
-// Cloud tops are lit from the side as well as from above, so a low Sun still lights them.
-const SIDE_LIGHT = 0.25;
+// The coarsest detail octaves, which also shade the tops as lumps on High.
+const BUMP_OCTAVES = 2;
 
 // The cloud job's bucket. In development, a local stand-in laid out like it, served at /data/clouds
 // (FALSY_TILES_CLOUDS picks its folder); clouds.falsy.dev only answers the production site.
@@ -45,7 +45,7 @@ export function loadCloudSet(candidates) {
 export function createClouds({ body, lighting, tables, set }) {
   const cfg = body.clouds;
   const R = body.radiusKm;
-  // Raised like the terrain, so clouds clear exaggerated peaks and cast shadows at the same scale.
+  // Raised like the terrain (body.relief, fixed for the scene), so shadows fall at the hillshading's scale.
   const Rc = R + cfg.heightKm * body.relief;
   const { width: W, height: H } = CLOUD_TEXTURE;
   const texelKm = (2 * Math.PI * Rc) / W;
@@ -133,10 +133,14 @@ export function createClouds({ body, lighting, tables, set }) {
     return sampleAt(lat, lon, lod).mul(capFade(lat));
   };
 
-  /** Summed detail noise at shell point `p`, each octave full strength at 4 pixels a wavelength and gone at 2. */
-  const detailAt = (p, footprint) => {
+  /**
+   * Detail noise at shell point `p`, summed over octaves `from` to `to`, each full strength at 4
+   * pixels a wavelength and gone at 2.
+   */
+  const detailAt = (p, footprint, from = 0, to = DETAIL_KM.length) => {
     let sum = float(0);
-    DETAIL_KM.forEach((km, k) => {
+    DETAIL_KM.slice(from, to).forEach((km, i) => {
+      const k = from + i;
       const fade = clamp(float(km).div(footprint.mul(2)).sub(1), 0, 1);
       sum = sum.add(mx_noise_float(p.div(km).add(k * 17.3)).mul(0.5 ** k).mul(fade));
     });
@@ -144,8 +148,8 @@ export function createClouds({ body, lighting, tables, set }) {
   };
 
   /**
-   * Sunlight reaching ground point `p` (world km) past the clouds, 0 to 1. One sample at the ground's
-   * own pixel size, edged like the drawn cloud, so each cloud casts a crisp outline offset from the Sun.
+   * Sunlight reaching ground point `p` (world km) past the clouds, 0 to 1. One map sample at the
+   * ground's own pixel size, without the drawn cloud's warp and detail noise, which cost about 1 ms.
    */
   const shadowAt = (p, sun) => {
     const lit = float(1).toVar();
@@ -180,11 +184,12 @@ export function createClouds({ body, lighting, tables, set }) {
 
     // Synthesised detail only reshapes partial cover: clear sky stays clear and full decks stay solid.
     // A variable: first read inside the relief branch below.
-    const detail = detailAt(pc, footprint).toVar();
+    const bumps = detailAt(pc, footprint, 0, BUMP_OCTAVES).toVar();
+    const detail = bumps.add(detailAt(pc, footprint, BUMP_OCTAVES));
     const alpha = smoothstep(0.08, 0.92, c.add(detail.mul(DETAIL_STRENGTH).mul(c).mul(c.oneMinus()).mul(4)));
 
     // Sunlight on the top's slope, along the Sun's bearing: the map's cover reliefKm high at full
-    // cover, plus the detail noise as lumps, differenced over about a pixel.
+    // cover, plus the coarse detail octaves as lumps, differenced over about a pixel.
     const muS = dot(up, sun).toVar();
     const facing = muS.toVar();
     If(u.relief.greaterThan(0.5), () => {
@@ -197,7 +202,7 @@ export function createClouds({ body, lighting, tables, set }) {
       const qUp = normalize(q);
       const qLat = asin(qUp.y);
       const qLon = atan(qUp.z.negate(), qUp.x);
-      const rise = sampleAt(qLat, qLon, lod).sub(sampleAt(lat, lon, lod)).mul(cfg.reliefKm).add(detailAt(q, footprint).sub(detail).mul(cfg.bumpKm));
+      const rise = sampleAt(qLat, qLon, lod).sub(sampleAt(lat, lon, lod)).mul(cfg.reliefKm).add(detailAt(q, footprint, 0, BUMP_OCTAVES).sub(bumps).mul(cfg.bumpKm));
       const s = rise.div(step);
       facing.assign(muS.sub(s.mul(flat)).div(sqrt(s.mul(s).add(1))));
     });
@@ -206,7 +211,7 @@ export function createClouds({ body, lighting, tables, set }) {
     const b = dot(pc, sun);
     const miss = sqrt(max(dot(pc, pc).sub(b.mul(b)), 0));
     const sunlit = select(b.greaterThan(0), float(1), smoothstep(R - 2, R + 6, miss));
-    const side = facing.clamp(0, 1).mul(1 - SIDE_LIGHT).add(SIDE_LIGHT);
+    const side = facing.clamp(0, 1).mul(1 - cfg.sideLight).add(cfg.sideLight);
     const direct = vec3(lighting.sunColor).mul(lighting.sunIntensity).mul(tables.transmittance(float(Rc), muS)).mul(sunlit.mul(side));
     const sky = vec3(lighting.skyTint).mul(lighting.ambient).mul(smoothstep(-0.2, 0.25, muS));
     return vec4(direct.add(sky).mul(cfg.albedo), alpha);
