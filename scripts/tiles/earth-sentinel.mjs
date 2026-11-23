@@ -1,6 +1,6 @@
 // Overlays the Copernicus Sentinel-2 Global Mosaic onto Earth's fine colour rasters, so Blue
 // Marble shows only where Sentinel-2 has no clear view (open ocean, beyond about ±83.75°, nodata).
-// Reads each item's cloud-optimized GeoTIFF overview nearest 300 m, through presigned S3 URLs.
+// Reads each item's cloud-optimized GeoTIFF overview nearest 300 m, with header-signed S3 range reads.
 //   CDSE_S3_ACCESS_KEY=… CDSE_S3_SECRET_KEY=… node scripts/tiles/earth-sentinel.mjs
 //   node scripts/tiles/earth-sentinel.mjs --list     search only; needs no keys
 // Without keys it says so and leaves Blue Marble in place. Never log the keys. Either way it
@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { EARTH_BAKE_DATE, TILE_DIR } from './paths.mjs';
 import { listRasters, pixelDeg } from './mosaic-rasters.mjs';
 import { colorPeriod, copernicusYear, mosaicQuarter, toneReflectance } from './earth/sentinel.ts';
-import { presignGet } from './earth/s3.ts';
+import { signHeaders } from './earth/s3.ts';
 import { toUtm } from './earth/utm.ts';
 
 const STAC = 'https://stac.dataspace.copernicus.eu/v1/search';
@@ -69,7 +69,8 @@ async function readItem(item) {
   const bands = [];
   let geometry;
   for (const band of BANDS) {
-    const tiff = await fromUrl(presignGet(httpsOf(item.assets[band].href), { ...keys, region: 'default', expiresS: 3600 }));
+    const url = httpsOf(item.assets[band].href);
+    const tiff = await fromUrl(url, { headers: signHeaders(url, { ...keys, region: 'default' }) });
     const count = await tiff.getImageCount();
     let pick = -1;
     let best = Infinity;
@@ -146,7 +147,7 @@ for (const raster of listRasters('colour').filter((r) => pixelDeg(r) <= 1 / 200)
     try {
       pixels += await overlay(raster, item, await readItem(item));
     } catch (err) {
-      // Only the message: a stack or request could carry a presigned URL, which holds the key ID.
+      // Only the message: a stack or request could carry the signed headers, which hold the key ID.
       failed++;
       console.log(`    ${item.id} skipped: ${String(err?.message ?? err).replace(/https?:\/\/\S+/g, '<url>')}`);
     }
