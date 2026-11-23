@@ -72,13 +72,9 @@ export function sourceWindow(grid: Grid, tile: Box, win: Window): Window {
 /** Latitude of the centre of raster row `y`. */
 export const rowLat = (grid: Grid, y: number) => grid.north - ((y + 0.5) * (grid.north - grid.south)) / grid.h;
 
-/**
- * Where Sentinel-2 fades into Blue Marble, as [full weight, zero weight] latitudes, measured on the
- * 2025 Q4 mosaic. North: land nodata is 1% at 78°N, 21% at 79°N, and total past 80.5°N (polar night).
- * South: data stops at 82.81–82.84°S, but the ice sheet clips to textureless cream from about 67°S
- * while Blue Marble stays textured, so Blue Marble takes over from 70°S, where its coastline stops disagreeing.
- */
-export const SENTINEL_RAMP = { quarter: 4, north: [76, 78.5], south: [-70, -82.75] } as const;
+// [full weight, zero weight] latitudes from the 2025 Q4 mosaic: land nodata starts near 78°N and data
+// stops at 82.81°S. The south ramp starts poleward of the ice-shelf fronts, where 2004 Blue Marble shows sea.
+export const SENTINEL_RAMP = { quarter: 4, north: [76, 78.5], south: [-79, -82.75] } as const;
 
 const smoothstep = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
 

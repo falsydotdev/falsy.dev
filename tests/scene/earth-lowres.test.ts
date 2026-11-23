@@ -116,7 +116,7 @@ describe('overlaying one raster row, land only', () => {
 
 describe('fading Sentinel-2 out toward its polar coverage edges', () => {
   it('keeps full weight well inside coverage', () => {
-    for (const lat of [-69, -60, 0, 54, 75.9]) expect(sentinelWeight(lat)).toBe(1);
+    for (const lat of [-78.9, -60, 0, 54, 75.9]) expect(sentinelWeight(lat)).toBe(1);
   });
 
   it('reaches zero before the measured edges, 82.81°S and the 78.5–80.5°N cap', () => {
