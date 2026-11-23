@@ -5,16 +5,16 @@ import { smoothstep, uniform } from 'three/tsl';
 export const toWorld = (b) => new THREE.Vector3(b[0], b[2], -b[1]);
 
 /**
+ * Share of the night fill for a surface whose Sun is at sine `su`: none in daylight, so day shadows keep
+ * their contrast. Flat ground just sunward of the terminator is dimmer, but twilight air glow covers it.
+ */
+export const nightSide = (su) => smoothstep(-0.05, 0.05, su).oneMinus();
+
+/**
  * Lighting inputs for one scene's planet surface, set from its body. Each scene has its own, since
  * two run at once during a body switch.
  * @param {import('../bodies.ts').Body} body
  */
-/**
- * How much of the night fill reaches a surface whose Sun is at sine `su`: none in daylight, so day
- * shadows keep their contrast, all of it past the terminator, where sunlight is already that dim.
- */
-export const nightSide = (su) => smoothstep(-0.05, 0.05, su).oneMinus();
-
 export function createLighting(body) {
   const l = body.light;
   return {
