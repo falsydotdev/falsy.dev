@@ -69,6 +69,25 @@ export function sourceWindow(grid: Grid, tile: Box, win: Window): Window {
   };
 }
 
+/** Latitude of the centre of raster row `y`. */
+export const rowLat = (grid: Grid, y: number) => grid.north - ((y + 0.5) * (grid.north - grid.south)) / grid.h;
+
+/**
+ * Where Sentinel-2 fades into Blue Marble, as [full weight, zero weight] latitudes, measured on the
+ * 2025 Q4 mosaic. North: land nodata is 1% at 78°N, 21% at 79°N, and total past 80.5°N (polar night).
+ * South: data stops at 82.81–82.84°S, but the ice sheet clips to textureless cream from about 67°S
+ * while Blue Marble stays textured, so Blue Marble takes over from 70°S, where its coastline stops disagreeing.
+ */
+export const SENTINEL_RAMP = { quarter: 4, north: [76, 78.5], south: [-70, -82.75] } as const;
+
+const smoothstep = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
+
+/** Sentinel-2's share of the colour at `lat`: 1 inside coverage, easing to 0 before each polar edge. */
+export function sentinelWeight(lat: number): number {
+  const [from, to] = lat >= 0 ? SENTINEL_RAMP.north : SENTINEL_RAMP.south;
+  return 1 - smoothstep((lat - from) / (to - from));
+}
+
 export const NODATA = -32768;
 
 export interface Samples {
@@ -103,11 +122,13 @@ export function sampleBilinear(src: Samples, fx: number, fy: number): number | n
 
 /**
  * Tones one raster row from red, green, and blue samples (window coordinates) into `out`, land
- * pixels only: the renderer shades water itself, so Blue Marble stays under it. Returns pixels written.
+ * pixels only: the renderer shades water itself, so Blue Marble stays under it. `weight` blends the
+ * toned colour into the Blue Marble already in `out` (1 replaces it). Returns pixels written.
  */
-export function overlayRow(bands: Samples[], fy: number, fxs: Float64Array, mask: Uint8Array, out: Uint8Array[]): number {
+export function overlayRow(bands: Samples[], fy: number, fxs: Float64Array, mask: Uint8Array, out: Uint8Array[], weight = 1): number {
   let written = 0;
   const px = [0, 0, 0];
+  if (weight <= 0) return 0;
   for (let i = 0; i < fxs.length; i++) {
     if (mask[i] === 0) continue;
     let ok = true;
@@ -117,7 +138,7 @@ export function overlayRow(bands: Samples[], fy: number, fxs: Float64Array, mask
       else px[b] = toneReflectance(dn, b) as number;
     }
     if (!ok) continue;
-    for (let b = 0; b < 3; b++) out[b][i] = px[b];
+    for (let b = 0; b < 3; b++) out[b][i] = weight >= 1 ? px[b] : Math.round(out[b][i] + (px[b] - out[b][i]) * weight);
     written++;
   }
   return written;

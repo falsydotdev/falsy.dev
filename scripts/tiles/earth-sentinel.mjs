@@ -1,6 +1,7 @@
 // Overlays the Copernicus Sentinel-2 Global Mosaic onto the land of Earth's fine colour rasters,
 // from its low-resolution product (36° lat/lon tiles at 0.0036°), resampled bilinearly to 1/240°.
-// Water keeps Blue Marble, since the renderer shades it; so do nodata pixels.
+// Water keeps Blue Marble, since the renderer shades it; so do nodata pixels. Toward the polar
+// coverage edges Sentinel-2 blends into the Blue Marble already in the raster (SENTINEL_RAMP).
 //   CDSE_S3_ACCESS_KEY=… CDSE_S3_SECRET_KEY=… node scripts/tiles/earth-sentinel.mjs
 //   node scripts/tiles/earth-sentinel.mjs --list     tiles per raster; needs no keys
 // Without keys it says so and leaves Blue Marble in place. Never log the keys. Either way it
@@ -10,7 +11,7 @@ import { join } from 'node:path';
 import { EARTH_BAKE_DATE, TILE_DIR } from './paths.mjs';
 import { covers, listRasters, pixelDeg } from './mosaic-rasters.mjs';
 import { colorPeriod, copernicusYear, mosaicQuarter } from './earth/sentinel.ts';
-import { LOW_RES_SIZE, LOW_RES_STEP, lowResKey, lowResTilesFor, overlayRow, sourceWindow, sourceX, sourceY, targetWindow } from './earth/lowres.ts';
+import { LOW_RES_SIZE, LOW_RES_STEP, SENTINEL_RAMP, lowResKey, lowResTilesFor, overlayRow, rowLat, sentinelWeight, sourceWindow, sourceX, sourceY, targetWindow } from './earth/lowres.ts';
 import { signHeaders } from './earth/s3.ts';
 
 const S3_ENDPOINT = 'https://eodata.dataspace.copernicus.eu';
@@ -44,6 +45,7 @@ const q = mosaicQuarter(EARTH_BAKE_DATE);
 // Only rasters near Blue Marble's 1/240° gain from it; the coarse test fill doesn't.
 const rasters = listRasters('colour').filter((r) => pixelDeg(r) <= 1 / 200);
 console.log(`Sentinel-2 Global Mosaic ${q.year} Q${q.quarter}, low resolution`);
+if (q.quarter !== SENTINEL_RAMP.quarter) console.log(`  warning: SENTINEL_RAMP was measured on a Q${SENTINEL_RAMP.quarter} mosaic; check the polar coverage edges for Q${q.quarter}`);
 
 if (listOnly) {
   for (const raster of rasters) {
@@ -134,7 +136,7 @@ async function openBand(tile, band) {
 async function maskRow(raster, masks, y, x0, x1) {
   const out = new Uint8Array(x1 - x0).fill(255);
   const pending = new Uint8Array(x1 - x0).fill(1);
-  const lat = raster.north - ((y + 0.5) * (raster.north - raster.south)) / raster.h;
+  const lat = rowLat(raster, y);
   const lonOf = (x) => raster.west + ((x + 0.5) * (raster.east - raster.west)) / raster.w;
   for (const m of masks) {
     const my = Math.min(m.h - 1, Math.max(0, Math.floor(((m.north - lat) / (m.north - m.south)) * m.h)));
@@ -167,6 +169,10 @@ async function overlayTile(raster, fh, masks, tile) {
   const sw = src.x1 - src.x0;
   const lands = [];
   for (let y = win.y0; y < win.y1; y++) {
+    if (sentinelWeight(rowLat(raster, y)) <= 0) {
+      lands.push(null);
+      continue;
+    }
     const mask = await maskRow(raster, masks, y, win.x0, win.x1);
     lands.push(mask.some((v) => v !== 0) ? mask : null);
   }
@@ -194,21 +200,28 @@ async function overlayTile(raster, fh, masks, tile) {
       }),
     };
   }
-  const rows = BANDS.map(() => Buffer.alloc(w));
+  const at = (b, y) => (b * raster.h + y) * raster.w + win.x0;
+  // A blend reads the row it writes, so a tile that fails partway must not have blended any row
+  // yet: its rerun would blend those twice. Blended rows wait until every fetch has succeeded.
+  const blended = [];
   let written = 0;
   for (let y = win.y0; y < win.y1; y++) {
     const mask = lands[y - win.y0];
     if (!mask) continue;
+    const weight = sentinelWeight(rowLat(raster, y));
     const fy = sourceY(raster, tile, y);
     const iy = Math.min(src.y1 - 1, Math.max(src.y0, Math.floor(fy)));
     await ensure(iy, Math.min(src.y1, iy + 2));
     const bands = buf.bands.map((data) => ({ data, w: sw, h: buf.y1 - buf.y0 }));
-    for (let b = 0; b < 3; b++) await fh.read(rows[b], 0, w, (b * raster.h + y) * raster.w + win.x0);
-    const n = overlayRow(bands, fy - buf.y0, fxs, mask, rows);
+    const rows = BANDS.map(() => Buffer.alloc(w));
+    for (let b = 0; b < 3; b++) await fh.read(rows[b], 0, w, at(b, y));
+    const n = overlayRow(bands, fy - buf.y0, fxs, mask, rows, weight);
     if (!n) continue;
-    for (let b = 0; b < 3; b++) await fh.write(rows[b], 0, w, (b * raster.h + y) * raster.w + win.x0);
+    if (weight < 1) blended.push({ y, rows });
+    else for (let b = 0; b < 3; b++) await fh.write(rows[b], 0, w, at(b, y));
     written += n;
   }
+  for (const { y, rows } of blended) for (let b = 0; b < 3; b++) await fh.write(rows[b], 0, w, at(b, y));
   return written;
 }
 

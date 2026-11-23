@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { toneReflectance } from '../../scripts/tiles/earth/sentinel.ts';
-import { LOW_RES_TILES, overlayRow, lowResKey, lowResTilesFor, sampleBilinear, sourceWindow, sourceX, sourceY, targetWindow } from '../../scripts/tiles/earth/lowres.ts';
+import { LOW_RES_TILES, overlayRow, lowResKey, lowResTilesFor, rowLat, sampleBilinear, sentinelWeight, sourceWindow, sourceX, sourceY, targetWindow } from '../../scripts/tiles/earth/lowres.ts';
 
 const tile = (name: string) => LOW_RES_TILES.find((t) => t.name === name)!;
 // The Netherlands test region's colour raster, at 1/240°.
@@ -95,5 +95,47 @@ describe('overlaying one raster row, land only', () => {
     const out = [new Uint8Array(3).fill(9), new Uint8Array(3).fill(9), new Uint8Array(3).fill(9)];
     expect(overlayRow([red, green, flat(ND)], 0.5, fxs, new Uint8Array(3).fill(255), out)).toBe(0);
     expect(out.every((row) => row.every((v) => v === 9))).toBe(true);
+  });
+
+  it('blends toward Sentinel-2 by the row weight, from the Blue Marble already in the row', () => {
+    // DN 0 tones to black in every band, so the result is Blue Marble scaled by 1 − weight.
+    const black = flat(0);
+    const out = [Uint8Array.from([200, 0, 200]), Uint8Array.from([100, 0, 100]), Uint8Array.from([40, 0, 40])];
+    expect(overlayRow([black, black, black], 0.5, fxs, Uint8Array.from([255, 0, 255]), out, 0.25)).toBe(2);
+    expect([...out[0]]).toEqual([150, 0, 150]);
+    expect([...out[1]]).toEqual([75, 0, 75]);
+    expect([...out[2]]).toEqual([30, 0, 30]);
+  });
+
+  it('writes nothing at zero weight', () => {
+    const out = [new Uint8Array(3).fill(9), new Uint8Array(3).fill(9), new Uint8Array(3).fill(9)];
+    expect(overlayRow([red, green, blue], 0.5, fxs, new Uint8Array(3).fill(255), out, 0)).toBe(0);
+    expect(out.every((row) => row.every((v) => v === 9))).toBe(true);
+  });
+});
+
+describe('fading Sentinel-2 out toward its polar coverage edges', () => {
+  it('keeps full weight well inside coverage', () => {
+    for (const lat of [-69, -60, 0, 54, 75.9]) expect(sentinelWeight(lat)).toBe(1);
+  });
+
+  it('reaches zero before the measured edges, 82.81°S and the 78.5–80.5°N cap', () => {
+    for (const lat of [-82.75, -82.9, -90, 78.5, 80, 90]) expect(sentinelWeight(lat)).toBe(0);
+  });
+
+  it('falls monotonically across each ramp', () => {
+    const north = Array.from({ length: 101 }, (_, i) => sentinelWeight(75 + i * 0.04));
+    const south = Array.from({ length: 101 }, (_, i) => sentinelWeight(-69 - i * 0.14));
+    for (const ramp of [north, south]) {
+      for (let i = 1; i < ramp.length; i++) expect(ramp[i]).toBeLessThanOrEqual(ramp[i - 1]);
+      expect(ramp.some((w) => w > 0 && w < 1)).toBe(true);
+    }
+  });
+
+  it('weighs a raster row by the latitude of its centre', () => {
+    const globe = { w: 86400, h: 43200, west: -180, north: 90, east: 180, south: -90 };
+    expect(rowLat(globe, 0)).toBeCloseTo(89.997917, 6);
+    expect(rowLat(globe, 43199)).toBeCloseTo(-89.997917, 6);
+    expect(rowLat(REGION, 576)).toBeCloseTo(53.997917, 6);
   });
 });
