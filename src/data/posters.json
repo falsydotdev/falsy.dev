@@ -717,17 +717,17 @@
       {
         "src": "/posters/earth-glint-960.avif",
         "width": 960,
-        "bytes": 17850
+        "bytes": 18363
       },
       {
         "src": "/posters/earth-glint-1600.avif",
         "width": 1600,
-        "bytes": 36807
+        "bytes": 37998
       },
       {
         "src": "/posters/earth-glint-2560.avif",
         "width": 2560,
-        "bytes": 68999
+        "bytes": 70757
       }
     ],
     "portrait": {
@@ -740,17 +740,17 @@
         {
           "src": "/posters/earth-glint-portrait-600.avif",
           "width": 600,
-          "bytes": 17265
+          "bytes": 17860
         },
         {
           "src": "/posters/earth-glint-portrait-800.avif",
           "width": 800,
-          "bytes": 25810
+          "bytes": 26683
         },
         {
           "src": "/posters/earth-glint-portrait-1170.avif",
           "width": 1170,
-          "bytes": 43000
+          "bytes": 44144
         }
       ]
     }
