@@ -35,6 +35,13 @@ Other details:
 - The renderer draws every visible tile in one instanced call. Each tile layer a body declares in `bodies.ts` (colour and height, plus any optional layer with its own level cap and fetch rule) lives in its own array texture (512 layers when the GPU allows it). A tile that is still loading borrows its nearest loaded ancestor's texels.
 - Each tile's parent is fetched along with it, so the fallback is never more than one level coarser. The exception is the load before the first scene of a visit shows (a body switch loads in full, from tiles the page cached while idle): to get there sooner it fetches only level 0 and each tile's level-4 ancestor as fallbacks, then the parents.
 
+### Amended 2026-11-24
+
+Closing mountains popped into detail. Two changes, neither visible in a settled frame:
+
+- **Blend, don't swap.** A tile's finer colour and height blend in over 0.6 s instead of replacing the coarser data at once. That covers both cases: its own data arriving while it borrows an ancestor's, and its first frame after splitting from a parent that showed coarser data. Each source's normal is differenced over its own texel before the two blend. Colour, height, and the progress are three instanced attributes, so the tile grid's fraction and skirt flag share one vertex buffer to stay within WebGPU's guaranteed 8.
+- **Load ahead.** Tiles for the camera's pose 5 s on load once current tiles have, using only spare in-flight slots and free atlas layers, and never evicting. They stay out of `pending` and `settled()`. Over a Pamirs pass with 250 ms simulated tile latency, tiles drawing from a coarser source than intended went from up to 8 to none. `budget.mjs` models it: about 2% more over 90 s, and the first view is unchanged.
+
 ## Consequences
 
 - A typical view should load about 10 to 20 MB of tiles. That budget is a Phase 2 acceptance check. `scripts/tiles/budget.mjs` measures it by replaying real orbits through the renderer's own selection and fetch code.

@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import {
-  Fn, If, Loop, asin, atan, attribute, clamp, cos, cross, dot, exp, float, instancedDynamicBufferAttribute, int, max, min,
-  normalize, positionWorld, pow, round, select, sin, smoothstep, sqrt, tan, texture, uniform, uniformArray, uv, varying, vec2, vec3, vec4,
+  Fn, If, Loop, asin, atan, attribute, clamp, cos, cross, dot, exp, float, instancedDynamicBufferAttribute, int, max, min, mix,
+  normalize, positionWorld, pow, round, select, sin, smoothstep, sqrt, tan, texture, uniform, uniformArray, varying, vec2, vec3, vec4,
   cameraPosition,
 } from 'three/tsl';
 import { LIGHTS_GAMMA } from '../tiles/lights-codec.ts';
@@ -20,6 +20,14 @@ const MAX_IN_FLIGHT = 64;
 // Over a network the camera keeps moving while tiles arrive, so a few edge tiles are always
 // in flight; they draw from their nearest loaded ancestor meanwhile.
 const SETTLED_FRACTION = 0.95;
+// A tile's finer data blends in over this long instead of popping: when it arrives, and when the tile
+// splits from a parent whose coarser data it was showing.
+const FADE_MS = 600;
+// Tiles for the camera's pose this far ahead load once current tiles have, so terrain the orbit is
+// closing on already has its detail when it splits. In-flight slots kept back for current tiles:
+const LOOKAHEAD_RESERVE = 16;
+// and atlas layers left free for them, since lookahead arrivals never evict.
+const LOOKAHEAD_SPARE_LAYERS = 64;
 // Records for tiles without GPU data are dropped after this many unused frames, so a long
 // session that keeps flying over new ground doesn't accumulate them.
 const RECORD_TTL_FRAMES = 600;
@@ -61,9 +69,11 @@ function tileGeometry() {
     index.push(a, sa, b, b, sa, sb);
   }
   const geo = new THREE.InstancedBufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array((uvs.length / 2) * 3), 3));
-  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-  geo.setAttribute('skirt', new THREE.Float32BufferAttribute(skirt, 1));
+  // One buffer holds the tile fraction and skirt flag, (u, v, skirt): WebGPU guarantees only 8
+  // vertex buffers, and the instanced attributes take the rest.
+  const packed = new Float32Array((uvs.length / 2) * 3);
+  for (let k = 0; k < uvs.length / 2; k++) packed.set([uvs[k * 2], uvs[k * 2 + 1], skirt[k]], k * 3);
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(packed, 3));
   geo.setIndex(index);
   return geo;
 }
@@ -74,6 +84,9 @@ class Record {
     this.id = tileId(key);
     this.slots = Array.from({ length: layerCount }, () => ({ state: 'idle', layer: -1 }));
     this.lastUsed = 0;
+    this.drawnFrame = -1;
+    // Per required layer: the source drawn last frame and, while blending, the coarser one it left.
+    this.fade = {};
   }
 }
 
@@ -117,7 +130,7 @@ export class TiledPlanet {
     this.lean = true;
     /** @type {'loading' | 'ready' | 'failed'} */
     this.shadow = 'loading';
-    this.stats = { records: 0, requests: 0, bytes: 0, layerBytes: Object.fromEntries(tileLayers.map((l) => [l.id, 0])), selected: 0, drawn: 0, pending: 0, texelBias: 1 };
+    this.stats = { records: 0, requests: 0, bytes: 0, layerBytes: Object.fromEntries(tileLayers.map((l) => [l.id, 0])), selected: 0, drawn: 0, borrowed: 0, pending: 0, texelBias: 1 };
     this.workers = Array.from({ length: WORKERS }, () => {
       const w = new Worker(new URL('./tile-worker.js', import.meta.url), { type: 'module' });
       w.onmessage = (e) => this.onLoaded(e.data);
@@ -128,7 +141,11 @@ export class TiledPlanet {
 
     this.tileAttr = new THREE.InstancedBufferAttribute(new Float32Array(MAX_INSTANCES * 4), 4);
     this.layerAttrs = tileLayers.map(() => new THREE.InstancedBufferAttribute(new Float32Array(MAX_INSTANCES * 4), 4));
-    for (const a of [this.tileAttr, ...this.layerAttrs]) a.setUsage(THREE.DynamicDrawUsage);
+    // Colour's and height's coarser sources while blending (the current one otherwise), and progress.
+    this.fromAttrs = { [this.colorIndex]: new THREE.InstancedBufferAttribute(new Float32Array(MAX_INSTANCES * 4), 4), [this.heightIndex]: new THREE.InstancedBufferAttribute(new Float32Array(MAX_INSTANCES * 4), 4) };
+    this.fadeAttr = new THREE.InstancedBufferAttribute(new Float32Array(MAX_INSTANCES * 2), 2);
+    this.instanced = [this.tileAttr, ...this.layerAttrs, ...Object.values(this.fromAttrs), this.fadeAttr];
+    for (const a of this.instanced) a.setUsage(THREE.DynamicDrawUsage);
     const geo = tileGeometry();
     geo.instanceCount = 0;
     this.geometry = geo;
@@ -167,6 +184,10 @@ export class TiledPlanet {
     const aTile = instancedDynamicBufferAttribute(this.tileAttr);
     const aColor = instancedDynamicBufferAttribute(this.layerAttrs[this.colorIndex]);
     const aHeight = instancedDynamicBufferAttribute(this.layerAttrs[this.heightIndex]);
+    const aColorFrom = instancedDynamicBufferAttribute(this.fromAttrs[this.colorIndex]);
+    const aHeightFrom = instancedDynamicBufferAttribute(this.fromAttrs[this.heightIndex]);
+    const aFade = instancedDynamicBufferAttribute(this.fadeAttr);
+    const corner = attribute('position', 'vec3');
     const heightTex = this.atlases[this.heightIndex].texture;
     const colorTex = this.atlases[this.colorIndex].texture;
     const exaggeration = this.exaggeration;
@@ -190,17 +211,21 @@ export class TiledPlanet {
 
     const mat = new THREE.MeshBasicNodeMaterial({ side: THREE.DoubleSide });
     mat.positionNode = Fn(() => {
-      const f = uv();
+      const f = corner.xy;
       // Skirts drop by more than any relief step between neighbouring LODs.
-      const drop = attribute('skirt', 'float').mul(aTile.w.mul(R * 0.02).add(0.5));
-      return direction(aTile, f).mul(heightKm(aHeight, f).add(R).sub(drop));
+      const drop = corner.z.mul(aTile.w.mul(R * 0.02).add(0.5));
+      const h = mix(heightKm(aHeightFrom, f), heightKm(aHeight, f), aFade.y);
+      return direction(aTile, f).mul(h.add(R).sub(drop));
     })();
 
     const lights = this.buildLights();
-    const vF = varying(uv());
+    const vF = varying(corner.xy);
     const vTile = varying(aTile);
     const vColor = varying(aColor);
     const vHeight = varying(aHeight);
+    const vColorFrom = varying(aColorFrom);
+    const vHeightFrom = varying(aHeightFrom);
+    const vFade = varying(aFade);
     const shadowTex = this.shadowSlot;
 
     const shadowHeight = (lat, lon) => {
@@ -211,16 +236,22 @@ export class TiledPlanet {
 
     mat.colorNode = Fn(() => {
       const f = vF;
-      const uvC = vColor.zw.add(f.mul(vColor.y));
-      const texel = texture(colorTex, uvC).depth(int(round(vColor.x)));
+      const sampleColor = (src) => texture(colorTex, src.zw.add(f.mul(src.y))).depth(int(round(src.x)));
+      // Alpha blends too: it is Earth's water mask.
+      const texel = mix(sampleColor(vColorFrom), sampleColor(vColor), vFade.x);
       const albedo = texel.rgb;
 
-      const step = float(1 / cells).div(vHeight.y);
-      const ds = vec2(step, 0);
-      const dt = vec2(0, step);
-      const dPds = surface(vTile, vHeight, f.add(ds)).sub(surface(vTile, vHeight, f.sub(ds)));
-      const dPdt = surface(vTile, vHeight, f.add(dt)).sub(surface(vTile, vHeight, f.sub(dt)));
-      const N = normalize(cross(dPds, dPdt));
+      // Each source's normal is differenced over its own texel, then the two blend.
+      const normalOf = (src) => {
+        const step = float(1 / cells).div(src.y);
+        const ds = vec2(step, 0);
+        const dt = vec2(0, step);
+        const dPds = surface(vTile, src, f.add(ds)).sub(surface(vTile, src, f.sub(ds)));
+        const dPdt = surface(vTile, src, f.add(dt)).sub(surface(vTile, src, f.sub(dt)));
+        return normalize(cross(dPds, dPdt));
+      };
+      const N = normalOf(vHeight).toVar();
+      If(vFade.y.lessThan(1), () => N.assign(normalize(mix(normalOf(vHeightFrom), N, vFade.y))));
 
       const n = normalize(positionWorld);
       // Variables here, not first built inside the shadow branch, because the sea floor reads them too.
@@ -353,7 +384,8 @@ export class TiledPlanet {
       }
       const array = this.atlases[i];
       let layer = array.alloc();
-      if (layer < 0) layer = this.evict(i);
+      // Only a tile the view drew from recently may evict; a lookahead arrival drops instead.
+      if (layer < 0 && rec.lastUsed >= this.frame - 1) layer = this.evict(i);
       if (layer < 0) {
         out.bitmap?.close();
         slot.state = 'idle';
@@ -390,7 +422,7 @@ export class TiledPlanet {
     return layer;
   }
 
-  /** Nearest loaded ancestor-or-self for tile layer `i`, with the uv transform into it. */
+  /** Nearest loaded ancestor-or-self for tile layer `i`: its record and the uv transform into it. */
   source(rec, i) {
     let k = rec.key;
     let r = rec;
@@ -403,15 +435,50 @@ export class TiledPlanet {
     r.lastUsed = this.frame;
     const d = rec.key.level - k.level;
     const scale = 1 / 2 ** d;
-    return [r.slots[i].layer, scale, (rec.key.x - (k.x << d)) * scale, (rec.key.y - (k.y << d)) * scale];
+    return { owner: r, attr: [r.slots[i].layer, scale, (rec.key.x - (k.x << d)) * scale, (rec.key.y - (k.y << d)) * scale] };
+  }
+
+  /**
+   * What tile layer `i` of `rec` draws from this frame and, while it blends in finer data, the coarser
+   * source it left and how far along it is. A tile blends when its own data arrives, and when it first
+   * draws after splitting from a parent that showed coarser data.
+   */
+  blend(rec, i, cur, now) {
+    const level = cur.owner.key.level;
+    let st = rec.fade[i];
+    if (!st || rec.drawnFrame !== this.frame - 1) {
+      st = rec.fade[i] = { shown: null, from: null, t0: 0 };
+      const p = this.records.get(tileId(parent(rec.key) ?? rec.key));
+      const ps = p && p !== rec && p.drawnFrame === this.frame - 1 ? p.fade[i] : null;
+      if (ps?.shown && ps.shown.owner.key.level < level) {
+        const [layer, scale, ox, oy] = ps.shown.attr;
+        const cx = rec.key.x - (p.key.x << 1);
+        const cy = rec.key.y - (p.key.y << 1);
+        st.from = { owner: ps.shown.owner, attr: [layer, scale / 2, ox + (scale * cx) / 2, oy + (scale * cy) / 2] };
+        st.t0 = now;
+      }
+    } else if (level > st.shown.owner.key.level) {
+      // A second arrival mid-blend retargets it but keeps its start, so nothing jumps back.
+      if (!st.from) st.from = st.shown, st.t0 = now;
+    } else if (level < st.shown.owner.key.level) st.from = null;
+    st.shown = cur;
+    const from = st.from;
+    const t = from ? (now - st.t0) / FADE_MS : 1;
+    if (!from || t >= 1 || from.owner.slots[i].state !== 'ready' || from.owner.slots[i].layer !== from.attr[0]) {
+      st.from = null;
+      return { from: cur.attr, t: 1 };
+    }
+    from.owner.lastUsed = this.frame;
+    return { from: from.attr, t };
   }
 
   /**
    * @param {{ position: number[], forward: number[], up: number[] }} pose body frame, km
    * @param {{ fovYRad: number, aspect: number, viewportHeightPx: number }} view
    * @param {number[]} [sunDir] unit vector to the Sun, body frame; layers with a Sun rule need it
+   * @param {{ position: number[], forward: number[], up: number[] }} [ahead] the pose a few seconds on, to load early
    */
-  update(pose, view, sunDir) {
+  update(pose, view, sunDir, ahead) {
     this.frame++;
     this.sunDir = sunDir;
     const cam = { ...pose, ...view };
@@ -440,36 +507,71 @@ export class TiledPlanet {
     const idle = [...idleSlots.keys()];
     this.stats.pending = idle.length;
     this.stats.inFlight = this.inFlight;
-    if (this.inFlight < MAX_IN_FLIGHT && idle.length) {
-      const dist = new Map(selected.map((s) => [s.id, s.distanceKm]));
-      idle.sort((a, b) => a.key.level - b.key.level || (dist.get(a.id) ?? 0) - (dist.get(b.id) ?? 0));
-      for (const r of idle) {
-        if (this.inFlight >= MAX_IN_FLIGHT) break;
-        for (const i of [...idleSlots.get(r)].sort((a, b) => a - b)) this.fetchTile(r, i);
+    const fetchIdle = (records, slots, picked, cap) => {
+      const dist = new Map(picked.map((s) => [s.id, s.distanceKm]));
+      records.sort((a, b) => a.key.level - b.key.level || (dist.get(a.id) ?? 0) - (dist.get(b.id) ?? 0));
+      for (const r of records) {
+        if (this.inFlight >= cap) break;
+        for (const i of [...slots.get(r)].sort((a, b) => a - b)) this.fetchTile(r, i);
       }
+    };
+    if (this.inFlight < MAX_IN_FLIGHT && idle.length) fetchIdle(idle, idleSlots, selected, MAX_IN_FLIGHT);
+    // Lookahead stays out of `pending` and `settled()`, takes only spare slots and free atlas layers,
+    // and waits out the lean first load.
+    const cap = MAX_IN_FLIGHT - LOOKAHEAD_RESERVE;
+    if (ahead && !this.lean && this.inFlight < cap) {
+      const soon = selectTiles({ ...ahead, ...view }, opts);
+      const aheadSlots = new Map();
+      this.tileLayers.forEach((tileLayer, i) => {
+        if (this.atlases[i].free.length <= LOOKAHEAD_SPARE_LAYERS) return;
+        for (const k of layerTilesFor(soon, tileLayer, { sunDir: this.sunDir, flatOcean: this.meta.flatOcean })) {
+          const t = this.record(k);
+          if (t.slots[i].state !== 'idle' || idleSlots.get(t)?.has(i)) continue;
+          if (!aheadSlots.has(t)) aheadSlots.set(t, new Set());
+          aheadSlots.get(t).add(i);
+        }
+      });
+      if (aheadSlots.size) fetchIdle([...aheadSlots.keys()], aheadSlots, soon, cap);
     }
 
     let n = 0;
+    let borrowed = 0;
+    let fading = 0;
+    const now = performance.now();
     const T = this.tileAttr.array;
     for (const s of selected) {
       if (n >= MAX_INSTANCES) break;
       const rec = this.records.get(s.id);
       const openSea = this.seaLevel && isOpenSea(s.key, this.meta.flatOcean);
-      const sources = this.tileLayers.map((_, i) => (openSea && i === this.heightIndex ? OPEN_SEA : this.source(rec, i)));
-      if (this.required.some((i) => !sources[i])) continue;
+      const sources = this.tileLayers.map((_, i) => (openSea && i === this.heightIndex ? null : this.source(rec, i)));
+      if (this.required.some((i) => !sources[i] && !(openSea && i === this.heightIndex))) continue;
+      if (this.required.some((i) => sources[i] && sources[i].owner.key.level < Math.min(s.key.level, this.tileLayers[i].maxLevel))) borrowed++;
       const size = 2 / 2 ** s.key.level;
       T.set([s.key.face, -1 + s.key.x * size, -1 + s.key.y * size, size], n * 4);
-      sources.forEach((src, i) => this.layerAttrs[i].array.set(src ?? NO_DATA, n * 4));
+      sources.forEach((src, i) => this.layerAttrs[i].array.set(openSea && i === this.heightIndex ? OPEN_SEA : (src?.attr ?? NO_DATA), n * 4));
+      const fades = [1, 1];
+      this.required.forEach((i, j) => {
+        const src = sources[i];
+        if (!src) return void this.fromAttrs[i].array.set(OPEN_SEA, n * 4);
+        const b = this.blend(rec, i, src, now);
+        this.fromAttrs[i].array.set(b.from, n * 4);
+        fades[j] = b.t;
+        if (b.t < 1) fading++;
+      });
+      this.fadeAttr.array.set(fades, n * 2);
+      rec.drawnFrame = this.frame;
       n++;
     }
     this.geometry.instanceCount = n;
-    for (const a of [this.tileAttr, ...this.layerAttrs]) {
+    for (const a of this.instanced) {
       a.clearUpdateRanges();
-      a.addUpdateRange(0, n * 4);
+      a.addUpdateRange(0, n * a.itemSize);
       a.needsUpdate = true;
     }
     this.stats.selected = selected.length;
     this.stats.drawn = n;
+    this.stats.borrowed = borrowed;
+    this.stats.fading = fading;
     this.selected = selected;
     if (this.frame % 120 === 0) this.prune();
   }
