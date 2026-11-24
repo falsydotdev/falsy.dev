@@ -39,8 +39,8 @@ Other details:
 
 Closing mountains popped into detail. Two changes, neither visible in a settled frame:
 
-- **Blend, don't swap.** A tile's finer colour and height blend in over 0.6 s instead of replacing the coarser data at once. That covers both cases: its own data arriving while it borrows an ancestor's, and its first frame after splitting from a parent that showed coarser data. Each source's normal is differenced over its own texel before the two blend. Colour, height, and the progress are three instanced attributes, so the tile grid's fraction and skirt flag share one vertex buffer to stay within WebGPU's guaranteed 8.
-- **Load ahead.** Tiles for the camera's pose 5 s on load once current tiles have, using only spare in-flight slots and free atlas layers, and never evicting. They stay out of `pending` and `settled()`. Over a Pamirs pass with 250 ms simulated tile latency, tiles drawing from a coarser source than intended went from up to 8 to none. `budget.mjs` models it: about 2% more over 90 s, and the first view is unchanged.
+- **Blend, don't swap.** A tile's finer colour and height blend in over 0.6 s instead of replacing the coarser data at once. That covers its own data arriving while it borrows an ancestor's, and its first frame after a split from the nearest ancestor drawn last frame, carrying on any blend that ancestor was in. Merges, as terrain recedes, still switch at once. Each source's normal is differenced over its own texel before the two blend. Colour, height, and the progress are three instanced attributes, so the tile grid's fraction and skirt flag share one vertex buffer to stay within WebGPU's guaranteed 8.
+- **Load ahead.** Tiles for the camera's pose 5 real seconds on load once the view has settled, at most 16 at a time, only while 64 atlas layers stay free, and never evicting; the lookahead is off while time is held (`t=0`). They stay out of `pending` and `settled()`. Over a Pamirs pass with 250 ms simulated tile latency, tiles drawing from a coarser source than intended went from up to 8 to none. `budget.mjs` models it: about 2% more over 90 s, and the first view is unchanged.
 
 ## Consequences
 

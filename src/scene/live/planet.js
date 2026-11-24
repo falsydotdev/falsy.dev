@@ -23,10 +23,10 @@ const SETTLED_FRACTION = 0.95;
 // A tile's finer data blends in over this long instead of popping: when it arrives, and when the tile
 // splits from a parent whose coarser data it was showing.
 const FADE_MS = 600;
-// Tiles for the camera's pose this far ahead load once current tiles have, so terrain the orbit is
-// closing on already has its detail when it splits. In-flight slots kept back for current tiles:
-const LOOKAHEAD_RESERVE = 16;
-// and atlas layers left free for them, since lookahead arrivals never evict.
+// Lookahead tiles (the pose LOOKAHEAD_S on) load once the view has settled, at most this many at
+// once, so a sudden view change still has most slots for its own tiles;
+const LOOKAHEAD_IN_FLIGHT = 16;
+// and only while this many atlas layers stay free, since their arrivals never evict.
 const LOOKAHEAD_SPARE_LAYERS = 64;
 // Records for tiles without GPU data are dropped after this many unused frames, so a long
 // session that keeps flying over new ground doesn't accumulate them.
@@ -122,6 +122,7 @@ export class TiledPlanet {
     this.records = new Map();
     this.frame = 0;
     this.inFlight = 0;
+    this.aheadInFlight = 0;
     // Counts GPU uploads, so frame timing can skip frames that include them.
     this.writes = 0;
     this.texelBias = 1;
@@ -367,15 +368,17 @@ export class TiledPlanet {
     return r;
   }
 
-  fetchTile(rec, i) {
+  fetchTile(rec, i, ahead = false) {
     const tileLayer = this.tileLayers[i];
     const slot = rec.slots[i];
     slot.state = 'loading';
     this.inFlight++;
+    if (ahead) this.aheadInFlight++;
     this.stats.requests++;
     const url = `${this.baseUrl}/${layerPath(tileLayer, rec.key)}`;
     this.request({ format: tileLayer.format, url }).then((out) => {
       this.inFlight--;
+      if (ahead) this.aheadInFlight--;
       this.stats.bytes += out.bytes ?? 0;
       this.stats.layerBytes[tileLayer.id] += out.bytes ?? 0;
       if (out.error || out.missing) {
@@ -384,8 +387,8 @@ export class TiledPlanet {
       }
       const array = this.atlases[i];
       let layer = array.alloc();
-      // Only a tile the view drew from recently may evict; a lookahead arrival drops instead.
-      if (layer < 0 && rec.lastUsed >= this.frame - 1) layer = this.evict(i);
+      // Only a tile the current view wants may evict; a lookahead arrival (stamped a frame back) drops.
+      if (layer < 0 && rec.lastUsed >= this.frame) layer = this.evict(i);
       if (layer < 0) {
         out.bitmap?.close();
         slot.state = 'idle';
@@ -439,23 +442,33 @@ export class TiledPlanet {
   }
 
   /**
-   * What tile layer `i` of `rec` draws from this frame and, while it blends in finer data, the coarser
-   * source it left and how far along it is. A tile blends when its own data arrives, and when it first
-   * draws after splitting from a parent that showed coarser data.
+   * Layer `i`'s source for `rec` this frame and, while finer data blends in (on arrival, or the first
+   * frame after a split), the coarser source it left and how far along it is.
    */
   blend(rec, i, cur, now) {
     const level = cur.owner.key.level;
     let st = rec.fade[i];
     if (!st || rec.drawnFrame !== this.frame - 1) {
       st = rec.fade[i] = { shown: null, from: null, t0: 0 };
-      const p = this.records.get(tileId(parent(rec.key) ?? rec.key));
-      const ps = p && p !== rec && p.drawnFrame === this.frame - 1 ? p.fade[i] : null;
-      if (ps?.shown && ps.shown.owner.key.level < level) {
-        const [layer, scale, ox, oy] = ps.shown.attr;
-        const cx = rec.key.x - (p.key.x << 1);
-        const cy = rec.key.y - (p.key.y << 1);
-        st.from = { owner: ps.shown.owner, attr: [layer, scale / 2, ox + (scale * cx) / 2, oy + (scale * cy) / 2] };
-        st.t0 = now;
+      // The nearest ancestor drawn last frame: a split can skip levels.
+      let a = parent(rec.key);
+      let p = null;
+      while (a && !p) {
+        const r = this.records.get(tileId(a));
+        if (r?.drawnFrame === this.frame - 1 && r.fade[i]?.shown) p = r;
+        else a = parent(a);
+      }
+      const ps = p?.fade[i];
+      // A parent mid-blend hands on where it started, so the child carries on rather than jumping.
+      const base = ps?.from && ps.from.owner.slots[i].layer === ps.from.attr[0] ? ps.from : ps?.shown;
+      if (base && base.owner.key.level < level) {
+        const [layer, scale, ox, oy] = base.attr;
+        const d = rec.key.level - p.key.level;
+        const cx = rec.key.x - (p.key.x << d);
+        const cy = rec.key.y - (p.key.y << d);
+        const f = 2 ** d;
+        st.from = { owner: base.owner, attr: [layer, scale / f, ox + (scale * cx) / f, oy + (scale * cy) / f] };
+        st.t0 = base === ps.from ? ps.t0 : now;
       }
     } else if (level > st.shown.owner.key.level) {
       // A second arrival mid-blend retargets it but keeps its start, so nothing jumps back.
@@ -507,31 +520,32 @@ export class TiledPlanet {
     const idle = [...idleSlots.keys()];
     this.stats.pending = idle.length;
     this.stats.inFlight = this.inFlight;
-    const fetchIdle = (records, slots, picked, cap) => {
+    const fetchIdle = (records, slots, picked, full, ahead = false) => {
       const dist = new Map(picked.map((s) => [s.id, s.distanceKm]));
       records.sort((a, b) => a.key.level - b.key.level || (dist.get(a.id) ?? 0) - (dist.get(b.id) ?? 0));
       for (const r of records) {
-        if (this.inFlight >= cap) break;
-        for (const i of [...slots.get(r)].sort((a, b) => a - b)) this.fetchTile(r, i);
+        if (full()) break;
+        for (const i of [...slots.get(r)].sort((a, b) => a - b)) this.fetchTile(r, i, ahead);
       }
     };
-    if (this.inFlight < MAX_IN_FLIGHT && idle.length) fetchIdle(idle, idleSlots, selected, MAX_IN_FLIGHT);
-    // Lookahead stays out of `pending` and `settled()`, takes only spare slots and free atlas layers,
-    // and waits out the lean first load.
-    const cap = MAX_IN_FLIGHT - LOOKAHEAD_RESERVE;
-    if (ahead && !this.lean && this.inFlight < cap) {
+    if (this.inFlight < MAX_IN_FLIGHT && idle.length) fetchIdle(idle, idleSlots, selected, () => this.inFlight >= MAX_IN_FLIGHT);
+    // Lookahead stays out of `pending` and `settled()`, and waits for the current view to settle.
+    if (ahead && !this.lean && !idle.length && this.aheadInFlight < LOOKAHEAD_IN_FLIGHT && this.settled()) {
       const soon = selectTiles({ ...ahead, ...view }, opts);
       const aheadSlots = new Map();
       this.tileLayers.forEach((tileLayer, i) => {
-        if (this.atlases[i].free.length <= LOOKAHEAD_SPARE_LAYERS) return;
+        if (this.atlases[i].free.length - this.aheadInFlight <= LOOKAHEAD_SPARE_LAYERS) return;
         for (const k of layerTilesFor(soon, tileLayer, { sunDir: this.sunDir, flatOcean: this.meta.flatOcean })) {
           const t = this.record(k);
-          if (t.slots[i].state !== 'idle' || idleSlots.get(t)?.has(i)) continue;
+          // A frame back: evicted after anything the view used this frame, but before older tiles.
+          t.lastUsed = Math.max(t.lastUsed, this.frame - 1);
+          if (t.slots[i].state !== 'idle') continue;
           if (!aheadSlots.has(t)) aheadSlots.set(t, new Set());
           aheadSlots.get(t).add(i);
         }
       });
-      if (aheadSlots.size) fetchIdle([...aheadSlots.keys()], aheadSlots, soon, cap);
+      const full = () => this.aheadInFlight >= LOOKAHEAD_IN_FLIGHT || this.inFlight >= MAX_IN_FLIGHT;
+      if (aheadSlots.size) fetchIdle([...aheadSlots.keys()], aheadSlots, soon, full, true);
     }
 
     let n = 0;

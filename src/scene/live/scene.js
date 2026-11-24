@@ -360,11 +360,15 @@ export async function startLiveScene(host, opts) {
     camera.lookAt(toWorld(vec.add(s.rBody, pose.forward)));
     lastPose = pose;
     if (clouds) clouds.uniforms.pixelAngle.value = (cam.fovDeg * DEG) / renderer.domElement.height;
-    const soon = new Date(date.getTime() + LOOKAHEAD_S * 1000);
-    const sAhead = sample(shot.orbit, soon);
-    const fAhead = bodyFrame(body, soon);
-    const vAhead = [vec.dot(sAhead.v, fAhead.x), vec.dot(sAhead.v, fAhead.y), vec.dot(sAhead.v, fAhead.z)];
-    const ahead = orbitCameraPose(sAhead.rBody, vAhead, body.radiusKm, cam.tiltDeg, cam.rollDeg);
+    // Real seconds ahead, so a held view (t=0, posters) loads nothing it won't reach.
+    let ahead;
+    if (timeScale > 0) {
+      const soon = new Date(date.getTime() + LOOKAHEAD_S * 1000 * timeScale);
+      const sAhead = sample(shot.orbit, soon);
+      const fAhead = bodyFrame(body, soon);
+      const vAhead = [vec.dot(sAhead.v, fAhead.x), vec.dot(sAhead.v, fAhead.y), vec.dot(sAhead.v, fAhead.z)];
+      ahead = orbitCameraPose(sAhead.rBody, vAhead, body.radiusKm, cam.tiltDeg, cam.rollDeg);
+    }
     planet.update(pose, { fovYRad: cam.fovDeg * DEG, aspect: camera.aspect, viewportHeightPx: renderer.domElement.height }, s.sunBody, ahead);
 
     const sunW = toWorld(s.sunBody);
