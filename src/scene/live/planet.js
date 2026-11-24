@@ -26,8 +26,10 @@ const FADE_MS = 600;
 // Lookahead tiles (the pose LOOKAHEAD_S on) load once the view has settled, at most this many at
 // once, so a sudden view change still has most slots for its own tiles;
 const LOOKAHEAD_IN_FLIGHT = 16;
-// and are chosen every this many frames, since the pose ahead barely moves in between.
+// and are chosen every this many frames, since the pose ahead barely moves in between. A lookahead
+// arrival with nowhere to go (the atlas full of tiles still in use) pauses it this many frames.
 const LOOKAHEAD_EVERY_FRAMES = 6;
+const LOOKAHEAD_PAUSE_FRAMES = 300;
 // Records for tiles without GPU data are dropped after this many unused frames, so a long
 // session that keeps flying over new ground doesn't accumulate them.
 const RECORD_TTL_FRAMES = 600;
@@ -124,6 +126,7 @@ export class TiledPlanet {
     this.inFlight = 0;
     this.aheadInFlight = 0;
     this.aheadStamp = 0;
+    this.aheadPausedUntil = 0;
     // Counts GPU uploads, so frame timing can skip frames that include them.
     this.writes = 0;
     this.texelBias = 1;
@@ -132,7 +135,7 @@ export class TiledPlanet {
     this.lean = true;
     /** @type {'loading' | 'ready' | 'failed'} */
     this.shadow = 'loading';
-    this.stats = { records: 0, requests: 0, bytes: 0, layerBytes: Object.fromEntries(tileLayers.map((l) => [l.id, 0])), selected: 0, drawn: 0, borrowed: 0, pending: 0, texelBias: 1 };
+    this.stats = { records: 0, requests: 0, bytes: 0, layerBytes: Object.fromEntries(tileLayers.map((l) => [l.id, 0])), selected: 0, drawn: 0, borrowed: 0, fading: 0, pending: 0, inFlight: 0, texelBias: 1 };
     this.workers = Array.from({ length: WORKERS }, () => {
       const w = new Worker(new URL('./tile-worker.js', import.meta.url), { type: 'module' });
       w.onmessage = (e) => this.onLoaded(e.data);
@@ -392,6 +395,7 @@ export class TiledPlanet {
       let layer = array.alloc();
       // A lookahead arrival may only evict tiles neither the view nor the lookahead still uses.
       if (layer < 0) layer = this.evict(i, ahead ? this.aheadStamp : this.frame);
+      if (layer < 0 && ahead) this.aheadPausedUntil = this.frame + LOOKAHEAD_PAUSE_FRAMES;
       if (layer < 0) {
         out.bitmap?.close();
         slot.state = 'idle';
@@ -492,7 +496,7 @@ export class TiledPlanet {
    * @param {{ position: number[], forward: number[], up: number[] }} pose body frame, km
    * @param {{ fovYRad: number, aspect: number, viewportHeightPx: number }} view
    * @param {number[]} [sunDir] unit vector to the Sun, body frame; layers with a Sun rule need it
-   * @param {{ position: number[], forward: number[], up: number[] }} [ahead] the pose a few seconds on, to load early
+   * @param {() => { position: number[], forward: number[], up: number[] }} [ahead] the pose a few seconds on, to load early
    */
   update(pose, view, sunDir, ahead) {
     this.frame++;
@@ -507,6 +511,7 @@ export class TiledPlanet {
       selected = selectTiles(cam, opts);
     }
     this.stats.texelBias = opts.maxTexelPx;
+    this.selected = selected;
 
     for (const k of tilesToFetch(selected, { lean: this.lean })) this.record(k).lastUsed = this.frame;
     // Pending counts only slots a layer wants now, so a layer its rule skips never holds up a poster.
@@ -533,8 +538,8 @@ export class TiledPlanet {
     };
     if (this.inFlight < MAX_IN_FLIGHT && idle.length) fetchIdle(idle, idleSlots, selected, () => this.inFlight >= MAX_IN_FLIGHT);
     // Lookahead stays out of `pending` and `settled()`, and waits for the current view to settle.
-    if (ahead && !this.lean && !idle.length && this.frame % LOOKAHEAD_EVERY_FRAMES === 0 && this.aheadInFlight < LOOKAHEAD_IN_FLIGHT && this.settled()) {
-      const soon = selectTiles({ ...ahead, ...view }, opts);
+    if (ahead && !this.lean && !idle.length && this.frame % LOOKAHEAD_EVERY_FRAMES === 0 && this.frame >= this.aheadPausedUntil && this.aheadInFlight < LOOKAHEAD_IN_FLIGHT && this.settled()) {
+      const soon = selectTiles({ ...ahead(), ...view }, opts);
       const aheadSlots = new Map();
       this.aheadStamp = this.frame - 1;
       this.tileLayers.forEach((tileLayer, i) => {
@@ -590,7 +595,6 @@ export class TiledPlanet {
     this.stats.drawn = n;
     this.stats.borrowed = borrowed;
     this.stats.fading = fading;
-    this.selected = selected;
     if (this.frame % 120 === 0) this.prune();
   }
 
