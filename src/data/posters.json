@@ -15,17 +15,17 @@
       {
         "src": "/posters/mars-olympus-960.avif",
         "width": 960,
-        "bytes": 25563
+        "bytes": 25059
       },
       {
         "src": "/posters/mars-olympus-1600.avif",
         "width": 1600,
-        "bytes": 57785
+        "bytes": 56881
       },
       {
         "src": "/posters/mars-olympus-2560.avif",
         "width": 2560,
-        "bytes": 130898
+        "bytes": 128259
       }
     ],
     "portrait": {
@@ -38,17 +38,17 @@
         {
           "src": "/posters/mars-olympus-portrait-600.avif",
           "width": 600,
-          "bytes": 28911
+          "bytes": 28383
         },
         {
           "src": "/posters/mars-olympus-portrait-800.avif",
           "width": 800,
-          "bytes": 44161
+          "bytes": 43979
         },
         {
           "src": "/posters/mars-olympus-portrait-1170.avif",
           "width": 1170,
-          "bytes": 76864
+          "bytes": 76872
         }
       ]
     }
@@ -69,17 +69,17 @@
       {
         "src": "/posters/mars-valles-960.avif",
         "width": 960,
-        "bytes": 22864
+        "bytes": 22021
       },
       {
         "src": "/posters/mars-valles-1600.avif",
         "width": 1600,
-        "bytes": 47960
+        "bytes": 45991
       },
       {
         "src": "/posters/mars-valles-2560.avif",
         "width": 2560,
-        "bytes": 88084
+        "bytes": 84858
       }
     ],
     "portrait": {
@@ -92,17 +92,17 @@
         {
           "src": "/posters/mars-valles-portrait-600.avif",
           "width": 600,
-          "bytes": 26198
+          "bytes": 25804
         },
         {
           "src": "/posters/mars-valles-portrait-800.avif",
           "width": 800,
-          "bytes": 37965
+          "bytes": 36869
         },
         {
           "src": "/posters/mars-valles-portrait-1170.avif",
           "width": 1170,
-          "bytes": 61149
+          "bytes": 59936
         }
       ]
     }
@@ -123,17 +123,17 @@
       {
         "src": "/posters/mars-noctis-960.avif",
         "width": 960,
-        "bytes": 28037
+        "bytes": 27864
       },
       {
         "src": "/posters/mars-noctis-1600.avif",
         "width": 1600,
-        "bytes": 60760
+        "bytes": 61179
       },
       {
         "src": "/posters/mars-noctis-2560.avif",
         "width": 2560,
-        "bytes": 119065
+        "bytes": 120403
       }
     ],
     "portrait": {
@@ -146,17 +146,17 @@
         {
           "src": "/posters/mars-noctis-portrait-600.avif",
           "width": 600,
-          "bytes": 31415
+          "bytes": 31717
         },
         {
           "src": "/posters/mars-noctis-portrait-800.avif",
           "width": 800,
-          "bytes": 47170
+          "bytes": 47418
         },
         {
           "src": "/posters/mars-noctis-portrait-1170.avif",
           "width": 1170,
-          "bytes": 78687
+          "bytes": 79699
         }
       ]
     }
@@ -177,17 +177,17 @@
       {
         "src": "/posters/mars-gale-960.avif",
         "width": 960,
-        "bytes": 25223
+        "bytes": 24481
       },
       {
         "src": "/posters/mars-gale-1600.avif",
         "width": 1600,
-        "bytes": 53875
+        "bytes": 51975
       },
       {
         "src": "/posters/mars-gale-2560.avif",
         "width": 2560,
-        "bytes": 102782
+        "bytes": 99064
       }
     ],
     "portrait": {
@@ -200,17 +200,17 @@
         {
           "src": "/posters/mars-gale-portrait-600.avif",
           "width": 600,
-          "bytes": 32571
+          "bytes": 31991
         },
         {
           "src": "/posters/mars-gale-portrait-800.avif",
           "width": 800,
-          "bytes": 47407
+          "bytes": 46452
         },
         {
           "src": "/posters/mars-gale-portrait-1170.avif",
           "width": 1170,
-          "bytes": 76071
+          "bytes": 74428
         }
       ]
     }
@@ -231,17 +231,17 @@
       {
         "src": "/posters/mars-elysium-960.avif",
         "width": 960,
-        "bytes": 15674
+        "bytes": 15424
       },
       {
         "src": "/posters/mars-elysium-1600.avif",
         "width": 1600,
-        "bytes": 33992
+        "bytes": 33336
       },
       {
         "src": "/posters/mars-elysium-2560.avif",
         "width": 2560,
-        "bytes": 63772
+        "bytes": 62772
       }
     ],
     "portrait": {
@@ -254,17 +254,17 @@
         {
           "src": "/posters/mars-elysium-portrait-600.avif",
           "width": 600,
-          "bytes": 18724
+          "bytes": 18099
         },
         {
           "src": "/posters/mars-elysium-portrait-800.avif",
           "width": 800,
-          "bytes": 26878
+          "bytes": 26188
         },
         {
           "src": "/posters/mars-elysium-portrait-1170.avif",
           "width": 1170,
-          "bytes": 45157
+          "bytes": 44147
         }
       ]
     }
@@ -285,17 +285,17 @@
       {
         "src": "/posters/mars-sunrise-960.avif",
         "width": 960,
-        "bytes": 3965
+        "bytes": 3522
       },
       {
         "src": "/posters/mars-sunrise-1600.avif",
         "width": 1600,
-        "bytes": 7454
+        "bytes": 6661
       },
       {
         "src": "/posters/mars-sunrise-2560.avif",
         "width": 2560,
-        "bytes": 12333
+        "bytes": 11019
       }
     ],
     "portrait": {
@@ -308,17 +308,17 @@
         {
           "src": "/posters/mars-sunrise-portrait-600.avif",
           "width": 600,
-          "bytes": 2869
+          "bytes": 2303
         },
         {
           "src": "/posters/mars-sunrise-portrait-800.avif",
           "width": 800,
-          "bytes": 3838
+          "bytes": 3146
         },
         {
           "src": "/posters/mars-sunrise-portrait-1170.avif",
           "width": 1170,
-          "bytes": 5515
+          "bytes": 4450
         }
       ]
     }
@@ -339,17 +339,17 @@
       {
         "src": "/posters/moon-tycho-960.avif",
         "width": 960,
-        "bytes": 35849
+        "bytes": 44779
       },
       {
         "src": "/posters/moon-tycho-1600.avif",
         "width": 1600,
-        "bytes": 73711
+        "bytes": 90800
       },
       {
         "src": "/posters/moon-tycho-2560.avif",
         "width": 2560,
-        "bytes": 141049
+        "bytes": 177364
       }
     ],
     "portrait": {
@@ -362,17 +362,17 @@
         {
           "src": "/posters/moon-tycho-portrait-600.avif",
           "width": 600,
-          "bytes": 48133
+          "bytes": 58229
         },
         {
           "src": "/posters/moon-tycho-portrait-800.avif",
           "width": 800,
-          "bytes": 69520
+          "bytes": 84916
         },
         {
           "src": "/posters/moon-tycho-portrait-1170.avif",
           "width": 1170,
-          "bytes": 116376
+          "bytes": 144434
         }
       ]
     }
@@ -393,17 +393,17 @@
       {
         "src": "/posters/moon-copernicus-960.avif",
         "width": 960,
-        "bytes": 38390
+        "bytes": 37272
       },
       {
         "src": "/posters/moon-copernicus-1600.avif",
         "width": 1600,
-        "bytes": 77609
+        "bytes": 75421
       },
       {
         "src": "/posters/moon-copernicus-2560.avif",
         "width": 2560,
-        "bytes": 146107
+        "bytes": 142284
       }
     ],
     "portrait": {
@@ -416,17 +416,17 @@
         {
           "src": "/posters/moon-copernicus-portrait-600.avif",
           "width": 600,
-          "bytes": 50040
+          "bytes": 49602
         },
         {
           "src": "/posters/moon-copernicus-portrait-800.avif",
           "width": 800,
-          "bytes": 72768
+          "bytes": 72160
         },
         {
           "src": "/posters/moon-copernicus-portrait-1170.avif",
           "width": 1170,
-          "bytes": 122853
+          "bytes": 122244
         }
       ]
     }
@@ -447,17 +447,17 @@
       {
         "src": "/posters/moon-terminator-960.avif",
         "width": 960,
-        "bytes": 38207
+        "bytes": 48607
       },
       {
         "src": "/posters/moon-terminator-1600.avif",
         "width": 1600,
-        "bytes": 77538
+        "bytes": 97431
       },
       {
         "src": "/posters/moon-terminator-2560.avif",
         "width": 2560,
-        "bytes": 146085
+        "bytes": 185733
       }
     ],
     "portrait": {
@@ -470,17 +470,17 @@
         {
           "src": "/posters/moon-terminator-portrait-600.avif",
           "width": 600,
-          "bytes": 50874
+          "bytes": 66613
         },
         {
           "src": "/posters/moon-terminator-portrait-800.avif",
           "width": 800,
-          "bytes": 73664
+          "bytes": 96063
         },
         {
           "src": "/posters/moon-terminator-portrait-1170.avif",
           "width": 1170,
-          "bytes": 123458
+          "bytes": 165505
         }
       ]
     }
@@ -501,40 +501,40 @@
       {
         "src": "/posters/moon-earthrise-960.avif",
         "width": 960,
-        "bytes": 29646
+        "bytes": 37106
       },
       {
         "src": "/posters/moon-earthrise-1600.avif",
         "width": 1600,
-        "bytes": 56961
+        "bytes": 72813
       },
       {
         "src": "/posters/moon-earthrise-2560.avif",
         "width": 2560,
-        "bytes": 100953
+        "bytes": 135218
       }
     ],
     "portrait": {
-      "lat": 55.6,
-      "lon": 248,
-      "lst": "09:11",
+      "lat": 59.9,
+      "lon": 244,
+      "lst": "08:55",
       "altKm": 100,
       "at": "2026-11-30T04:01:00.000Z",
       "sources": [
         {
           "src": "/posters/moon-earthrise-portrait-600.avif",
           "width": 600,
-          "bytes": 26135
+          "bytes": 36738
         },
         {
           "src": "/posters/moon-earthrise-portrait-800.avif",
           "width": 800,
-          "bytes": 35754
+          "bytes": 51370
         },
         {
           "src": "/posters/moon-earthrise-portrait-1170.avif",
           "width": 1170,
-          "bytes": 55068
+          "bytes": 83691
         }
       ]
     }
@@ -578,17 +578,17 @@
         {
           "src": "/posters/earth-terminator-portrait-600.avif",
           "width": 600,
-          "bytes": 42937
+          "bytes": 42994
         },
         {
           "src": "/posters/earth-terminator-portrait-800.avif",
           "width": 800,
-          "bytes": 63059
+          "bytes": 63028
         },
         {
           "src": "/posters/earth-terminator-portrait-1170.avif",
           "width": 1170,
-          "bytes": 106339
+          "bytes": 106334
         }
       ]
     }
@@ -609,17 +609,17 @@
       {
         "src": "/posters/earth-sunrise-960.avif",
         "width": 960,
-        "bytes": 27926
+        "bytes": 28494
       },
       {
         "src": "/posters/earth-sunrise-1600.avif",
         "width": 1600,
-        "bytes": 57188
+        "bytes": 59360
       },
       {
         "src": "/posters/earth-sunrise-2560.avif",
         "width": 2560,
-        "bytes": 107638
+        "bytes": 111916
       }
     ],
     "portrait": {
@@ -632,17 +632,17 @@
         {
           "src": "/posters/earth-sunrise-portrait-600.avif",
           "width": 600,
-          "bytes": 32748
+          "bytes": 34938
         },
         {
           "src": "/posters/earth-sunrise-portrait-800.avif",
           "width": 800,
-          "bytes": 46758
+          "bytes": 50272
         },
         {
           "src": "/posters/earth-sunrise-portrait-1170.avif",
           "width": 1170,
-          "bytes": 75194
+          "bytes": 81954
         }
       ]
     }
@@ -663,17 +663,17 @@
       {
         "src": "/posters/earth-night-pass-960.avif",
         "width": 960,
-        "bytes": 19726
+        "bytes": 21530
       },
       {
         "src": "/posters/earth-night-pass-1600.avif",
         "width": 1600,
-        "bytes": 39961
+        "bytes": 44959
       },
       {
         "src": "/posters/earth-night-pass-2560.avif",
         "width": 2560,
-        "bytes": 73090
+        "bytes": 82299
       }
     ],
     "portrait": {
@@ -686,17 +686,17 @@
         {
           "src": "/posters/earth-night-pass-portrait-600.avif",
           "width": 600,
-          "bytes": 19415
+          "bytes": 23706
         },
         {
           "src": "/posters/earth-night-pass-portrait-800.avif",
           "width": 800,
-          "bytes": 27435
+          "bytes": 33846
         },
         {
           "src": "/posters/earth-night-pass-portrait-1170.avif",
           "width": 1170,
-          "bytes": 43156
+          "bytes": 54004
         }
       ]
     }
@@ -717,17 +717,17 @@
       {
         "src": "/posters/earth-glint-960.avif",
         "width": 960,
-        "bytes": 18438
+        "bytes": 19553
       },
       {
         "src": "/posters/earth-glint-1600.avif",
         "width": 1600,
-        "bytes": 38047
+        "bytes": 40741
       },
       {
         "src": "/posters/earth-glint-2560.avif",
         "width": 2560,
-        "bytes": 71813
+        "bytes": 77226
       }
     ],
     "portrait": {
@@ -740,17 +740,17 @@
         {
           "src": "/posters/earth-glint-portrait-600.avif",
           "width": 600,
-          "bytes": 18189
+          "bytes": 18357
         },
         {
           "src": "/posters/earth-glint-portrait-800.avif",
           "width": 800,
-          "bytes": 27021
+          "bytes": 27366
         },
         {
           "src": "/posters/earth-glint-portrait-1170.avif",
           "width": 1170,
-          "bytes": 45020
+          "bytes": 45888
         }
       ]
     }
