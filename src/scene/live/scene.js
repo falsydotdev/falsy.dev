@@ -295,7 +295,8 @@ export async function startLiveScene(host, opts) {
     pipeline.needsUpdate = true;
   };
   const sceneColor = scenePass.getTextureNode('output');
-  const bloomed = sceneColor.add(bloom(sceneColor, 0.35, 0.5, 0.9));
+  // Only the Sun clears the threshold: sunlit cloud and regolith (about 3) blooming read as a grey veil.
+  const bloomed = sceneColor.add(bloom(sceneColor, 0.35, 0.5, 4));
   pipeline.outputNode = blooms(tier) ? bloomed : sceneColor;
   setSamples();
 
