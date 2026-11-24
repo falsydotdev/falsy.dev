@@ -126,6 +126,7 @@ export class TiledPlanet {
     this.inFlight = 0;
     this.aheadInFlight = 0;
     this.aheadByLayer = tileLayers.map(() => 0);
+    this.inFlightByLayer = tileLayers.map(() => 0);
     // Lookahead passes in the last LOOKAHEAD_S, as { ms, stamp }: their tiles are protected from
     // lookahead evictions, since the view reaches them within that window.
     this.aheadPasses = [];
@@ -384,11 +385,13 @@ export class TiledPlanet {
     const slot = rec.slots[i];
     slot.state = 'loading';
     this.inFlight++;
+    this.inFlightByLayer[i]++;
     if (ahead) this.aheadInFlight++, this.aheadByLayer[i]++;
     this.stats.requests++;
     const url = `${this.baseUrl}/${layerPath(tileLayer, rec.key)}`;
     this.request({ format: tileLayer.format, url }).then((out) => {
       this.inFlight--;
+      this.inFlightByLayer[i]--;
       if (ahead) this.aheadInFlight--, this.aheadByLayer[i]--;
       this.stats.bytes += out.bytes ?? 0;
       this.stats.layerBytes[tileLayer.id] += out.bytes ?? 0;
@@ -401,7 +404,9 @@ export class TiledPlanet {
       // A lookahead arrival may only evict tiles neither the view nor a recent lookahead pass uses.
       // Decided on arrival: a lookahead tile the view has since reached evicts like the view's own.
       const early = ahead && rec.lastUsed < this.frame;
-      if (layer < 0) layer = this.evict(i, early ? this.aheadEvictBefore : this.frame);
+      if (layer < 0) layer = this.evict(i, this.aheadEvictBefore);
+      // Tiles a recent lookahead pass holds go last: the view reaches them within seconds.
+      if (layer < 0 && !early) layer = this.evict(i, this.frame);
       if (layer < 0 && early) this.aheadPausedUntil = performance.now() + LOOKAHEAD_PAUSE_MS;
       if (layer < 0) {
         out.bitmap?.close();
@@ -573,8 +578,8 @@ export class TiledPlanet {
           aheadSlots.get(t).add(i);
         }
       });
-      // Only as many as there are free or stale layers to take, so arrivals always find room.
-      const room = this.tileLayers.map((_, i) => this.atlases[i].free.length + this.stale(i, this.aheadEvictBefore) - this.aheadByLayer[i]);
+      // Only as many as there are free or stale layers left after every request in flight lands.
+      const room = this.tileLayers.map((_, i) => this.atlases[i].free.length + this.stale(i, this.aheadEvictBefore) - this.inFlightByLayer[i]);
       const full = (i) => this.aheadInFlight >= LOOKAHEAD_IN_FLIGHT || this.inFlight >= MAX_IN_FLIGHT || room[i]-- <= 0;
       if (aheadSlots.size) fetchIdle([...aheadSlots.keys()], aheadSlots, soon, full, true);
     }
@@ -601,8 +606,8 @@ export class TiledPlanet {
         const b = this.blend(rec, i, src, now);
         this.fromAttrs[i].array.set(b.from, n * 4);
         fades[j] = b.t;
-        if (b.t < 1) fading++;
       });
+      if (fades[0] < 1 || fades[1] < 1) fading++;
       this.fadeAttr.array.set(fades, n * 2);
       rec.drawnFrame = this.frame;
       n++;
