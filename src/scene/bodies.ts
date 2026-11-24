@@ -31,6 +31,9 @@ export interface Body {
     sunIntensity: number;
     ambient: number;
     skyTint: RGB; // colour of the diffuse skylight on the ground
+    // Fill on the night side, as in a long exposure by moonlight, so land shows under the city lights
+    // (real moonlight is about a millionth of sunlight). Clouds take `clouds` of it, or they swamp the lights.
+    night?: { tint: RGB; level: number; clouds: number };
   };
   // A cloud layer: one global coverage map drawn as a shell at a fixed height.
   clouds?: {
@@ -70,8 +73,8 @@ export interface Body {
     // Height of the limb the Sun has to clear. Exaggerated limb mountains hold sunrise back by
     // most of a minute, which on an airless body would mean a long black opening.
     sunriseLimbKm: number;
-    // Sun elevation on the ground ahead below which the view is close to black without city
-    // lights, from renders. Haze keeps Mars lit past its terminator; the bare Moon goes dark before it.
+    // Sun elevation on the ground ahead below which daylight is gone (only city lights and any night
+    // fill remain), from renders. Haze keeps Mars lit past its terminator; the bare Moon goes dark before it.
     darkBelowDeg: number;
     // The night pass, for a body with city lights (light is 0 to 1). The track passes a city whose
     // 1° cell is above `cityAbove`, and holds while light within `reachKm` of the ground ahead is above `holdAbove`.
@@ -209,6 +212,7 @@ export const EARTH: Body = {
     sunIntensity: 3.4,
     ambient: 0.03,
     skyTint: [0.55, 0.7, 1],
+    night: { tint: [0.6, 0.72, 1], level: 0.06, clouds: 0.2 },
   },
   seaLevel: true,
   // 7 m/s is roughly the global mean over the oceans (unsourced; Young et al. 2020 would confirm).
@@ -221,7 +225,7 @@ export const EARTH: Body = {
   // Set sentinelYear to the value earth-sentinel.mjs prints for the bake you upload; null is Blue Marble only.
   tiles: { version: 'v1', sentinelYear: 2025, layers: [{ ...COLOR_LAYER, format: 'masked', maxLevel: 6 }, HEIGHT_LAYER, LIGHTS_LAYER] },
   // Named places lead because visitors know them by sight; one load in five shows the night side's cities.
-  // Heading into night, renders dim to 7 of 255 at −5° and are close to black by −6°.
+  // Daylight on the ground is about gone by −5° to −6°, leaving the night fill and city lights.
   shots: { weights: { 'dawn-dusk': 0.25, 'orbital-sunrise': 0.25, 'feature-flyover': 0.3, 'night-pass': 0.2 }, dawnDuskSunDeg: 4, sunriseLeadS: 60, sunriseLimbKm: 0, darkBelowDeg: -5, nightPass: { cityAbove: 1e-2, reachKm: 500, holdAbove: 3e-3 }, homePass: true },
   listed: true,
   memoryCeilings: true,

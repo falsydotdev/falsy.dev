@@ -3,6 +3,7 @@ import {
   If, asin, atan, cameraPosition, clamp, cos, dot, exp2, float, length, log2, max, mx_noise_float, mx_noise_vec3, normalize, select, sin, smoothstep, sqrt, texture, uniform, vec2, vec3, vec4,
 } from 'three/tsl';
 import { CLOUD_TEXTURE, cloudsNewer } from '../clouds.ts';
+import { nightSide } from './terrain.js';
 
 const DEG = Math.PI / 180;
 // Clouds thin out over this much latitude before the edge of the source's data.
@@ -219,7 +220,7 @@ export function createClouds({ body, lighting, tables, set }) {
     const sunlit = select(b.greaterThan(0), float(1), smoothstep(R - 2, R + 6, miss));
     const side = facing.clamp(0, 1).mul(1 - cfg.sideLight).add(cfg.sideLight);
     const direct = vec3(lighting.sunColor).mul(lighting.sunIntensity).mul(tables.transmittance(float(R + cfg.heightKm), muS)).mul(sunlit.mul(side));
-    const sky = vec3(lighting.skyTint).mul(lighting.ambient).mul(smoothstep(-0.2, 0.25, muS));
+    const sky = max(vec3(lighting.skyTint).mul(lighting.ambient).mul(smoothstep(-0.2, 0.25, muS)), vec3(lighting.nightFill).mul(nightSide(muS)).mul(body.light.night?.clouds ?? 0));
     return vec4(direct.add(sky).mul(cfg.albedo), alpha);
   };
 

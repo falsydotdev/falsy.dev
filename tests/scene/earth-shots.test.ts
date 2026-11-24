@@ -131,8 +131,8 @@ describe('re-shooting Earth', () => {
     return null;
   };
 
-  // In renders heading into night, the frame averages 11 of 255 with the Sun 4° below the ground
-  // ahead, 7 at −5°, and 3 (close to black) at −6°.
+  // Before the night fill, renders heading into night averaged 11 of 255 with the Sun 4° below the
+  // ground ahead, 7 at −5°, and 3 at −6°; daylight is gone by then either way.
   it.each(DATES)('plays a sunrise out, then swaps before the view ahead goes black, from %s', (built) => {
     const shot = orbitalSunrise(built, { body: EARTH, rand: seededRandom(built.getTime()) });
     const t = firstWanted(shot, built, 3 * 3600)!;

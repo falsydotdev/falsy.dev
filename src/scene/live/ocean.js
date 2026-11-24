@@ -1,5 +1,6 @@
 import { If, cameraPosition, clamp, dot, exp, float, floor, fract, max, mix, normalize, positionWorld, smoothstep, uniform, vec2, vec3 } from 'three/tsl';
 import { WATER_F0, slopeVariance } from '../ocean.ts';
+import { nightSide } from './terrain.js';
 
 const GLINT = { off: 0, ggx: 1, 'cox-munk': 2 };
 
@@ -82,7 +83,7 @@ export function createOcean(ocean, { lighting, air, radiusKm }) {
       const fresnel = schlick(nv);
       const shallow = shallowness(seaFloor);
       const water = mix(vec3(...ocean.deep), vec3(...ocean.shallow), shallow);
-      const ambient = lighting.skyTint.mul(lighting.ambient).mul(daylight);
+      const ambient = max(lighting.skyTint.mul(lighting.ambient).mul(daylight), lighting.nightFill.mul(nightSide(su)));
       const leaving = water.mul(sunlight(through).mul(max(dot(n, s), 0)).add(ambient)).mul(float(1).sub(fresnel));
       out.assign(mix(leaving.add(sky.mul(fresnel)).add(spec), color, land));
     });
