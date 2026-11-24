@@ -6,7 +6,7 @@
 import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { TILE_DIR } from './paths.mjs';
-import { drawnHeightRangeKm, layerTilesFor, selectTiles } from '../../src/scene/tiles/select.ts';
+import { LOOKAHEAD_S, drawnHeightRangeKm, layerTilesFor, selectTiles } from '../../src/scene/tiles/select.ts';
 import { tileId } from '../../src/scene/tiles/cube.ts';
 import { TILES, SHADOW_MAP } from '../../src/scene/tiles/layout.ts';
 import { layerPath } from '../../src/scene/tiles/layers.ts';
@@ -23,6 +23,9 @@ const arg = (name, fallback) => {
 const SECONDS = arg('seconds', 90);
 const HEIGHT_PX = arg('height', 1440);
 const SHOTS = arg('shots', 12);
+// The renderer also loads for the pose this far ahead once the view settles, capped and throttled;
+// counting all of it, uncapped, makes this an upper bound. 0 leaves it out.
+const LOOKAHEAD = arg('lookahead', LOOKAHEAD_S);
 const ASPECT = 16 / 9;
 const FOV = 50;
 const bodyArg = process.argv.indexOf('--body');
@@ -82,14 +85,22 @@ function run(shot, { tiltDeg, maxTexelPx, relaxBeyondKm }) {
     const f = bodyFrame(BODY, date);
     const vBody = [vec.dot(s.v, f.x), vec.dot(s.v, f.y), vec.dot(s.v, f.z)];
     const pose = orbitCameraPose(s.rBody, vBody, meta.radiusKm, tiltDeg);
-    const selected = selectTiles(
-      { ...pose, fovYRad: (FOV * Math.PI) / 180, aspect: ASPECT, viewportHeightPx: HEIGHT_PX },
-      { radiusKm: meta.radiusKm, heightRangeKm, tilePx: TILES.colorPx, maxLevel: MAX_LEVEL, maxTexelPx, relaxBeyondKm },
-    );
+    const view = { fovYRad: (FOV * Math.PI) / 180, aspect: ASPECT, viewportHeightPx: HEIGHT_PX };
+    const opts = { radiusKm: meta.radiusKm, heightRangeKm, tilePx: TILES.colorPx, maxLevel: MAX_LEVEL, maxTexelPx, relaxBeyondKm };
+    const selected = selectTiles({ ...pose, ...view }, opts);
     peakTiles = Math.max(peakTiles, selected.length);
+    const ahead = [];
+    if (t > 0 && LOOKAHEAD > 0) {
+      const at = new Date(date.getTime() + LOOKAHEAD * 1000);
+      const sa = sample(shot.orbit, at);
+      const fa = bodyFrame(BODY, at);
+      const va = [vec.dot(sa.v, fa.x), vec.dot(sa.v, fa.y), vec.dot(sa.v, fa.z)];
+      ahead.push(...selectTiles({ ...orbitCameraPose(sa.rBody, va, meta.radiusKm, tiltDeg), ...view }, opts));
+    }
     // The first view is fetched lean, as the renderer does before its first fade-in.
     LAYERS.forEach((layer, i) => {
-      for (const k of layerTilesFor(selected, layer, { lean: t === 0, sunDir: s.sunBody, flatOcean: meta.flatOcean })) {
+      const keys = [...layerTilesFor(selected, layer, { lean: t === 0, sunDir: s.sunBody, flatOcean: meta.flatOcean }), ...(ahead.length ? layerTilesFor(ahead, layer, { sunDir: s.sunBody, flatOcean: meta.flatOcean }) : [])];
+      for (const k of keys) {
         const id = tileId(k);
         if (fetched[i].has(id)) continue;
         fetched[i].add(id);

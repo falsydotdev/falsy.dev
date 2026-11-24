@@ -4,6 +4,7 @@ import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { toWorld, createLighting } from './terrain.js';
 import { TiledPlanet } from './planet.js';
 import { orbitCameraPose } from '../camera.ts';
+import { LOOKAHEAD_S } from '../tiles/select.ts';
 import { createAtmosphere } from './atmosphere.js';
 import { createAtmosphereTables } from './atmosphere-tables.js';
 import { CLOUDS_BASE, createClouds, loadCloudSet } from './clouds.js';
@@ -359,7 +360,16 @@ export async function startLiveScene(host, opts) {
     camera.lookAt(toWorld(vec.add(s.rBody, pose.forward)));
     lastPose = pose;
     if (clouds) clouds.uniforms.pixelAngle.value = (cam.fovDeg * DEG) / renderer.domElement.height;
-    planet.update(pose, { fovYRad: cam.fovDeg * DEG, aspect: camera.aspect, viewportHeightPx: renderer.domElement.height }, s.sunBody);
+    // Real seconds ahead (capped for fast previews), so a held view (t=0, posters) loads nothing it
+    // won't reach; none once a resize has queued a reshoot. Built only when the planet asks.
+    const ahead = timeScale > 0 && !reshootPending ? () => {
+      const soon = new Date(date.getTime() + LOOKAHEAD_S * 1000 * Math.min(timeScale, 4));
+      const sAhead = sample(shot.orbit, soon);
+      const fAhead = bodyFrame(body, soon);
+      const vAhead = [vec.dot(sAhead.v, fAhead.x), vec.dot(sAhead.v, fAhead.y), vec.dot(sAhead.v, fAhead.z)];
+      return orbitCameraPose(sAhead.rBody, vAhead, body.radiusKm, cam.tiltDeg, cam.rollDeg);
+    } : undefined;
+    planet.update(pose, { fovYRad: cam.fovDeg * DEG, aspect: camera.aspect, viewportHeightPx: renderer.domElement.height }, s.sunBody, ahead);
 
     const sunW = toWorld(s.sunBody);
     sun.update(camera, sunW, earth?.update(camera, f, sunW, date));

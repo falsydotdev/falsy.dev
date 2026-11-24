@@ -104,6 +104,9 @@ export function selectTiles(cam: CameraPose, opts: SelectOptions): Selected[] {
   return out;
 }
 
+/** Tiles for the camera's pose this many seconds on load early, so detail is ready as the orbit closes in. */
+export const LOOKAHEAD_S = 5;
+
 // Many tiles share an ancestor this coarse, so it's a cheap fallback while a first view loads.
 const LEAN_FALLBACK_LEVEL = 4;
 
