@@ -23,7 +23,8 @@ const arg = (name, fallback) => {
 const SECONDS = arg('seconds', 90);
 const HEIGHT_PX = arg('height', 1440);
 const SHOTS = arg('shots', 12);
-// The renderer also loads for the pose this far ahead once the first view is in; 0 leaves that out.
+// The renderer also loads for the pose this far ahead once the view settles, capped and throttled;
+// counting all of it, uncapped, makes this an upper bound. 0 leaves it out.
 const LOOKAHEAD = arg('lookahead', LOOKAHEAD_S);
 const ASPECT = 16 / 9;
 const FOV = 50;

@@ -26,8 +26,8 @@ const FADE_MS = 600;
 // Lookahead tiles (the pose LOOKAHEAD_S on) load once the view has settled, at most this many at
 // once, so a sudden view change still has most slots for its own tiles;
 const LOOKAHEAD_IN_FLIGHT = 16;
-// and only while this many atlas layers stay free, since their arrivals never evict.
-const LOOKAHEAD_SPARE_LAYERS = 64;
+// and are chosen every this many frames, since the pose ahead barely moves in between.
+const LOOKAHEAD_EVERY_FRAMES = 6;
 // Records for tiles without GPU data are dropped after this many unused frames, so a long
 // session that keeps flying over new ground doesn't accumulate them.
 const RECORD_TTL_FRAMES = 600;
@@ -123,6 +123,7 @@ export class TiledPlanet {
     this.frame = 0;
     this.inFlight = 0;
     this.aheadInFlight = 0;
+    this.aheadStamp = 0;
     // Counts GPU uploads, so frame timing can skip frames that include them.
     this.writes = 0;
     this.texelBias = 1;
@@ -147,6 +148,8 @@ export class TiledPlanet {
     this.fadeAttr = new THREE.InstancedBufferAttribute(new Float32Array(MAX_INSTANCES * 2), 2);
     this.instanced = [this.tileAttr, ...this.layerAttrs, ...Object.values(this.fromAttrs), this.fadeAttr];
     for (const a of this.instanced) a.setUsage(THREE.DynamicDrawUsage);
+    // WebGPU guarantees 8 vertex buffers: these plus the grid's one. A fourth Earth layer needs interleaving.
+    if (this.instanced.length + 1 > 8) throw new Error(`Terrain needs ${this.instanced.length + 1} vertex buffers; WebGPU guarantees 8.`);
     const geo = tileGeometry();
     geo.instanceCount = 0;
     this.geometry = geo;
@@ -387,8 +390,8 @@ export class TiledPlanet {
       }
       const array = this.atlases[i];
       let layer = array.alloc();
-      // Only a tile the current view wants may evict; a lookahead arrival (stamped a frame back) drops.
-      if (layer < 0 && rec.lastUsed >= this.frame) layer = this.evict(i);
+      // A lookahead arrival may only evict tiles neither the view nor the lookahead still uses.
+      if (layer < 0) layer = this.evict(i, ahead ? this.aheadStamp : this.frame);
       if (layer < 0) {
         out.bitmap?.close();
         slot.state = 'idle';
@@ -409,12 +412,12 @@ export class TiledPlanet {
     resolve?.(data);
   }
 
-  /** Frees the least recently used atlas layer of tile layer `i` that this frame doesn't draw from. */
-  evict(i) {
+  /** Frees the least recently used atlas layer of tile layer `i` among tiles last used before frame `before`. */
+  evict(i, before = this.frame) {
     let victim = null;
     for (const r of this.records.values()) {
       const slot = r.slots[i];
-      if (slot.state !== 'ready' || r.lastUsed >= this.frame || r.key.level <= 1) continue;
+      if (slot.state !== 'ready' || r.lastUsed >= before || r.key.level <= 1) continue;
       if (!victim || r.lastUsed < victim.lastUsed) victim = r;
     }
     if (!victim) return -1;
@@ -530,15 +533,16 @@ export class TiledPlanet {
     };
     if (this.inFlight < MAX_IN_FLIGHT && idle.length) fetchIdle(idle, idleSlots, selected, () => this.inFlight >= MAX_IN_FLIGHT);
     // Lookahead stays out of `pending` and `settled()`, and waits for the current view to settle.
-    if (ahead && !this.lean && !idle.length && this.aheadInFlight < LOOKAHEAD_IN_FLIGHT && this.settled()) {
+    if (ahead && !this.lean && !idle.length && this.frame % LOOKAHEAD_EVERY_FRAMES === 0 && this.aheadInFlight < LOOKAHEAD_IN_FLIGHT && this.settled()) {
       const soon = selectTiles({ ...ahead, ...view }, opts);
       const aheadSlots = new Map();
+      this.aheadStamp = this.frame - 1;
       this.tileLayers.forEach((tileLayer, i) => {
-        if (this.atlases[i].free.length - this.aheadInFlight <= LOOKAHEAD_SPARE_LAYERS) return;
         for (const k of layerTilesFor(soon, tileLayer, { sunDir: this.sunDir, flatOcean: this.meta.flatOcean })) {
           const t = this.record(k);
-          // A frame back: evicted after anything the view used this frame, but before older tiles.
-          t.lastUsed = Math.max(t.lastUsed, this.frame - 1);
+          // Stamped a frame back: the view's arrivals evict it after anything the view used, and
+          // lookahead arrivals only evict tiles older than this pass.
+          t.lastUsed = Math.max(t.lastUsed, this.aheadStamp);
           if (t.slots[i].state !== 'idle') continue;
           if (!aheadSlots.has(t)) aheadSlots.set(t, new Set());
           aheadSlots.get(t).add(i);
