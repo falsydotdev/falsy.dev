@@ -295,8 +295,11 @@ export async function startLiveScene(host, opts) {
     pipeline.needsUpdate = true;
   };
   const sceneColor = scenePass.getTextureNode('output');
-  // Only the Sun clears the threshold: sunlit cloud and regolith (about 3) blooming read as a grey veil.
-  const bloomed = sceneColor.add(bloom(sceneColor, 0.35, 0.5, 4));
+  // Above sunlit cloud and regolith (about 3), whose bloom read as a grey veil: the Sun, its glare, and
+  // the brightest glint bloom, fading in over one unit so glint near the cutoff doesn't flicker.
+  const bloomPass = bloom(sceneColor, 0.35, 0.5, 4);
+  bloomPass.smoothWidth.value = 1;
+  const bloomed = sceneColor.add(bloomPass);
   pipeline.outputNode = blooms(tier) ? bloomed : sceneColor;
   setSamples();
 

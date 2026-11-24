@@ -285,17 +285,17 @@
       {
         "src": "/posters/mars-sunrise-960.avif",
         "width": 960,
-        "bytes": 3778
+        "bytes": 3522
       },
       {
         "src": "/posters/mars-sunrise-1600.avif",
         "width": 1600,
-        "bytes": 6835
+        "bytes": 6661
       },
       {
         "src": "/posters/mars-sunrise-2560.avif",
         "width": 2560,
-        "bytes": 11994
+        "bytes": 11019
       }
     ],
     "portrait": {
@@ -308,17 +308,17 @@
         {
           "src": "/posters/mars-sunrise-portrait-600.avif",
           "width": 600,
-          "bytes": 2421
+          "bytes": 2303
         },
         {
           "src": "/posters/mars-sunrise-portrait-800.avif",
           "width": 800,
-          "bytes": 3267
+          "bytes": 3146
         },
         {
           "src": "/posters/mars-sunrise-portrait-1170.avif",
           "width": 1170,
-          "bytes": 4730
+          "bytes": 4450
         }
       ]
     }
