@@ -27,9 +27,9 @@ const FADE_MS = 600;
 // once, so a sudden view change still has most slots for its own tiles;
 const LOOKAHEAD_IN_FLIGHT = 16;
 // and are chosen every this many frames, since the pose ahead barely moves in between. A lookahead
-// arrival with nowhere to go (the atlas full of tiles still in use) pauses it this many frames.
+// arrival with nowhere to go (the atlas full of tiles still in use) pauses it this long.
 const LOOKAHEAD_EVERY_FRAMES = 6;
-const LOOKAHEAD_PAUSE_FRAMES = 300;
+const LOOKAHEAD_PAUSE_MS = 5000;
 // Records for tiles without GPU data are dropped after this many unused frames, so a long
 // session that keeps flying over new ground doesn't accumulate them.
 const RECORD_TTL_FRAMES = 600;
@@ -394,8 +394,10 @@ export class TiledPlanet {
       const array = this.atlases[i];
       let layer = array.alloc();
       // A lookahead arrival may only evict tiles neither the view nor the lookahead still uses.
-      if (layer < 0) layer = this.evict(i, ahead ? this.aheadStamp : this.frame);
-      if (layer < 0 && ahead) this.aheadPausedUntil = this.frame + LOOKAHEAD_PAUSE_FRAMES;
+      // Decided on arrival: a lookahead tile the view has since reached evicts like the view's own.
+      const early = ahead && rec.lastUsed < this.frame;
+      if (layer < 0) layer = this.evict(i, early ? this.aheadStamp : this.frame);
+      if (layer < 0 && early) this.aheadPausedUntil = performance.now() + LOOKAHEAD_PAUSE_MS;
       if (layer < 0) {
         out.bitmap?.close();
         slot.state = 'idle';
@@ -532,13 +534,15 @@ export class TiledPlanet {
       const dist = new Map(picked.map((s) => [s.id, s.distanceKm]));
       records.sort((a, b) => a.key.level - b.key.level || (dist.get(a.id) ?? 0) - (dist.get(b.id) ?? 0));
       for (const r of records) {
-        if (full()) break;
-        for (const i of [...slots.get(r)].sort((a, b) => a - b)) this.fetchTile(r, i, ahead);
+        for (const i of [...slots.get(r)].sort((a, b) => a - b)) {
+          if (full()) return;
+          this.fetchTile(r, i, ahead);
+        }
       }
     };
     if (this.inFlight < MAX_IN_FLIGHT && idle.length) fetchIdle(idle, idleSlots, selected, () => this.inFlight >= MAX_IN_FLIGHT);
     // Lookahead stays out of `pending` and `settled()`, and waits for the current view to settle.
-    if (ahead && !this.lean && !idle.length && this.frame % LOOKAHEAD_EVERY_FRAMES === 0 && this.frame >= this.aheadPausedUntil && this.aheadInFlight < LOOKAHEAD_IN_FLIGHT && this.settled()) {
+    if (ahead && !this.lean && !idle.length && this.frame % LOOKAHEAD_EVERY_FRAMES === 0 && performance.now() >= this.aheadPausedUntil && this.aheadInFlight < LOOKAHEAD_IN_FLIGHT && this.settled()) {
       const soon = selectTiles({ ...ahead(), ...view }, opts);
       const aheadSlots = new Map();
       this.aheadStamp = this.frame - 1;

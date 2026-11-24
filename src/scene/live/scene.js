@@ -361,7 +361,7 @@ export async function startLiveScene(host, opts) {
     lastPose = pose;
     if (clouds) clouds.uniforms.pixelAngle.value = (cam.fovDeg * DEG) / renderer.domElement.height;
     // Real seconds ahead (capped for fast previews), so a held view (t=0, posters) loads nothing it
-    // won't reach; none while a cut to a new shot is due. Built only when the planet asks.
+    // won't reach; none once a resize has queued a reshoot. Built only when the planet asks.
     const ahead = timeScale > 0 && !reshootPending ? () => {
       const soon = new Date(date.getTime() + LOOKAHEAD_S * 1000 * Math.min(timeScale, 4));
       const sAhead = sample(shot.orbit, soon);
